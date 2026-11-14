@@ -79,6 +79,7 @@ This path has not been tested against a live database yet.
 - [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md): layers, module independence, sync design, API contract
 - [docs/SCIENTIFIC_METHODOLOGY.md](docs/SCIENTIFIC_METHODOLOGY.md): what is computed, how, and what is not claimed
 - [docs/DATA_DICTIONARY.md](docs/DATA_DICTIONARY.md): every field and metric
+- [docs/MEDVITAL_DATA_ANALYSIS_SPEC.md](docs/MEDVITAL_DATA_ANALYSIS_SPEC.md): researched measurements, units, formulas, data availability and analysis methods per domain
 - [docs/NASA_SOURCES.md](docs/NASA_SOURCES.md): candidate NASA sources (none ingested yet)
 - [docs/DECISIONS.md](docs/DECISIONS.md): decisions, open questions and known limitations
 - [CLAUDE.md](CLAUDE.md): rules for AI-assisted development in this repo
