@@ -47,6 +47,14 @@ Acceptable only because no real data exists and the API is local. Must be design
 ## D-015 Version pins follow the registry at build time
 `package.json` uses caret ranges of versions current on 2026-11-13 (Vite 8, Vitest 5, TypeScript 7, Tailwind 4.3, React 19.3). Python uses lower bounds only; installed: see `pip list`. Add a lock/constraints file before CI or release.
 
+## D-018 Cross-domain analysis engine as `medvital/analysis/` (not a health module)
+Descriptive stats, personal-baseline deviation, missingness/data-quality and statistical anomaly flags live in a peer package
+of `simulation/`, importing only `medvital.core`. It is not a `ModuleId`: it serves all four domains, so making it a module would
+break rule 5. Pure arithmetic in `analysis/calculations.py`; dependency rules in `tests/test_analysis_architecture.py`. No new
+dependency (NumPy/pandas already declared). `quality`/`device_id` are read with `getattr` so the engine works before and after the
+telemetry fields (proposal P-1) land. Numbered D-018 because D-016/D-017 are in use in an uncommitted working copy. Not yet
+exposed through the API (a route ⇒ OpenAPI regeneration + frontend mirror). Method: SCIENTIFIC_METHODOLOGY §9.
+
 ## Open questions
 
 * **Q-1 Offline computation parity.** Summaries are computed server-side only, so an offline client cannot show derived values. Options: port calculations to TypeScript with shared test vectors; run the Python in Pyodide/WASM; or cache the last server summary. Decide before building the dashboard.
