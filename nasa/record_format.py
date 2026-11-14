@@ -5,15 +5,15 @@ Shared format (confirm with the Spacecraft spot before changing anything):
 
     {
       "id":          "<unique string>",
-      "type":        "reading" | "alert" | "summary",
+      "type":        "reading" | "alert" | "summary" | "lab",
       "astronautId": "...",
       "time":        "<ISO 8601>",
       "data":        { ... }
     }
 
 The receiver, the mission record screen and the test scripts all go through
-this file. If the Spacecraft spot uses different names, change them HERE and
-nowhere else on the NASA side.
+this file. The spacecraft hub (backend/medvital/hub/service.py) writes exactly these
+names. If one ever changes, change it HERE and nowhere else on the NASA side.
 (sync.js only needs to know the name of the "id" field: RECORD_ID_FIELD.)
 """
 
@@ -32,6 +32,7 @@ FIELD_DATA = "data"
 TYPE_READING = "reading"
 TYPE_ALERT = "alert"
 TYPE_SUMMARY = "summary"
+TYPE_LAB = "lab"   # onboard blood and urine test results typed in at the MedVital station
 
 # ---------------------------------------------------------------------------
 # 2. Field names inside "data"
@@ -44,13 +45,17 @@ READING_SPO2 = "spo2"              # %
 READING_STATE = "state"            # awake | asleep | exercise | spacewalk
 READING_DOSE_RATE = "doseRate"     # µSv/h
 READING_TOTAL_DOSE = "totalDose"   # mSv, running total
+READING_QUALITY = "quality"        # valid | suspect | invalid (the spacecraft's double-check)
 
-# type "alert"   <-- ASSUMPTION: confirm these two names with the Spacecraft spot
+# type "alert"
 ALERT_CODE = "code"                # RETURN_NOW | CHECK_VITALS | INFO
 ALERT_MESSAGE = "message"          # the plain-language explanation
 
-# type "summary" <-- ASSUMPTION: confirm this name with the Spacecraft spot
+# type "summary"
 SUMMARY_TEXT = "text"              # the daily summary text
+
+# type "lab"
+LAB_VALUES = "values"              # {"urine.calciumMgDay": 250, "hemoglobin.gdl": 13.9, ...}
 
 # Alert codes (shared format)
 ALERT_RETURN_NOW = "RETURN_NOW"       # radiation or solar event
@@ -141,6 +146,7 @@ def reading_for_screen(data):
         "heartRate": _number(data.get(READING_HEART_RATE)),
         "spo2": _number(data.get(READING_SPO2)),
         "totalDose": _number(data.get(READING_TOTAL_DOSE)),
+        "quality": str(data.get(READING_QUALITY) or "valid"),
     }
 
 
@@ -157,3 +163,27 @@ def summary_for_screen(data):
     return {
         "text": str(data.get(SUMMARY_TEXT) or ""),
     }
+
+
+LAB_LABELS = {
+    "urine.calciumMgDay": ("Urinary calcium", "mg/day"),
+    "urine.volumeL": ("Urine volume", "L/day"),
+    "hemoglobin.gdl": ("Hemoglobin", "g/dL"),
+    "vitd.ngml": ("Vitamin D", "ng/mL"),
+    "bp.sys": ("Blood pressure, systolic", "mmHg"),
+    "bp.dia": ("Blood pressure, diastolic", "mmHg"),
+    "temp.c": ("Temperature", "°C"),
+}
+
+
+def lab_for_screen(data):
+    """Lab results as readable lines, e.g. "Urinary calcium 250 mg/day"."""
+    values = data.get(LAB_VALUES)
+    if not isinstance(values, dict):
+        return {"text": ""}
+    parts = []
+    for key, value in values.items():
+        label, unit = LAB_LABELS.get(key, (key, ""))
+        if _number(value) is not None:
+            parts.append(f"{label} {value:g} {unit}".strip())
+    return {"text": " · ".join(parts)}

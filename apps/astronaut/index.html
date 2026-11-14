@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#eef1f4">
+<title>MedVital station</title>
+<link rel="icon" href="/body/icon-180.png">
+<link rel="stylesheet" href="/apps/shared/base.css">
+<link rel="stylesheet" href="astronaut.css">
+</head>
+<body>
+
+<!-- Picker when no astronaut is chosen -->
+<main id="picker" class="picker" hidden>
+  <h1>Who is wearing this?</h1>
+  <p>Each browser tab is one astronaut's wearable and MedVital station.</p>
+  <div id="pickList" class="pick-list"></div>
+</main>
+
+<div id="station" class="station" hidden>
+  <header class="top">
+    <div class="who">
+      <h1 id="name">Astronaut</h1>
+      <p id="role" class="role"></p>
+    </div>
+    <div class="status">
+      <span id="link" class="pill">Connecting…</span>
+      <span id="wx" class="pill quiet">Space weather: quiet</span>
+    </div>
+  </header>
+
+  <!-- The wearable: what the device on the wrist is sending -->
+  <section class="wearable" aria-labelledby="wearTitle">
+    <div class="wear-head">
+      <h2 id="wearTitle">Wearable</h2>
+      <span id="wearState" class="wear-state">Off</span>
+      <span id="wearCount" class="wear-count"></span>
+      <button id="power" class="power">Put on wearable</button>
+    </div>
+    <div class="scenarios" role="group" aria-label="Scenario">
+      <button data-scenario="normal" aria-pressed="true"><kbd>1</kbd>Normal</button>
+      <button data-scenario="sleep" aria-pressed="false"><kbd>2</kbd>Sleep</button>
+      <button data-scenario="exercise" aria-pressed="false"><kbd>3</kbd>Exercise</button>
+      <button data-scenario="spacewalk" aria-pressed="false"><kbd>4</kbd>Spacewalk</button>
+      <button data-scenario="hr_spike" aria-pressed="false"><kbd>5</kbd>Heart-rate spike</button>
+      <button id="solarKey" class="solar"><kbd>6</kbd>Solar event</button>
+      <span class="sep" aria-hidden="true"></span>
+      <button id="glitchKey" class="ghost" title="Send one impossible reading"><kbd>G</kbd>Sensor glitch</button>
+      <button id="tamperKey" class="ghost" title="Send one burst with a wrong device key"><kbd>T</kbd>Fake device</button>
+    </div>
+    <p id="sending" class="sending">Press "Put on wearable" to start sending a burst every 5 seconds.</p>
+  </section>
+
+  <!-- The MedVital station -->
+  <section class="vitals">
+    <article class="vital heart">
+      <h2>Heart rate</h2>
+      <p class="big"><span id="hr">–</span><small>bpm</small></p>
+      <p id="hrBase" class="base"></p>
+      <canvas id="hrChart" aria-label="Heart rate over the last readings, with your personal range"></canvas>
+    </article>
+    <article class="vital oxygen">
+      <h2>Blood oxygen</h2>
+      <p class="big"><span id="spo2">–</span><small>%</small></p>
+      <p id="spo2Base" class="base"></p>
+      <canvas id="spo2Chart" aria-label="Blood oxygen over the last readings"></canvas>
+    </article>
+    <article class="vital radiation">
+      <h2>Radiation</h2>
+      <div class="gauges">
+        <figure class="gauge" id="gEva"><svg viewBox="0 0 120 120" aria-hidden="true"><circle class="track" cx="60" cy="60" r="50"/><circle class="fill" cx="60" cy="60" r="50"/></svg><figcaption><b>–</b><span>this spacewalk</span></figcaption></figure>
+        <figure class="gauge" id="gEvent"><svg viewBox="0 0 120 120" aria-hidden="true"><circle class="track" cx="60" cy="60" r="50"/><circle class="fill" cx="60" cy="60" r="50"/></svg><figcaption><b>–</b><span>solar event</span></figcaption></figure>
+        <figure class="gauge" id="gCareer"><svg viewBox="0 0 120 120" aria-hidden="true"><circle class="track" cx="60" cy="60" r="50"/><circle class="fill" cx="60" cy="60" r="50"/></svg><figcaption><b>–</b><span>career</span></figcaption></figure>
+      </div>
+      <p id="radLine" class="base"></p>
+    </article>
+  </section>
+
+  <section class="lower">
+    <article class="card body-card">
+      <h2>Body status</h2>
+      <svg id="body" class="body" viewBox="0 0 200 330" role="img" aria-label="Body status">
+        <g class="zone" id="zRad"><path d="M100 4c-40 0-62 30-66 66l-8 120c-2 40 8 70 20 96l8 40h92l8-40c12-26 22-56 20-96l-8-120C162 34 140 4 100 4z" fill="none" stroke-width="3" stroke-dasharray="6 7"/></g>
+        <g class="zone" id="zSleep"><circle cx="100" cy="42" r="24"/></g>
+        <g class="outline"><path d="M86 68h28v14l26 8c8 3 12 9 13 17l8 70c1 6-4 10-9 8l-10-4-6-54v74l8 112h-22l-10-100h-4l-10 100H71l8-112v-74l-6 54-10 4c-5 2-10-2-9-8l8-70c1-8 5-14 13-17l26-8z"/></g>
+        <g class="zone" id="zHeart"><path d="M108 112c6-8 18-4 16 6-2 8-16 18-16 18s-14-10-16-18c-2-10 10-14 16-6z"/></g>
+        <g class="zone" id="zBone"><path d="M84 182h32l-2 10H86zM82 222l5 0 4 70h-6zM113 222h5l-3 70h-6z"/></g>
+      </svg>
+      <ul class="legend">
+        <li id="lHeart"><i></i><span>Heart</span><b></b></li>
+        <li id="lBone"><i></i><span>Bones and muscle</span><b></b></li>
+        <li id="lRad"><i></i><span>Radiation</span><b></b></li>
+        <li id="lSleep"><i></i><span>Sleep and stress</span><b></b></li>
+      </ul>
+      <a id="body3d" class="body3d" target="_blank">Open the 3D body scan</a>
+    </article>
+
+    <article class="card">
+      <h2>Today</h2>
+      <div id="summary" class="summary"><p class="empty">Your daily summary appears at the end of each mission day (48 bursts, about 4 minutes in the demo).</p></div>
+      <button id="writeSummary" class="text-btn">Write today's summary now</button>
+    </article>
+
+    <article class="card">
+      <h2>Onboard tests</h2>
+      <p class="hint">Enter the results of the blood and urine tests you take on board. They track bone loss, which the wearable cannot measure.</p>
+      <form id="labs" class="labs">
+        <label>Urinary calcium <span>mg/day</span><input name="urine.calciumMgDay" type="number" step="1" min="0" inputmode="decimal"></label>
+        <label>Urine volume <span>L/day</span><input name="urine.volumeL" type="number" step="0.1" min="0" inputmode="decimal"></label>
+        <label>Hemoglobin <span>g/dL</span><input name="hemoglobin.gdl" type="number" step="0.1" min="0" inputmode="decimal"></label>
+        <label>Vitamin D <span>ng/mL</span><input name="vitd.ngml" type="number" step="1" min="0" inputmode="decimal"></label>
+        <button type="submit">Send results</button>
+        <p id="labsMsg" class="form-msg" role="status"></p>
+      </form>
+    </article>
+
+    <article class="card ask-card">
+      <h2>Ask MedVital</h2>
+      <div id="chat" class="chat" aria-live="polite"></div>
+      <div class="chips" id="chips"></div>
+      <form id="ask" class="ask">
+        <input id="q" placeholder="Ask about your heart, radiation, sleep…" autocomplete="off" aria-label="Your question">
+        <button type="submit">Ask</button>
+      </form>
+    </article>
+  </section>
+</div>
+
+<!-- Full-screen alert -->
+<div id="alert" class="alert" hidden role="alertdialog" aria-live="assertive" aria-labelledby="alertCode">
+  <div class="alert-inner">
+    <p id="alertCode" class="alert-code"></p>
+    <p id="alertMsg" class="alert-msg"></p>
+    <p id="alertPattern" class="alert-pattern"></p>
+    <button id="alertAck">OK</button>
+  </div>
+</div>
+
+<script type="module" src="astronaut.js"></script>
+</body>
+</html>

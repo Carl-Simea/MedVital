@@ -1,7 +1,7 @@
 """
 app.py - MedVital, Spot 3 (NASA): the NASA receiver.
 
-Run it:   python app.py
+Run it:   python app.py          (or python start.py at the repo root, which starts everything)
 
 Endpoints
   POST /batch   the spacecraft sends {"records": [...]}, NASA answers {"saved": [ids]}
@@ -25,10 +25,12 @@ import record_format as fmt   # the ONE place that knows the record shape
 # ---------------------------------------------------------------------------
 # Settings
 # ---------------------------------------------------------------------------
-HOST = "127.0.0.1"   # only this laptop; the Cloudflare Tunnel connects locally
-PORT = 5000          # the tunnel command in the README points at this port
+# start.py sets these; the defaults are for running this file on its own.
+HOST = os.environ.get("MEDVITAL_NASA_HOST", "127.0.0.1")   # 0.0.0.0 = reachable from the other laptops
+PORT = int(os.environ.get("MEDVITAL_NASA_PORT", "5000"))
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-DB_PATH = os.path.join(BASE_DIR, "mission.db")   # delete this file to start a clean mission
+# delete this file (or run start.py --fresh) to start a clean mission
+DB_PATH = os.environ.get("MEDVITAL_NASA_DB", os.path.join(BASE_DIR, "mission.db"))
 
 app = Flask(__name__)
 
@@ -188,6 +190,12 @@ def mission_record_screen():
     return send_from_directory(BASE_DIR, "mission_record.html")
 
 
+@app.get("/vendor/<path:name>")
+def vendor(name):
+    """Chart.js, served locally so the screen works without internet."""
+    return send_from_directory(os.path.join(BASE_DIR, "vendor"), name)
+
+
 @app.get("/records")
 def records_for_screen():
     """Every saved record, grouped per astronaut, in the form the screen draws."""
@@ -208,22 +216,30 @@ def records_for_screen():
 
         astronaut = astronauts.setdefault(
             record["astronaut_id"],
-            {"id": record["astronaut_id"], "readings": [], "alerts": [], "summaries": [], "totalDose": None},
+            {"id": record["astronaut_id"], "readings": [], "alerts": [], "summaries": [], "labs": [],
+             "totalDose": None, "flagged": 0},
         )
         if record["type"] == fmt.TYPE_READING:
-            astronaut["readings"].append({"t": t, **fmt.reading_for_screen(record["data"])})
+            reading = fmt.reading_for_screen(record["data"])
+            if reading["quality"] != "valid":
+                astronaut["flagged"] += 1   # the spacecraft flagged it (sensor glitch?): kept, not charted
+                continue
+            astronaut["readings"].append({"t": t, **reading})
         elif record["type"] == fmt.TYPE_ALERT:
             astronaut["alerts"].append({"t": t, **fmt.alert_for_screen(record["data"])})
         elif record["type"] == fmt.TYPE_SUMMARY:
             astronaut["summaries"].append({"t": t, **fmt.summary_for_screen(record["data"])})
+        elif record["type"] == fmt.TYPE_LAB:
+            astronaut["labs"].append({"t": t, **fmt.lab_for_screen(record["data"])})
         # any other type is still saved and counted in /stats, just not drawn
 
     for astronaut in astronauts.values():
         # Sort by time. Records with the same time keep their arrival order.
-        for name in ("readings", "alerts", "summaries"):
+        for name in ("readings", "alerts", "summaries", "labs"):
             astronaut[name].sort(key=lambda item: item["t"])   # oldest first (the chart wants this)
         astronaut["alerts"].reverse()                          # newest first
         astronaut["summaries"].reverse()                       # newest first
+        astronaut["labs"].reverse()                            # newest first
         # Total radiation dose = the running total in the astronaut's latest reading.
         for reading in reversed(astronaut["readings"]):
             if reading["totalDose"] is not None:

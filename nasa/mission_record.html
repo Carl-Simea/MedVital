@@ -4,8 +4,8 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>MedVital mission record</title>
-<!-- Chart.js draws the line charts. No build step: it comes straight from a CDN. -->
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.6.1/dist/chart.umd.min.js"></script>
+<!-- Chart.js draws the line charts. No build step: a copy ships in vendor/ so the demo works offline. -->
+<script src="/vendor/chart.umd.js"></script>
 <style>
   :root {
     --page: #f3f4f6;
@@ -186,7 +186,7 @@ document.getElementById("link-button").addEventListener("click", async () => {
     });
     drawLink((await response.json()).up);
   } catch (error) {
-    showNotice("Could not change the link. Is the NASA receiver (python app.py) still running?");
+    showNotice("Could not change the link. Is the NASA receiver (python start.py) still running?");
     button.disabled = false;
   }
 });
@@ -287,14 +287,17 @@ function makePanel(id) {
   const alerts = el("ul", "list");
   const summariesTitle = el("h3", "", "Daily summaries");
   const summaries = el("ul", "list");
+  const labsTitle = el("h3", "", "Onboard lab results (bone loss)");
+  const labs = el("ul", "list");
+  const flagged = el("p", "empty", "");
 
-  section.append(head, chartTitle, chartBox, alertsTitle, alerts, summariesTitle, summaries);
+  section.append(head, chartTitle, chartBox, flagged, alertsTitle, alerts, summariesTitle, summaries, labsTitle, labs);
 
   let chart = null;
   if (window.Chart) chart = makeChart(canvas);
   else chartBox.replaceChildren(el("p", "empty", "The chart library did not load (no internet?). Everything else on this page still works."));
 
-  return { section, doseNumber, chart, alerts, summaries, alertsTitle, summariesTitle };
+  return { section, doseNumber, chart, alerts, summaries, alertsTitle, summariesTitle, labs, labsTitle, flagged };
 }
 
 function drawAstronaut(panel, astronaut) {
@@ -327,6 +330,20 @@ function drawAstronaut(panel, astronaut) {
     return item;
   }));
   if (astronaut.summaries.length === 0) panel.summaries.replaceChildren(el("li", "empty", "No daily summaries received yet."));
+
+  // lab results typed in at the MedVital station, newest first
+  panel.labsTitle.textContent = "Onboard lab results (" + astronaut.labs.length + ")";
+  panel.labs.replaceChildren(...astronaut.labs.map((lab) => {
+    const item = el("li", "summary");
+    item.append(el("span", "when", formatWhen(lab.t)), el("div", "", lab.text));
+    return item;
+  }));
+  if (astronaut.labs.length === 0) panel.labs.replaceChildren(el("li", "empty", "No lab results received yet."));
+
+  // readings the spacecraft's double-check flagged (possible sensor glitches) are saved but not charted
+  panel.flagged.textContent = astronaut.flagged
+    ? astronaut.flagged + " reading(s) flagged by the spacecraft's double-check (possible sensor glitch): saved, not charted."
+    : "";
 }
 
 // ---------- refresh loop ----------
@@ -356,7 +373,7 @@ async function refresh() {
     }
     showNotice(record.astronauts.length === 0 ? "No records yet. They appear here as soon as the spacecraft syncs." : "");
   } catch (error) {
-    showNotice("Cannot reach the NASA receiver. Is python app.py still running? Trying again every few seconds.");
+    showNotice("Cannot reach the NASA receiver. Is the NASA receiver (python start.py) still running? Trying again every few seconds.");
   } finally {
     busy = false;
   }

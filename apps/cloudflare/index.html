@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Spacecraft hub · MedVital</title>
+<link rel="icon" href="/body/icon-180.png">
+<link rel="stylesheet" href="/apps/shared/base.css">
+<link rel="stylesheet" href="cloudflare.css">
+</head>
+<body>
+<header class="bar">
+  <div class="title">
+    <h1>Spacecraft hub</h1>
+    <p>Every connection on board goes through the Cloudflare private network. This screen shows the traffic as it happens.</p>
+  </div>
+  <div class="stats">
+    <div class="stat"><b id="sBursts">0</b><span>bursts stored</span></div>
+    <div class="stat"><b id="sOutbox">0</b><span>waiting in the outbox</span></div>
+    <div class="stat"><b id="sNasa">–</b><span>confirmed by NASA</span></div>
+    <div class="stat"><b id="sBlocked">0</b><span>blocked at the network</span></div>
+  </div>
+  <div class="link-box">
+    <span id="linkState" class="link-state">Link to Earth: …</span>
+    <button id="linkBtn" class="link-btn" disabled>…</button>
+  </div>
+</header>
+
+<main class="main">
+  <section class="schematic" aria-label="Live network diagram">
+    <svg id="net" viewBox="0 0 1100 430" role="img" aria-label="Wearables, Cloudflare private network, Worker, D1, Workers AI, onboard agent, outbox, link to Earth, NASA">
+      <defs>
+        <pattern id="grid" width="20" height="20" patternUnits="userSpaceOnUse"><path d="M20 0H0V20" fill="none" stroke="#2c5d8c" stroke-width="0.6"/></pattern>
+      </defs>
+      <rect width="1100" height="430" fill="url(#grid)"/>
+      <rect x="200" y="22" width="590" height="400" rx="10" class="cf-zone"/>
+      <text x="214" y="44" class="zone-label">Cloudflare on the spacecraft</text>
+      <g id="edges"></g>
+      <g id="nodes"></g>
+      <g id="packets"></g>
+    </svg>
+    <div class="actions">
+      <button id="replay" class="act storm">Replay solar event</button>
+      <button id="refreshWx" class="act">Pull DONKI now</button>
+      <button id="syncNow" class="act">Sync now</button>
+      <span id="actMsg" class="act-msg" role="status"></span>
+    </div>
+  </section>
+
+  <aside class="log-box" aria-label="Traffic log">
+    <h2>Traffic</h2>
+    <ol id="log" class="log"></ol>
+  </aside>
+</main>
+
+<nav class="tabs" role="tablist">
+  <button role="tab" data-tab="crew" aria-selected="true">Crew overview</button>
+  <button role="tab" data-tab="verify" aria-selected="false">Verify</button>
+  <button role="tab" data-tab="db" aria-selected="false">Database</button>
+  <button role="tab" data-tab="wx" aria-selected="false">Space weather</button>
+  <span id="aiState" class="ai-state"></span>
+</nav>
+
+<section class="pane" id="pane-crew"><div id="crew" class="crew"></div></section>
+<section class="pane" id="pane-verify" hidden>
+  <p class="pane-lede">The double-check across every hop. Each wearable numbers its bursts; the hub stores them, turns them into records for Earth, and NASA confirms each record id it saved.</p>
+  <table class="grid-table" id="verify"></table>
+  <p id="verifyNote" class="pane-lede"></p>
+</section>
+<section class="pane" id="pane-db" hidden>
+  <div id="dbTabs" class="db-tabs"></div>
+  <div class="table-wrap"><table class="grid-table" id="dbTable"></table></div>
+</section>
+<section class="pane" id="pane-wx" hidden><ul id="wxList" class="wx-list"></ul></section>
+
+<script type="module" src="cloudflare.js"></script>
+</body>
+</html>

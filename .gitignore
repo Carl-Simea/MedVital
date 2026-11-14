@@ -36,3 +36,8 @@ pgdata/
 
 # Acquired source files (stored by checksum; redistribution rights unverified)
 data/raw/
+
+# MedVital mission data (start.py)
+runtime/
+nasa/mission.db
+body-dashboard/feedback/

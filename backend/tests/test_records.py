@@ -1,5 +1,6 @@
-"""Backend records: generic document store, missions, references, environmental events, artifacts,
-RETURN_NOW commands, rule findings, AI explanations and the accepted-write audit."""
+"""Mission records, commands, findings and registry validation.
+
+Merged from: test_records.py, test_registry_validation.py."""
 
 import sqlite3
 from datetime import UTC, datetime, timedelta
@@ -9,6 +10,7 @@ import pytest
 from pydantic import ValidationError
 
 from conftest import make_obs, measured_provenance
+from medvital.core.module_spec import ObservationRejected
 from medvital.core.records import (
     AIExplanation,
     CommandStatus,
@@ -23,7 +25,7 @@ from medvital.core.records import (
     SourceArtifact,
 )
 from medvital.core.reference import PublishedReference, ReferencePopulation, Verification
-from medvital.core.schema import DataOrigin, Provenance
+from medvital.core.schema import DataOrigin, ModuleId, Provenance
 from medvital.db.repository import AddStatus, InMemoryObservationRepository
 from medvital.db.sqlite import SqliteObservationRepository
 from medvital.ingest import ingest_observation
@@ -41,6 +43,8 @@ from medvital.records_service import (
     transition_command,
 )
 from medvital.registry import build_registry
+
+# ---------------------------------------------------------------------- from test_records.py
 
 T = datetime(2030, 3, 1, 12, tzinfo=UTC)
 SURGEON = HumanIssuer(principal_id="auth0|surgeon1", display_name="Flight Surgeon", role="flight_surgeon")
@@ -442,3 +446,61 @@ def test_telemetry_writes_are_audited(client):
     repo = client.app.state.repository
     (entry,) = repo.list_writes()
     assert entry.channel == "telemetry" and entry.device_id == "W1"
+
+
+# ---------------------------------------------------------------------- from test_registry_validation.py
+
+@pytest.fixture(scope="module")
+def registry():
+    return build_registry()
+
+
+def test_all_four_modules_registered(registry):
+    assert [m.module_id for m in registry.modules()] == [
+        ModuleId.BEHAVIORAL,
+        ModuleId.BONE,
+        ModuleId.CARDIOVASCULAR,
+        ModuleId.RADIATION,
+    ]
+
+
+def test_accepts_valid(registry):
+    registry.validate(make_obs())
+
+
+def test_rejects_unknown_metric(registry):
+    with pytest.raises(ObservationRejected, match="unknown metric"):
+        registry.validate(make_obs("radiation.made_up", unit="mGy", module=ModuleId.RADIATION))
+
+
+def test_rejects_wrong_unit(registry):
+    with pytest.raises(ObservationRejected, match="canonical unit"):
+        registry.validate(make_obs(unit="rad"))
+
+
+def test_rejects_negative_dose(registry):
+    with pytest.raises(ObservationRejected, match="negative"):
+        registry.validate(make_obs(value=-0.1))
+
+
+def test_requires_instrument_for_self_report(registry):
+    with pytest.raises(ObservationRejected, match="requires context"):
+        registry.validate(make_obs("behavioral.self_report_score", 3.0))
+    registry.validate(make_obs("behavioral.self_report_score", 3.0, context={"instrument": "X"}))
+
+
+def test_rejects_undeclared_context_key(registry):
+    with pytest.raises(ObservationRejected, match="does not accept context"):
+        registry.validate(make_obs(context={"colour": "red"}))
+
+
+def test_no_clinical_thresholds_in_definitions(registry):
+    """Metric definitions may only carry physical-plausibility flags, never clinical limits."""
+    from dataclasses import fields
+
+    from medvital.core.module_spec import MetricDefinition
+
+    assert {f.name for f in fields(MetricDefinition)} == {
+        "metric", "module", "unit", "description", "non_negative", "required_context", "optional_context",
+        "unit_aliases",  # accepted wire spellings of the same unit; identity conversion, not a threshold
+    }
