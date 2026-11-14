@@ -49,3 +49,30 @@ CREATE TRIGGER observations_no_update_delete
 -- so a long-running transaction can commit a lower server_seq after a higher one is already
 -- visible. Writers must insert in short transactions (one per push batch), and clients keep
 -- pulling idempotently; see docs/ARCHITECTURE.md §5.4.
+
+-- Measurement schedules (milestone M2). Same contract as observations: append-only,
+-- idempotent by id + fingerprint, revisions via `supersedes`. Design only: not yet executed
+-- against a PostgreSQL server (see docs/DECISIONS.md D-006).
+CREATE TABLE IF NOT EXISTS measurement_schedules (
+    schedule_seq  BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    id            UUID NOT NULL UNIQUE,
+    fingerprint   CHAR(64) NOT NULL,
+    subject_id    TEXT NOT NULL,
+    metric        TEXT NOT NULL,
+    supersedes    UUID,
+    received_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
+    payload       JSONB NOT NULL
+);
+CREATE INDEX IF NOT EXISTS measurement_schedules_subject_metric
+    ON measurement_schedules (subject_id, metric);
+
+CREATE OR REPLACE FUNCTION measurement_schedules_immutable() RETURNS trigger AS $$
+BEGIN
+    RAISE EXCEPTION 'measurement schedules are append-only (% blocked)', TG_OP;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS measurement_schedules_no_update_delete ON measurement_schedules;
+CREATE TRIGGER measurement_schedules_no_update_delete
+    BEFORE UPDATE OR DELETE ON measurement_schedules
+    FOR EACH ROW EXECUTE FUNCTION measurement_schedules_immutable();

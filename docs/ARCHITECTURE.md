@@ -71,6 +71,11 @@ by `backend/scripts/export_openapi.py` and verified by a test. Interactive docs 
 | `GET /api/v1/observations` | query by subject, module, origin, time window |
 | `POST /api/v1/sync/push` | offline outbox upload (≤ 500 mutations), idempotent |
 | `GET /api/v1/sync/pull?cursor=&limit=` | server changes after a cursor |
+| `POST /api/v1/schedules` | store a measurement schedule (immutable; revise via `supersedes`; per-item `accepted`/`duplicate`/`rejected`) |
+| `GET /api/v1/schedules?subject_id=&metric=&current_only=` | list schedules |
+| `GET /api/v1/schedules/{id}` | one schedule (404 if unknown) |
+| `GET /api/v1/schedules/{id}/resolve?launch_at=&return_at=` | planned times for a mission (modeled timestamps) |
+| `GET /api/v1/schedules/{id}/coverage?launch_at=&return_at=` | planned windows vs. stored observations, per data origin |
 
 Error semantics: structurally invalid body → `422` for the whole request; semantically
 invalid or conflicting item → `200` with that item `rejected` and a reason. Unknown module → `422`.

@@ -4,11 +4,12 @@ from __future__ import annotations
 
 from datetime import datetime
 from typing import Annotated
+from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 
 from medvital import __version__
-from medvital.api.deps import get_registry, get_repository
+from medvital.api.deps import get_registry, get_repository, get_schedule_repository
 from medvital.api.schemas import (
     HealthResponse,
     MetricInfo,
@@ -21,6 +22,14 @@ from medvital.api.schemas import (
     TelemetryBatch,
 )
 from medvital.core.module_spec import ModuleRegistry
+from medvital.core.schedule import (
+    MeasurementSchedule,
+    MissionWindow,
+    ResolvedEvent,
+    ScheduleCoverage,
+    resolve_schedule,
+    schedule_coverage,
+)
 from medvital.core.schema import DataOrigin, HealthObservation, ModuleId, SubjectId
 from medvital.core.summary import ModuleSummary
 from medvital.core.sync import (
@@ -31,9 +40,10 @@ from medvital.core.sync import (
     SyncPushResponse,
 )
 from medvital.core.telemetry import TelemetryEvent, TelemetryResponse
-from medvital.db.repository import ObservationRepository
+from medvital.db.repository import ObservationRepository, ScheduleRepository
 from medvital.ingest import ingest_observation
 from medvital.live import LiveResponse, build_live
+from medvital.schedules import ScheduleWriteResult, store_schedule
 from medvital.simulation.generator import generate_observations
 from medvital.simulation.profiles import SIMULATED_PROFILES, SimulatedAstronautProfile, get_profile
 from medvital.telemetry import ingest_telemetry
@@ -42,6 +52,7 @@ router = APIRouter(prefix="/api/v1")
 
 Repo = Annotated[ObservationRepository, Depends(get_repository)]
 Registry = Annotated[ModuleRegistry, Depends(get_registry)]
+Schedules = Annotated[ScheduleRepository, Depends(get_schedule_repository)]
 
 
 @router.get("/health", response_model=HealthResponse, tags=["system"])
@@ -214,3 +225,67 @@ def sync_pull(
         next_cursor=next_cursor,
         has_more=has_more,
     )
+
+
+# --------------------------------------------------------------------------- measurement schedules
+
+
+def _mission(launch_at: datetime, return_at: datetime) -> MissionWindow:
+    try:
+        return MissionWindow(launch_at=launch_at, return_at=return_at)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+
+def _schedule_or_404(schedules: ScheduleRepository, schedule_id: UUID) -> MeasurementSchedule:
+    schedule = schedules.get_schedule(schedule_id)
+    if schedule is None:
+        raise HTTPException(status_code=404, detail="schedule not found")
+    return schedule
+
+
+@router.post("/schedules", response_model=ScheduleWriteResult, tags=["schedules"])
+def post_schedule(body: MeasurementSchedule, schedules: Schedules, registry: Registry) -> ScheduleWriteResult:
+    """Store a measurement plan (immutable; revise with ``supersedes``). Rejections are reported."""
+    return store_schedule(schedules, registry, body)
+
+
+@router.get("/schedules", response_model=list[MeasurementSchedule], tags=["schedules"])
+def list_schedules(
+    schedules: Schedules,
+    subject_id: SubjectId | None = None,
+    metric: str | None = None,
+    current_only: bool = False,
+) -> list[MeasurementSchedule]:
+    return schedules.list_schedules(subject_id=subject_id, metric=metric, current_only=current_only)
+
+
+@router.get("/schedules/{schedule_id}", response_model=MeasurementSchedule, tags=["schedules"])
+def read_schedule(schedule_id: UUID, schedules: Schedules) -> MeasurementSchedule:
+    return _schedule_or_404(schedules, schedule_id)
+
+
+@router.get("/schedules/{schedule_id}/resolve", response_model=list[ResolvedEvent], tags=["schedules"])
+def resolve(
+    schedule_id: UUID, schedules: Schedules, launch_at: datetime, return_at: datetime
+) -> list[ResolvedEvent]:
+    """Planned times for a mission. Resolved times are modeled (anchor + offset), not observations."""
+    schedule = _schedule_or_404(schedules, schedule_id)
+    try:
+        return resolve_schedule(schedule, _mission(launch_at, return_at))
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+
+@router.get("/schedules/{schedule_id}/coverage", response_model=ScheduleCoverage, tags=["schedules"])
+def coverage(
+    schedule_id: UUID, schedules: Schedules, repo: Repo, launch_at: datetime, return_at: datetime
+) -> ScheduleCoverage:
+    """Which planned windows contain observations, per data origin. Nothing is imputed."""
+    schedule = _schedule_or_404(schedules, schedule_id)
+    try:
+        resolved = resolve_schedule(schedule, _mission(launch_at, return_at))
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    observations = repo.query(subject_id=schedule.subject_id, module=schedule.module, limit=100_000)
+    return schedule_coverage(schedule, resolved, observations)

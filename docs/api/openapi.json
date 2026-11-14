@@ -1,6 +1,14 @@
 {
   "components": {
     "schemas": {
+      "Anchor": {
+        "enum": [
+          "launch",
+          "return"
+        ],
+        "title": "Anchor",
+        "type": "string"
+      },
       "DataOrigin": {
         "description": "What kind of thing a value is. Never merge across origins implicitly.",
         "enum": [
@@ -70,6 +78,28 @@
           "input_count"
         ],
         "title": "DerivedValue",
+        "type": "object"
+      },
+      "EventCoverage": {
+        "additionalProperties": false,
+        "properties": {
+          "event": {
+            "$ref": "#/components/schemas/ResolvedEvent"
+          },
+          "observed_counts": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "description": "Observations inside the window, per data origin.",
+            "title": "Observed Counts",
+            "type": "object"
+          }
+        },
+        "required": [
+          "event",
+          "observed_counts"
+        ],
+        "title": "EventCoverage",
         "type": "object"
       },
       "HTTPValidationError": {
@@ -347,6 +377,134 @@
         "title": "LiveTotals",
         "type": "object"
       },
+      "MeasurementSchedule": {
+        "additionalProperties": false,
+        "properties": {
+          "basis": {
+            "$ref": "#/components/schemas/ScheduleBasis"
+          },
+          "context": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "description": "Same keys as the metric's context.",
+            "title": "Context",
+            "type": "object"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "events": {
+            "items": {
+              "discriminator": {
+                "mapping": {
+                  "recurring": "#/components/schemas/RecurringTimepoints",
+                  "single": "#/components/schemas/SingleTimepoint"
+                },
+                "propertyName": "kind"
+              },
+              "oneOf": [
+                {
+                  "$ref": "#/components/schemas/SingleTimepoint"
+                },
+                {
+                  "$ref": "#/components/schemas/RecurringTimepoints"
+                }
+              ]
+            },
+            "maxItems": 200,
+            "minItems": 1,
+            "title": "Events",
+            "type": "array"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "method": {
+            "description": "Measurement method, e.g. 'DXA', 'actigraphy', 'questionnaire'.",
+            "maxLength": 256,
+            "minLength": 1,
+            "title": "Method",
+            "type": "string"
+          },
+          "metric": {
+            "pattern": "^[a-z][a-z0-9_]*\\.[a-z][a-z0-9_]*$",
+            "title": "Metric",
+            "type": "string"
+          },
+          "notes": {
+            "anyOf": [
+              {
+                "maxLength": 2000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Notes"
+          },
+          "schema_version": {
+            "default": 1,
+            "title": "Schema Version",
+            "type": "integer"
+          },
+          "source": {
+            "description": "Who/what defined this plan.",
+            "maxLength": 256,
+            "minLength": 1,
+            "title": "Source",
+            "type": "string"
+          },
+          "source_ref": {
+            "anyOf": [
+              {
+                "maxLength": 256,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Protocol document, DOI or URL.",
+            "title": "Source Ref"
+          },
+          "subject_id": {
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]{0,63}$",
+            "title": "Subject Id",
+            "type": "string"
+          },
+          "supersedes": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Supersedes"
+          }
+        },
+        "required": [
+          "id",
+          "subject_id",
+          "metric",
+          "method",
+          "events",
+          "basis",
+          "source",
+          "created_at"
+        ],
+        "title": "MeasurementSchedule",
+        "type": "object"
+      },
       "MetricInfo": {
         "properties": {
           "description": {
@@ -463,6 +621,15 @@
         ],
         "title": "MetricSummary",
         "type": "object"
+      },
+      "MissionPhase": {
+        "enum": [
+          "preflight",
+          "inflight",
+          "postflight"
+        ],
+        "title": "MissionPhase",
+        "type": "string"
       },
       "ModuleId": {
         "description": "The four independent health modules.",
@@ -785,6 +952,71 @@
         "title": "Quality",
         "type": "string"
       },
+      "RecurringTimepoints": {
+        "additionalProperties": false,
+        "description": "Every ``every_days`` from (start_anchor + start_offset) to (end_anchor + end_offset), inclusive.",
+        "properties": {
+          "end_anchor": {
+            "$ref": "#/components/schemas/Anchor"
+          },
+          "end_offset_days": {
+            "maximum": 3650.0,
+            "minimum": -3650.0,
+            "title": "End Offset Days",
+            "type": "integer"
+          },
+          "every_days": {
+            "maximum": 365.0,
+            "minimum": 1.0,
+            "title": "Every Days",
+            "type": "integer"
+          },
+          "kind": {
+            "const": "recurring",
+            "default": "recurring",
+            "title": "Kind",
+            "type": "string"
+          },
+          "label": {
+            "anyOf": [
+              {
+                "maxLength": 256,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Label"
+          },
+          "start_anchor": {
+            "$ref": "#/components/schemas/Anchor"
+          },
+          "start_offset_days": {
+            "maximum": 3650.0,
+            "minimum": -3650.0,
+            "title": "Start Offset Days",
+            "type": "integer"
+          },
+          "window_days": {
+            "default": 0,
+            "maximum": 365.0,
+            "minimum": 0.0,
+            "title": "Window Days",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "start_anchor",
+          "start_offset_days",
+          "end_anchor",
+          "end_offset_days",
+          "every_days"
+        ],
+        "title": "RecurringTimepoints",
+        "type": "object"
+      },
       "RejectionOut": {
         "properties": {
           "device_id": {
@@ -830,6 +1062,170 @@
           "payload"
         ],
         "title": "RejectionOut",
+        "type": "object"
+      },
+      "ResolvedEvent": {
+        "additionalProperties": false,
+        "description": "A planned measurement time. ``planned_at`` is modeled (derived from mission anchors).",
+        "properties": {
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "phase": {
+            "$ref": "#/components/schemas/MissionPhase"
+          },
+          "planned_at": {
+            "format": "date-time",
+            "title": "Planned At",
+            "type": "string"
+          },
+          "schedule_id": {
+            "format": "uuid",
+            "title": "Schedule Id",
+            "type": "string"
+          },
+          "time_method": {
+            "default": "mission anchor + whole-day offset (core.schedule v1)",
+            "title": "Time Method",
+            "type": "string"
+          },
+          "time_origin": {
+            "const": "modeled",
+            "default": "modeled",
+            "title": "Time Origin",
+            "type": "string"
+          },
+          "window_end": {
+            "format": "date-time",
+            "title": "Window End",
+            "type": "string"
+          },
+          "window_start": {
+            "format": "date-time",
+            "title": "Window Start",
+            "type": "string"
+          }
+        },
+        "required": [
+          "schedule_id",
+          "label",
+          "planned_at",
+          "window_start",
+          "window_end",
+          "phase"
+        ],
+        "title": "ResolvedEvent",
+        "type": "object"
+      },
+      "ScheduleBasis": {
+        "enum": [
+          "protocol",
+          "simulated"
+        ],
+        "title": "ScheduleBasis",
+        "type": "string"
+      },
+      "ScheduleCoverage": {
+        "additionalProperties": false,
+        "properties": {
+          "events": {
+            "items": {
+              "$ref": "#/components/schemas/EventCoverage"
+            },
+            "title": "Events",
+            "type": "array"
+          },
+          "events_with_observations": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "description": "Per data origin; origins are never pooled.",
+            "title": "Events With Observations",
+            "type": "object"
+          },
+          "metric": {
+            "title": "Metric",
+            "type": "string"
+          },
+          "note": {
+            "default": "Coverage compares planned windows with recorded observations. Missing measurements stay missing: nothing is imputed or interpolated.",
+            "title": "Note",
+            "type": "string"
+          },
+          "planned_events": {
+            "title": "Planned Events",
+            "type": "integer"
+          },
+          "schedule_id": {
+            "format": "uuid",
+            "title": "Schedule Id",
+            "type": "string"
+          },
+          "unscheduled_observations": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "description": "Matching observations outside every planned window, per data origin.",
+            "title": "Unscheduled Observations",
+            "type": "object"
+          }
+        },
+        "required": [
+          "schedule_id",
+          "metric",
+          "planned_events",
+          "events_with_observations",
+          "events",
+          "unscheduled_observations"
+        ],
+        "title": "ScheduleCoverage",
+        "type": "object"
+      },
+      "ScheduleWriteResult": {
+        "properties": {
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          },
+          "schedule_id": {
+            "format": "uuid",
+            "title": "Schedule Id",
+            "type": "string"
+          },
+          "schedule_seq": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Schedule Seq"
+          },
+          "status": {
+            "enum": [
+              "accepted",
+              "duplicate",
+              "rejected"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "schedule_id",
+          "status"
+        ],
+        "title": "ScheduleWriteResult",
         "type": "object"
       },
       "ServerChange": {
@@ -976,6 +1372,54 @@
           "persisted"
         ],
         "title": "SimulationResponse",
+        "type": "object"
+      },
+      "SingleTimepoint": {
+        "additionalProperties": false,
+        "properties": {
+          "anchor": {
+            "$ref": "#/components/schemas/Anchor"
+          },
+          "kind": {
+            "const": "single",
+            "default": "single",
+            "title": "Kind",
+            "type": "string"
+          },
+          "label": {
+            "anyOf": [
+              {
+                "maxLength": 256,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Defaults to L\u00b1n / R\u00b1n.",
+            "title": "Label"
+          },
+          "offset_days": {
+            "maximum": 3650.0,
+            "minimum": -3650.0,
+            "title": "Offset Days",
+            "type": "integer"
+          },
+          "window_days": {
+            "default": 0,
+            "description": "Tolerance either side of the planned day.",
+            "maximum": 365.0,
+            "minimum": 0.0,
+            "title": "Window Days",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "anchor",
+          "offset_days"
+        ],
+        "title": "SingleTimepoint",
         "type": "object"
       },
       "SyncMutation": {
@@ -1630,6 +2074,301 @@
         "summary": "Simulate",
         "tags": [
           "profiles"
+        ]
+      }
+    },
+    "/api/v1/schedules": {
+      "get": {
+        "operationId": "list_schedules_api_v1_schedules_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "subject_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]{0,63}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Subject Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "metric",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Metric"
+            }
+          },
+          {
+            "in": "query",
+            "name": "current_only",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Current Only",
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/MeasurementSchedule"
+                  },
+                  "title": "Response List Schedules Api V1 Schedules Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Schedules",
+        "tags": [
+          "schedules"
+        ]
+      },
+      "post": {
+        "description": "Store a measurement plan (immutable; revise with ``supersedes``). Rejections are reported.",
+        "operationId": "post_schedule_api_v1_schedules_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MeasurementSchedule"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ScheduleWriteResult"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Post Schedule",
+        "tags": [
+          "schedules"
+        ]
+      }
+    },
+    "/api/v1/schedules/{schedule_id}": {
+      "get": {
+        "operationId": "read_schedule_api_v1_schedules__schedule_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "schedule_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Schedule Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MeasurementSchedule"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Read Schedule",
+        "tags": [
+          "schedules"
+        ]
+      }
+    },
+    "/api/v1/schedules/{schedule_id}/coverage": {
+      "get": {
+        "description": "Which planned windows contain observations, per data origin. Nothing is imputed.",
+        "operationId": "coverage_api_v1_schedules__schedule_id__coverage_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "schedule_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Schedule Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "launch_at",
+            "required": true,
+            "schema": {
+              "format": "date-time",
+              "title": "Launch At",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "return_at",
+            "required": true,
+            "schema": {
+              "format": "date-time",
+              "title": "Return At",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ScheduleCoverage"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Coverage",
+        "tags": [
+          "schedules"
+        ]
+      }
+    },
+    "/api/v1/schedules/{schedule_id}/resolve": {
+      "get": {
+        "description": "Planned times for a mission. Resolved times are modeled (anchor + offset), not observations.",
+        "operationId": "resolve_api_v1_schedules__schedule_id__resolve_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "schedule_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Schedule Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "launch_at",
+            "required": true,
+            "schema": {
+              "format": "date-time",
+              "title": "Launch At",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "return_at",
+            "required": true,
+            "schema": {
+              "format": "date-time",
+              "title": "Return At",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ResolvedEvent"
+                  },
+                  "title": "Response Resolve Api V1 Schedules  Schedule Id  Resolve Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Resolve",
+        "tags": [
+          "schedules"
         ]
       }
     },

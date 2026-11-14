@@ -18,6 +18,7 @@ from enum import StrEnum
 from typing import Any, Protocol
 from uuid import UUID
 
+from medvital.core.schedule import MeasurementSchedule, schedule_fingerprint
 from medvital.core.schema import DataOrigin, HealthObservation, ModuleId, observation_fingerprint
 
 
@@ -87,6 +88,33 @@ class ObservationRepository(Protocol):
     def head_seq(self) -> int: ...
 
 
+class ScheduleRepository(Protocol):
+    """Measurement schedules: same append-only / idempotent / conflict-safe contract as observations."""
+
+    def add_schedule(self, schedule: MeasurementSchedule) -> AddOutcome: ...
+
+    def get_schedule(self, schedule_id: UUID) -> MeasurementSchedule | None: ...
+
+    def list_schedules(
+        self, *, subject_id: str | None = None, metric: str | None = None, current_only: bool = False
+    ) -> list[MeasurementSchedule]:
+        """In insertion order. ``current_only`` drops schedules superseded by another stored one."""
+        ...
+
+
+def filter_schedules(
+    rows: list[MeasurementSchedule], subject_id: str | None, metric: str | None, current_only: bool
+) -> list[MeasurementSchedule]:
+    superseded = {s.supersedes for s in rows if s.supersedes is not None} if current_only else set()
+    return [
+        s
+        for s in rows
+        if (subject_id is None or s.subject_id == subject_id)
+        and (metric is None or s.metric == metric)
+        and s.id not in superseded
+    ]
+
+
 class InMemoryObservationRepository:
     """Process-local store. Thread-safe; data is lost on restart (development/tests)."""
 
@@ -95,6 +123,8 @@ class InMemoryObservationRepository:
         self._rows: list[StoredObservation] = []
         self._by_id: dict[UUID, tuple[StoredObservation, str]] = {}
         self._rejections: list[RejectedRecord] = []
+        self._schedules: list[MeasurementSchedule] = []
+        self._schedule_index: dict[UUID, tuple[int, str]] = {}  # id -> (seq, fingerprint)
 
     def add(self, observation: HealthObservation) -> AddOutcome:
         fingerprint = observation_fingerprint(observation)
@@ -194,3 +224,28 @@ class InMemoryObservationRepository:
     def list_rejections(self, limit: int = 100) -> list[RejectedRecord]:
         with self._lock:
             return list(reversed(self._rejections))[:limit]
+
+    def add_schedule(self, schedule: MeasurementSchedule) -> AddOutcome:
+        fingerprint = schedule_fingerprint(schedule)
+        with self._lock:
+            existing = self._schedule_index.get(schedule.id)
+            if existing is not None:
+                seq, stored_fp = existing
+                status = AddStatus.DUPLICATE if stored_fp == fingerprint else AddStatus.CONFLICT
+                return AddOutcome(status, seq)
+            self._schedules.append(schedule)
+            seq = len(self._schedules)
+            self._schedule_index[schedule.id] = (seq, fingerprint)
+            return AddOutcome(AddStatus.INSERTED, seq)
+
+    def get_schedule(self, schedule_id: UUID) -> MeasurementSchedule | None:
+        with self._lock:
+            entry = self._schedule_index.get(schedule_id)
+            return self._schedules[entry[0] - 1] if entry else None
+
+    def list_schedules(
+        self, *, subject_id: str | None = None, metric: str | None = None, current_only: bool = False
+    ) -> list[MeasurementSchedule]:
+        with self._lock:
+            rows = list(self._schedules)
+        return filter_schedules(rows, subject_id, metric, current_only)

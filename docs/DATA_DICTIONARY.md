@@ -108,3 +108,19 @@ Table `observations`: `id uuid PK`, `server_seq bigint identity unique`, `schema
 `unit`, `observed_at`, `recorded_at`, `received_at`, `context jsonb`, `data_origin` (denormalised), `provenance jsonb`,
 `supersedes uuid`, `fingerprint text`; check constraints for module/metric namespace, finite values, origin consistency;
 trigger blocks `UPDATE`/`DELETE`.
+
+## Measurement schedule (`core/schedule.py`, schema version 1, M2)
+
+A plan, not a measurement. Never contains values.
+
+| Field | Type | Notes |
+|---|---|---|
+| `id` | UUID | Client-generated; immutable record |
+| `subject_id`, `metric` | as observations | Metric must be registered; `context` keys must be allowed for that metric |
+| `method` | text | e.g. `DXA`, `QCT`, `actigraphy`, `questionnaire` — different methods are separate schedules |
+| `events[]` | `single` (`anchor` launch/return, `offset_days`, `window_days`) or `recurring` (start/end anchor+offset, `every_days`, `window_days`) | `L-13` = launch − 13 d; `R+1` = return + 1 d |
+| `basis` | `protocol` \| `simulated` | `protocol` requires `source_ref` |
+| `source`, `source_ref`, `notes`, `created_at`, `supersedes` | | Revisions via `supersedes` (same subject and metric) |
+
+Resolved event: `planned_at`, `window_start` (inclusive), `window_end` (exclusive), `phase`
+(`preflight` < launch ≤ `inflight` < return ≤ `postflight`), `time_origin = modeled`.

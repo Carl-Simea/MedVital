@@ -78,6 +78,17 @@ modeled trajectory (the modeled value's provenance then names the `REF-` id); it
 stored as observations, and it never becomes a clinical threshold unless rule 3 is explicitly changed. Unverified
 references may be stored but must render as unverified.
 
+## D-020 Measurement schedules are stored plans with a mission-relative time model (M2)
+A `MeasurementSchedule` (`core/schedule.py`) records *when* a metric is planned to be measured, by which method, for which
+subject, and where the plan came from (`basis`: `protocol` requires `source_ref`; `simulated` is an arbitrary test plan).
+Times are NASA-style offsets from mission anchors (`L-13`, `R+1`; single or recurring), resolved only when launch and
+return times are supplied; resolved times are *modeled*. Schedules are immutable and append-only with `supersedes`
+revisions, stored by the memory and SQLite repositories (additive SQLite table with append-only triggers; PostgreSQL table
+designed in `schema.sql`, unexecuted). Coverage reports observations inside planned windows per data origin and never
+imputes a missing measurement. A planned day is the 24 h starting at the planned time; `window_days` widens it both
+ways. Not yet in sync push/pull (schedules are created via the gateway API only) and no `recovery` sub-phase yet
+(postflight only); both wait for the mission engine (M4).
+
 ## Open questions
 
 * **Q-1 Offline computation parity.** Summaries are computed server-side only, so an offline client cannot show derived values. Options: port calculations to TypeScript with shared test vectors; run the Python in Pyodide/WASM; or cache the last server summary. Decide before building the dashboard.

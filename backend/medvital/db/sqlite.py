@@ -19,8 +19,15 @@ from pathlib import Path
 from typing import Any
 from uuid import UUID
 
+from medvital.core.schedule import MeasurementSchedule, schedule_fingerprint
 from medvital.core.schema import DataOrigin, HealthObservation, ModuleId, observation_fingerprint
-from medvital.db.repository import AddOutcome, AddStatus, RejectedRecord, StoredObservation
+from medvital.db.repository import (
+    AddOutcome,
+    AddStatus,
+    RejectedRecord,
+    StoredObservation,
+    filter_schedules,
+)
 
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS observations (
@@ -53,6 +60,23 @@ CREATE TRIGGER IF NOT EXISTS observations_no_update BEFORE UPDATE ON observation
 BEGIN SELECT RAISE(ABORT, 'observations are append-only'); END;
 CREATE TRIGGER IF NOT EXISTS observations_no_delete BEFORE DELETE ON observations
 BEGIN SELECT RAISE(ABORT, 'observations are append-only'); END;
+
+-- Measurement schedules (M2). Additive: older gateway files gain this table on next open.
+CREATE TABLE IF NOT EXISTS measurement_schedules (
+    schedule_seq INTEGER PRIMARY KEY AUTOINCREMENT,
+    id           TEXT NOT NULL UNIQUE,
+    fingerprint  TEXT NOT NULL,
+    subject_id   TEXT NOT NULL,
+    metric       TEXT NOT NULL,
+    supersedes   TEXT,
+    received_at  TEXT NOT NULL,
+    payload      TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS sched_subject_metric ON measurement_schedules (subject_id, metric);
+CREATE TRIGGER IF NOT EXISTS schedules_no_update BEFORE UPDATE ON measurement_schedules
+BEGIN SELECT RAISE(ABORT, 'schedules are append-only'); END;
+CREATE TRIGGER IF NOT EXISTS schedules_no_delete BEFORE DELETE ON measurement_schedules
+BEGIN SELECT RAISE(ABORT, 'schedules are append-only'); END;
 """
 
 _TS = "%Y-%m-%dT%H:%M:%S.%fZ"  # fixed width, so lexicographic order == chronological order
@@ -209,6 +233,50 @@ class SqliteObservationRepository:
             )
             for r in rows
         ]
+
+    def add_schedule(self, schedule: MeasurementSchedule) -> AddOutcome:
+        fingerprint = schedule_fingerprint(schedule)
+        with self._lock:
+            existing = self._conn.execute(
+                "SELECT schedule_seq, fingerprint FROM measurement_schedules WHERE id = ?",
+                (str(schedule.id),),
+            ).fetchone()
+            if existing is not None:
+                seq, stored_fp = existing
+                status = AddStatus.DUPLICATE if stored_fp == fingerprint else AddStatus.CONFLICT
+                return AddOutcome(status, seq)
+            cur = self._conn.execute(
+                "INSERT INTO measurement_schedules (id, fingerprint, subject_id, metric, supersedes, "
+                "received_at, payload) VALUES (?,?,?,?,?,?,?)",
+                (
+                    str(schedule.id),
+                    fingerprint,
+                    schedule.subject_id,
+                    schedule.metric,
+                    str(schedule.supersedes) if schedule.supersedes else None,
+                    _ts(datetime.now(UTC)),
+                    schedule.model_dump_json(),
+                ),
+            )
+            return AddOutcome(AddStatus.INSERTED, int(cur.lastrowid))
+
+    def get_schedule(self, schedule_id: UUID) -> MeasurementSchedule | None:
+        with self._lock:
+            row = self._conn.execute(
+                "SELECT payload FROM measurement_schedules WHERE id = ?", (str(schedule_id),)
+            ).fetchone()
+        return MeasurementSchedule.model_validate_json(row[0]) if row else None
+
+    def list_schedules(
+        self, *, subject_id: str | None = None, metric: str | None = None, current_only: bool = False
+    ) -> list[MeasurementSchedule]:
+        with self._lock:
+            rows = self._conn.execute(
+                "SELECT payload FROM measurement_schedules ORDER BY schedule_seq"
+            ).fetchall()
+        return filter_schedules(
+            [MeasurementSchedule.model_validate_json(r[0]) for r in rows], subject_id, metric, current_only
+        )
 
     @staticmethod
     def _stored(row: tuple[int, str, str]) -> StoredObservation:

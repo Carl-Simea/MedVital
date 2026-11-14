@@ -74,6 +74,9 @@ class ModuleRegistry:
     def modules(self) -> list[HealthModuleSpec]:
         return [self._modules[k] for k in sorted(self._modules, key=lambda m: m.value)]
 
+    def metric_definition(self, metric: str) -> MetricDefinition | None:
+        return self._metrics.get(metric)
+
     def get(self, module_id: ModuleId) -> HealthModuleSpec:
         return self._modules[module_id]
 

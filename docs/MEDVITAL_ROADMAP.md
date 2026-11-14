@@ -7,7 +7,7 @@ Canonical working branch: `feat/telemetry-pipeline` (local only; nothing is push
 | M0 | Consolidate the two checkouts, all tests green | **Done** |
 | M1 | Scientific verification, modeling gap analysis, `PublishedReference` decision | **Done** |
 | M1b | Five pure calculations with hand-worked tests | **Done** |
-| M2 | Persist measurement schedules; storage and API contract tests | Next |
+| M2 | Persist measurement schedules; storage and API contract tests | **Done** |
 | M3 | Radiation and behavioral modelling | Planned |
 | M4 | Mission engine (profiles, time model, four domains, reproducible scenarios) | Planned |
 | M5 | Standard dashboard on top of the analysis engine | Planned |
@@ -102,3 +102,27 @@ approximation; F6 assumes a constant rate.
 **Limitations:** functions are not yet called by module summaries or the API (needs stroke-volume, time-in-bed and
 paired-BP metrics — M3); observations still carry no uncertainty field (M2).
 **Next:** M2.
+
+---
+
+## M2 — Measurement schedules, storage and API contracts (2026-11-14)
+
+**Changes:** `core/schedule.py` (schedule model, mission window, resolution to modeled planned times, coverage per data
+origin); `db/repository.py` (`ScheduleRepository` protocol, in-memory implementation); `db/sqlite.py` (additive
+`measurement_schedules` table with append-only triggers); `db/schema.sql` (PostgreSQL table design); `core/module_spec.py`
+(`metric_definition` lookup); `schedules.py` (single write path: metric/context/supersedes validation, conflict handling);
+`api/deps.py`, `api/routes.py` (5 schedule endpoints); `frontend/src/domain/schedule.ts` (type mirror only);
+`docs/api/openapi.json` regenerated; docs: ARCHITECTURE §4, DATA_DICTIONARY, DECISIONS D-020.
+**Tests run:** pytest **253 passed** (24 new in `tests/test_schedule.py`: model validation, hand-computed L±/R± resolution,
+recurring schedules, phase boundaries, coverage per origin without imputation, context matching, memory + SQLite contract
+incl. restart persistence and append-only triggers, API lifecycle and semantic rejections); ruff clean; vitest 41 passed;
+tsc clean; vite build OK.
+**Not tested:** PostgreSQL (no server/Docker here; the repository class is still a skeleton and `schema.sql` additions are
+unexecuted design).
+**Assumptions:** planned day = 24 h from the planned time (anchor time-of-day + whole-day offset); mission phases have
+no `recovery` sub-phase yet.
+**Limitations:** schedules are not in offline sync push/pull; no UI; observations still have no uncertainty field; the
+analysis engine does not yet consume schedules for its coverage measure (it infers or is configured with intervals).
+**Next (proposed):** M3 radiation and behavioral modelling — wire M1b calculations into summaries via new metrics
+(time in bed with `tib_definition`, stroke volume, paired BP), environmental-radiation entity (P-2), optional observation
+`uncertainty` field (schema version bump).
