@@ -161,7 +161,7 @@ Current schema: `core/schema.py` (`HealthObservation`). Nothing below has been c
 | `synthetic` (bool) | derivable: `provenance.data_origin == simulated` | Keep derived (a stored boolean can contradict `data_origin`, and a bool cannot express measured vs modeled). Expose it in the API response for convenience. |
 
 Related gaps against briefing §8 ("must not silently discard health observations"; "audit records"):
-* **Rejected observations are returned to the client but not stored server-side.** There is no audit/quarantine table. Proposal: persist rejected payloads with reason, client/device id and time.
+* **[Resolved in M3.2]** ~~Rejected observations are returned to the client but not stored server-side.~~ All write channels (`telemetry`, `api`, `sync`, `simulation`) now append rejections to the rejection log. There is no audit/quarantine table. Proposal: persist rejected payloads with reason, client/device id and time.
 * Audit records for accepted writes (who/what/when, source device) do not exist beyond `received_at`.
 * Retry, offline buffering, duplicate protection and conflict detection already exist (D-002, D-010).
 

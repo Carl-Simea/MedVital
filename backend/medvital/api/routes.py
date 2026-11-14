@@ -120,7 +120,7 @@ def simulate(
     observations = generate_observations(profile, body.start, body.days, body.seed)
     if body.persist:
         for obs in observations:
-            ingest_observation(repo, registry, obs)
+            ingest_observation(repo, registry, obs, channel="simulation")
     return SimulationResponse(
         profile_id=profile_id, observations=observations, persisted=body.persist
     )
@@ -200,7 +200,14 @@ def live(repo: Repo) -> LiveResponse:
 @router.post("/sync/push", response_model=SyncPushResponse, tags=["sync"])
 def sync_push(body: SyncPushRequest, repo: Repo, registry: Registry) -> SyncPushResponse:
     results = [
-        ingest_observation(repo, registry, m.observation, mutation_id=m.mutation_id)
+        ingest_observation(
+            repo,
+            registry,
+            m.observation,
+            mutation_id=m.mutation_id,
+            channel="sync",
+            audit_context={"client_id": body.client_id},
+        )
         for m in body.mutations
     ]
     return SyncPushResponse(results=results, server_cursor=repo.head_seq())

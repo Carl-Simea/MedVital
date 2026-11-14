@@ -5,6 +5,8 @@ Used by both ``POST /observations`` and ``POST /sync/push`` so the rules cannot 
 
 from __future__ import annotations
 
+from typing import Any
+
 from medvital.core.module_spec import ModuleRegistry, ObservationRejected
 from medvital.core.schema import HealthObservation
 from medvital.core.sync import MutationResult, MutationStatus
@@ -16,25 +18,42 @@ def ingest_observation(
     registry: ModuleRegistry,
     observation: HealthObservation,
     mutation_id=None,
+    *,
+    channel: str = "api",
+    audit_context: dict[str, Any] | None = None,
 ) -> MutationResult:
+    """Validate and append. Every rejection is also written to the rejection log (never silently
+    dropped), tagged with ``channel`` ("api", "sync", "simulation") and ``audit_context``."""
+
+    def rejected(error: str, server_seq: int | None = None) -> MutationResult:
+        repo.record_rejection(
+            source=channel,
+            device_id=observation.device_id,
+            reason=error,
+            payload={
+                **(audit_context or {}),
+                **({"mutation_id": str(mutation_id)} if mutation_id is not None else {}),
+                "observation": observation.model_dump(mode="json"),
+            },
+        )
+        return MutationResult(
+            mutation_id=mutation_id,
+            observation_id=observation.id,
+            status=MutationStatus.REJECTED,
+            server_seq=server_seq,
+            error=error,
+        )
+
     try:
         registry.validate(observation)
     except ObservationRejected as exc:
-        return MutationResult(
-            mutation_id=mutation_id,
-            observation_id=observation.id,
-            status=MutationStatus.REJECTED,
-            error=str(exc),
-        )
+        return rejected(str(exc))
     outcome = repo.add(observation)
     if outcome.status is AddStatus.CONFLICT:
-        return MutationResult(
-            mutation_id=mutation_id,
-            observation_id=observation.id,
-            status=MutationStatus.REJECTED,
-            server_seq=outcome.server_seq,
-            error="an observation with this id already exists with different content; "
+        return rejected(
+            "an observation with this id already exists with different content; "
             "observations are immutable — submit a correction with `supersedes`",
+            outcome.server_seq,
         )
     status = MutationStatus.ACCEPTED if outcome.status is AddStatus.INSERTED else MutationStatus.DUPLICATE
     return MutationResult(
