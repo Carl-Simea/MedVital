@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "id": "0b8f7c4e-5d6a-4f1e-9a2b-3c4d5e6f7a8b",
+  "astronaut_id": "SIM-001",
+  "module": "cardiovascular",
+  "metric": "heart_rate",
+  "value": 64.0,
+  "unit": "bpm",
+  "observed_at": "2030-01-01T12:00:00Z",
+  "provenance": {
+    "origin": "simulated",
+    "source": "medvital.simulation.gaussian",
+    "source_ref": null,
+    "method": "gaussian_noise_with_linear_drift_v1",
+    "seed": 42,
+    "derived_from": []
+  },
+  "context": {},
+  "device_id": "browser-test"
+}

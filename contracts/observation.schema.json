@@ -1,0 +1,171 @@
+{
+  "$defs": {
+    "DataOrigin": {
+      "enum": [
+        "simulated",
+        "measured",
+        "modeled"
+      ],
+      "title": "DataOrigin",
+      "type": "string"
+    },
+    "ModuleId": {
+      "enum": [
+        "radiation",
+        "bone",
+        "cardiovascular",
+        "behavioral"
+      ],
+      "title": "ModuleId",
+      "type": "string"
+    },
+    "Provenance": {
+      "additionalProperties": false,
+      "properties": {
+        "derived_from": {
+          "default": [],
+          "items": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "title": "Derived From",
+          "type": "array"
+        },
+        "method": {
+          "anyOf": [
+            {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Method"
+        },
+        "origin": {
+          "$ref": "#/$defs/DataOrigin"
+        },
+        "seed": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Seed"
+        },
+        "source": {
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Source",
+          "type": "string"
+        },
+        "source_ref": {
+          "anyOf": [
+            {
+              "maxLength": 500,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Source Ref"
+        }
+      },
+      "required": [
+        "origin",
+        "source"
+      ],
+      "title": "Provenance",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "astronaut_id": {
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$",
+      "title": "Astronaut Id",
+      "type": "string"
+    },
+    "context": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "title": "Context",
+      "type": "object"
+    },
+    "device_id": {
+      "anyOf": [
+        {
+          "maxLength": 64,
+          "minLength": 1,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Device Id"
+    },
+    "id": {
+      "format": "uuid",
+      "title": "Id",
+      "type": "string"
+    },
+    "metric": {
+      "pattern": "^[a-z][a-z0-9_]{0,63}$",
+      "title": "Metric",
+      "type": "string"
+    },
+    "module": {
+      "$ref": "#/$defs/ModuleId"
+    },
+    "observed_at": {
+      "format": "date-time",
+      "title": "Observed At",
+      "type": "string"
+    },
+    "provenance": {
+      "$ref": "#/$defs/Provenance"
+    },
+    "schema_version": {
+      "const": 1,
+      "default": 1,
+      "title": "Schema Version",
+      "type": "integer"
+    },
+    "unit": {
+      "maxLength": 32,
+      "minLength": 1,
+      "title": "Unit",
+      "type": "string"
+    },
+    "value": {
+      "title": "Value",
+      "type": "number"
+    }
+  },
+  "required": [
+    "id",
+    "astronaut_id",
+    "module",
+    "metric",
+    "value",
+    "unit",
+    "observed_at",
+    "provenance"
+  ],
+  "title": "HealthObservation",
+  "type": "object"
+}
