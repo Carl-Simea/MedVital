@@ -5,7 +5,7 @@ import { DOMAIN_IDS, SCORE_KEYS, SCORE_SRC, SCORE_SAMPLE, SCORE_INPUTS, scoreAll
 import { extract, READABLE } from './intake.mjs';
 const ALL_SRC = { ...SRC, ...SCORE_SRC };
 
-const BUILD = 'v3.5 · 14 Nov 2026';
+const BUILD = 'v3.6 · 14 Nov 2026';
 const errLog = [];
 const logErr = m => { errLog.push(new Date().toISOString().slice(11, 19) + ' ' + String(m).slice(0, 200)); if (errLog.length > 20) errLog.shift(); };
 addEventListener('error', e => logErr(e.message + ' @' + (e.filename || '').split('/').pop() + ':' + e.lineno));

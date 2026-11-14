@@ -28,7 +28,7 @@ export async function createLobby(canvas, { paired = [], onPick = () => {}, onHo
 
   const U = { palette: { value: palette }, glow: { value: glow }, lvl: { value: lvl },
     heartC: { value: new THREE.Vector3(...meta.heartC) }, lungC: { value: new THREE.Vector3(...meta.lungC) },
-    beat: { value: 0 }, breath: { value: 0 }, time: { value: 0 }, scan: { value: -9999 }, sel: { value: -1 }, hov: { value: -1 }, dimOthers: { value: .35 }, fade: { value: 0 } };
+    beat: { value: 0 }, breath: { value: 0 }, time: { value: 0 }, sel: { value: -1 }, hov: { value: -1 }, dimOthers: { value: .35 }, fade: { value: 0 } };
   const VS = `
     uniform vec3 palette[32]; uniform float glow[32]; uniform float lvl[32];
     uniform vec3 heartC; uniform vec3 lungC; uniform float beat; uniform float breath; uniform float time;
@@ -43,7 +43,7 @@ export async function createLobby(canvas, { paired = [], onPick = () => {}, onHo
       gl_Position=projectionMatrix*modelViewMatrix*vec4(p,1.0);
     }`;
   const FS = `
-    uniform float opacity; uniform float xray; uniform float gain; uniform float fade; uniform float sel; uniform float hov; uniform float time; uniform float dimOthers; uniform float scan;
+    uniform float opacity; uniform float xray; uniform float gain; uniform float fade; uniform float sel; uniform float hov; uniform float time; uniform float dimOthers;
     varying vec3 vN; varying vec3 vCol; varying float vP; varying float vY;
     void main(){
       vec3 n=normalize(vN); float ndv=abs(n.z); vec3 col; float a;
@@ -53,7 +53,6 @@ export async function createLobby(canvas, { paired = [], onPick = () => {}, onHo
       if(sel>=0.0&&isSel<0.5) a*=dimOthers;
       col=mix(col,vec3(0.6,0.92,1.0),0.38*isHov);
       if(isSel>0.5){ col=col*1.3+vec3(0.08,0.2,0.28)*(0.65+0.35*sin(time*3.0)); a=max(a,0.92*opacity); }
-      col+=vec3(0.25,0.95,0.82)*exp(-abs(vY-scan)*0.035)*0.55;
       gl_FragColor=vec4(col,a*fade);
     }`;
   const makeMat = gain => new THREE.ShaderMaterial({ vertexShader: VS, fragmentShader: FS, transparent: true, side: THREE.DoubleSide,
@@ -103,7 +102,7 @@ export async function createLobby(canvas, { paired = [], onPick = () => {}, onHo
     info[id] = { pid: +id, group: GROUPS[Math.floor(id / 2)], side: id % 2 ? 'left' : 'right', center: new THREE.Vector3(...c), radius: r, layer: A.layer };
   }
 
-  /* Scanner pad: dark dais with a clean light floor, a soft beam, a few drifting particles, one orbit ring and distant stars.
+  /* Scanner pad: dark dais with a clean light floor, a soft beam, a few drifting particles and distant stars.
      Lines are anti-aliased with fwidth() so they do not shimmer when the camera moves. Everything lives in `platform`,
      which is hidden while picking. */
   const platform = new THREE.Group(); scene.add(platform);
@@ -169,16 +168,6 @@ export async function createLobby(canvas, { paired = [], onPick = () => {}, onHo
           vec4 mv=modelViewMatrix*vec4(q,1.0); gl_PointSize=(2.0+seed*3.0)*(2400.0/-mv.z); gl_Position=projectionMatrix*mv; }`,
       fragmentShader: 'varying float al; void main(){ float d=length(gl_PointCoord-0.5); if(d>0.5) discard; vec3 c=vec3(0.45,0.95,0.88)*al*smoothstep(0.5,0.0,d)*0.6; gl_FragColor=vec4(c,c.g); }' }));
     pts.frustumCulled = false; platform.add(pts);
-  }
-  const orbit = new THREE.Group(); platform.add(orbit);   // one slightly tilted orbit ring with a travelling node
-  const orbits = [];
-  {
-    const g = new THREE.Group(); g.rotation.z = .06; g.position.y = 20; orbit.add(g);
-    const ringMesh = new THREE.Mesh(new THREE.TorusGeometry(620, 1.2, 8, 240), new THREE.MeshBasicMaterial({ color: 0x63dbcd, transparent: true, opacity: .28, depthWrite: false })); ringMesh.rotation.x = -Math.PI / 2; g.add(ringMesh);
-    const spin = new THREE.Group(); g.add(spin);
-    const node = new THREE.Mesh(new THREE.SphereGeometry(6, 16, 12), new THREE.MeshBasicMaterial({ color: 0xff929d })); node.position.x = 620; spin.add(node);
-    const glowS = new THREE.Mesh(new THREE.SphereGeometry(16, 16, 12), new THREE.MeshBasicMaterial({ color: 0xff929d, transparent: true, opacity: .2, blending: THREE.AdditiveBlending, depthWrite: false })); glowS.position.x = 620; spin.add(glowS);
-    orbits.push({ spin, speed: .18 });
   }
   const halo = new THREE.Mesh(new THREE.CircleGeometry(1000, 96).rotateX(-Math.PI / 2), new THREE.ShaderMaterial({
     transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, premultipliedAlpha: true,
@@ -320,8 +309,7 @@ export async function createLobby(canvas, { paired = [], onPick = () => {}, onHo
     if (!ptrs.size) { cam.yaw += cam.vYaw * dt; cam.vYaw *= Math.pow(.02, dt); if (auto && cam.idle > 5 && selected < 0 && Math.abs(cam.vYaw) < .05) cam.yaw += .16 * dt; }
     const k = 1 - Math.pow(.0015, dt);
     cam.target.lerp(cam.goalTarget, k); cam.dist += (cam.goalDist - cam.dist) * k;
-    body.position.y = 0; body.rotation.z = 0; for (const o of orbits) o.spin.rotation.y = t * o.speed;
-    const sc = (t % 9) / 2.4; U.scan.value = sc < 1 ? -80 + sc * 1900 : -9999;
+    body.position.y = 0; body.rotation.z = 0; 
     placeCamera(); renderer.render(scene, camera);
   }
   requestAnimationFrame(frame);
