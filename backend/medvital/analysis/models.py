@@ -12,9 +12,9 @@ from typing import Literal, Self
 
 from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, model_validator
 
-from medvital.core.schema import DataOrigin
+from medvital.core.schema import DataOrigin, Quality
 
-ANALYSIS_VERSION = "0.1.0"
+ANALYSIS_VERSION = "0.1.1"
 
 ANALYSIS_NOTICE = (
     "Statistical description only. Not a diagnosis, not medical advice; no clinical thresholds "
@@ -22,8 +22,6 @@ ANALYSIS_NOTICE = (
     "subject's own baseline within one series, for human review. Simulated, measured and "
     "modeled values are analysed separately and never pooled."
 )
-
-UNSPECIFIED_QUALITY = "unspecified"  # observation carries no quality field
 
 
 class _Frozen(BaseModel):
@@ -77,8 +75,8 @@ class AnalysisConfig(_Frozen):
     expected_metrics: tuple[str, ...] = Field(
         default=(), description="Metric ids every subject is expected to have; absences are reported."
     )
-    analyzed_qualities: tuple[str, ...] = Field(
-        default=("valid", UNSPECIFIED_QUALITY),
+    analyzed_qualities: tuple[Quality, ...] = Field(
+        default=(Quality.VALID,),
         description="Quality values included in statistics. Others are excluded and counted, never dropped.",
     )
     include_point_deviations: bool = Field(

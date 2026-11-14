@@ -107,7 +107,7 @@
                 "type": "null"
               }
             ],
-            "description": "Producing device. Required for gateway telemetry; None for legacy/generated data.",
+            "description": "Producing device. Always set for gateway telemetry; None for legacy/generated data.",
             "title": "Device Id"
           },
           "id": {

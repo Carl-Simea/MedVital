@@ -99,8 +99,7 @@ Entry point: `medvital.analysis.analyze(observations, config, registry=None) -> 
 * **Series.** Values are compared only within one (subject, metric, unit, data origin, device id, full context) series.
   Simulated, measured and modeled values are never pooled; neither are devices, sites, instruments or sessions.
 * **Exclusions are reported, never silent.** An observation is excluded from statistics, and listed with a reason, when it is
-  superseded by another observation in the input, when its `quality` is not in `analyzed_qualities` (default: `valid`, or no
-  quality field), or when it fails registry validation (only if a registry is passed).
+  superseded by another observation in the input, when its `quality` is not in `analyzed_qualities` (default: `valid` only; `suspect`/`invalid` are excluded and counted), or when it fails registry validation (only if a registry is passed).
 * **Descriptive statistics:** count, mean, sample SD (ddof = 1; `None` for n < 2), median, quartiles (linear interpolation),
   IQR, MAD (median absolute deviation, unscaled), min, max.
 * **Personal baseline:** the first *n* analysed values of the series (default n = 7, engineering default) or a configured

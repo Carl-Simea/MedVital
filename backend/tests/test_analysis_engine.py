@@ -8,7 +8,7 @@ import pytest
 
 from conftest import T0, make_obs, measured_provenance
 from medvital.analysis import AnalysisConfig, BaselineSpec, analyze
-from medvital.core.schema import DataOrigin
+from medvital.core.schema import DataOrigin, Quality
 from medvital.registry import build_registry
 from medvital.simulation.generator import generate_observations
 from medvital.simulation.profiles import SIMULATED_PROFILES
@@ -99,11 +99,33 @@ def test_registry_rejections_are_reported_not_dropped():
 
 
 def test_quality_filter_excludes_and_counts():
-    report = analyze(_sleep_series([1, 2]), AnalysisConfig(analyzed_qualities=("valid",)))
-    (s,) = report.series
-    assert s.descriptive is None and s.quality.analyzed_count == 0
-    assert s.quality.quality_counts == {"unspecified": 2} and s.quality.excluded_counts == {"quality": 2}
-    assert len(report.excluded) == 2
+    valid = _sleep_series([1, 2])
+    suspect = [o.model_copy(update={"quality": Quality.SUSPECT}) for o in _sleep_series([100, 200])]
+    invalid = [make_obs(SLEEP, 300.0, day=5).model_copy(update={"quality": Quality.INVALID})]
+    report = analyze(valid + suspect + invalid)
+    (s,) = report.series  # quality never splits a series; it only filters
+    assert s.descriptive.count == 2 and s.descriptive.maximum == 2.0
+    assert s.quality.quality_counts == {"invalid": 1, "suspect": 2, "valid": 2}
+    assert s.quality.excluded_counts == {"quality": 3} and s.quality.total_count == 5
+    assert sorted(e.detail for e in report.excluded) == [
+        "quality=invalid",
+        "quality=suspect",
+        "quality=suspect",
+    ]
+
+
+def test_suspect_can_be_opted_in_and_unknown_quality_rejected():
+    obs = [o.model_copy(update={"quality": Quality.SUSPECT}) for o in _sleep_series([1, 2])]
+    (s,) = analyze(obs, AnalysisConfig(analyzed_qualities=(Quality.VALID, Quality.SUSPECT))).series
+    assert s.quality.analyzed_count == 2
+    with pytest.raises(ValueError):
+        AnalysisConfig(analyzed_qualities=("unspecified",))
+
+
+def test_devices_are_never_pooled():
+    a = [o.model_copy(update={"device_id": "W1"}) for o in _sleep_series([1, 2])]
+    b = [o.model_copy(update={"device_id": "W2"}) for o in _sleep_series([1, 2])]
+    assert sorted(s.key.device_id for s in analyze(a + b).series) == ["W1", "W2"]
 
 
 def test_gaps_and_coverage_with_configured_interval():

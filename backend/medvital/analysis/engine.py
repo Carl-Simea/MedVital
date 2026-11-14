@@ -19,7 +19,6 @@ import pandas as pd
 
 from medvital.analysis import calculations as calc
 from medvital.analysis.models import (
-    UNSPECIFIED_QUALITY,
     AnalysisConfig,
     AnalysisReport,
     AnomalyFlag,
@@ -43,15 +42,11 @@ _KEY_COLUMNS = ["subject_id", "metric", "unit", "data_origin", "device_id", "con
 
 
 def _quality_of(o: HealthObservation) -> str:
-    # ``quality`` / ``device_id`` are not in schema v1 of this checkout; read them when present
-    # so the engine works unchanged once the telemetry fields land (see docs/DECISIONS.md D-018).
-    q = getattr(o, "quality", None)
-    return UNSPECIFIED_QUALITY if q is None else str(getattr(q, "value", q))
+    return o.quality.value
 
 
 def _device_of(o: HealthObservation) -> str:
-    d = getattr(o, "device_id", None)
-    return "" if d is None else str(d)
+    return "" if o.device_id is None else o.device_id
 
 
 def _finite_or_none(x: float) -> float | None:

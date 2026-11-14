@@ -57,8 +57,8 @@ Stdlib `sqlite3` (no new dependency; runs on a Raspberry Pi), WAL mode, append-o
 Descriptive stats, personal-baseline deviation, missingness/data-quality and statistical anomaly flags live in a peer package
 of `simulation/`, importing only `medvital.core`. It is not a `ModuleId`: it serves all four domains, so making it a module would
 break rule 5. Pure arithmetic in `analysis/calculations.py`; dependency rules in `tests/test_analysis_architecture.py`. No new
-dependency (NumPy/pandas already declared). `quality`/`device_id` are read with `getattr` so the engine works before and after the
-telemetry fields (proposal P-1) land. Numbered D-018 because D-016/D-017 were assigned on the telemetry branch; the two were developed in separate checkouts and merged. Not yet
+dependency (NumPy/pandas already declared). It reads `quality` and `device_id` (D-016) directly: quality filters
+what enters statistics (default `valid` only), device splits series. Numbered D-018 because D-016/D-017 were assigned on the telemetry branch; the two were developed in separate checkouts and merged. Not yet
 exposed through the API (a route ⇒ OpenAPI regeneration + frontend mirror). Method: SCIENTIFIC_METHODOLOGY §9.
 
 ## Open questions

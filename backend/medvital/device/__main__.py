@@ -14,7 +14,9 @@ def main() -> None:
     p.add_argument("--crew-id", default="CREW-001")
     p.add_argument("--gateway", default="http://localhost:8000", help="Gateway base URL")
     p.add_argument("--interval", type=float, default=1.0, help="Seconds between readings")
-    p.add_argument("--duration", type=float, default=None, help="Stop after N seconds (default: until Ctrl+C)")
+    p.add_argument(
+        "--duration", type=float, default=None, help="Stop after N seconds (default: until Ctrl+C)"
+    )
     p.add_argument("--seed", type=int, default=1)
     p.add_argument("--slow-every", type=int, default=30, help="Emit sleep/exercise entries every N ticks")
     p.add_argument("--radiation-factor", type=float, default=1.0, help="Radiation scenario multiplier")
