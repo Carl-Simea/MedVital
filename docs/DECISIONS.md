@@ -89,6 +89,28 @@ imputes a missing measurement. A planned day is the 24 h starting at the planned
 ways. Not yet in sync push/pull (schedules are created via the gateway API only) and no `recovery` sub-phase yet
 (postflight only); both wait for the mission engine (M4).
 
+## D-021 Risk engine scope: non-clinical rules only; RETURN_NOW is a human command (decided 2026-11-14, decision A)
+The rule engine (M4) may evaluate only non-clinical conditions: device offline, data-quality states, missed scheduled
+measurements, DONKI event notices, and statistical deviations labelled "for review". It never applies a clinical
+threshold and never produces a health-risk label (rule 3 and D-004 unchanged). `RETURN_NOW` is a **human-issued command**
+record carrying issuer, issue time, reason and mission context; MEDVITAL stores, syncs and displays it, never computes,
+suggests, suppresses or overrides it, and no AI component can.
+
+## D-022 Gemini boundary: simulated and public NASA data only (decided 2026-11-14, decision B)
+Gemini is an explanation and reporting layer downstream of the deterministic analysis. Only simulated data and public
+NASA data may be sent to it; no real astronaut health information or private medical records. Its output is a separate
+`AIExplanation` record (never an observation) citing the records it describes; the backend must work when it is down.
+
+## D-023 Cloud store: Cloudflare D1; SQLite authoritative per station; R2 for large artefacts (decided 2026-11-14, decision C)
+Each station writes to its local SQLite first; that store is authoritative for the station. D1 is the cloud
+synchronization store reached through a Worker implementing the existing sync contract. R2 holds source archives,
+larger datasets and generated reports, never observations. PostgreSQL (D-006) remains a deferred future option.
+
+## D-024 3D anatomical explorer deferred to M9 (decided 2026-11-14, decision D)
+Deferred, not cancelled: it follows the three-station interfaces (M8). The Neuroglancer-inspired concept from the master
+prompt (anatomical selection, layered overlays, timeline, data inspector with provenance; science computed only in
+Python; licensed assets only) is preserved unchanged for that milestone.
+
 ## Open questions
 
 * **Q-1 Offline computation parity.** Summaries are computed server-side only, so an offline client cannot show derived values. Options: port calculations to TypeScript with shared test vectors; run the Python in Pyodide/WASM; or cache the last server summary. Decide before building the dashboard.

@@ -7,13 +7,18 @@ Canonical working branch: `feat/telemetry-pipeline` (local only; nothing is push
 | M0 | Consolidate the two checkouts, all tests green | **Done** |
 | M1 | Scientific verification, modeling gap analysis, `PublishedReference` decision | **Done** |
 | M1b | Five pure calculations with hand-worked tests | **Done** |
-| M2 | Persist measurement schedules; storage and API contract tests | **Done** |
-| M3 | Radiation and behavioral modelling | Planned |
-| M4 | Mission engine (profiles, time model, four domains, reproducible scenarios) | Planned |
-| M5 | Standard dashboard on top of the analysis engine | Planned |
-| M6 | 3D anatomical explorer | **On hold** (decision 2026-11-14: foundation first) |
-| M7 | Cloudflare | **On hold** (decision 2026-11-14) |
-| M8 | Integration, 180-day demonstration | Planned |
+| M2 | Storage, measurement schedules, API contracts | **Done** |
+| M3 | Complete ingestion and analysis pipeline | **In progress** |
+| M4 | Deterministic non-clinical rule engine (D-021) and DONKI event replay | Planned. Starts only after M3 review |
+| M5 | Auth0 identity and access | Planned |
+| M6 | Cloudflare synchronization (Workers, D1, R2, Queues) (D-023) | Planned. Deployment needs approval |
+| M7 | Gemini mission intelligence (D-022) | Planned |
+| M8 | Astronaut, spacecraft and NASA ground-station interfaces | Planned |
+| M9 | 3D anatomical explorer (D-024) | Deferred to here |
+| M10 | Final testing and demonstration preparation | Planned |
+
+Renumbered 2026-11-14 to the unified sponsor-integration plan. The earlier "M3 radiation/behavioral, M5 dashboard"
+numbering is superseded. Its content is now spread across M3, M4 and M8.
 
 Every entry below records: changes, files, tests run, results, assumptions, limitations, next steps.
 
