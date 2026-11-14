@@ -53,6 +53,14 @@ The briefing's 11-field event (`event_id, device_id, crew_id, timestamp, domain,
 ## D-017 SQLite as the gateway's local store
 Stdlib `sqlite3` (no new dependency; runs on a Raspberry Pi), WAL mode, append-only triggers, same repository contract as the in-memory store (contract tests run against both). PostgreSQL stays the intended ground/cloud store (D-006). Device-side buffering is in memory only: it survives a gateway outage, not a device-process restart.
 
+## D-018 Cross-domain analysis engine as `medvital/analysis/` (not a health module)
+Descriptive stats, personal-baseline deviation, missingness/data-quality and statistical anomaly flags live in a peer package
+of `simulation/`, importing only `medvital.core`. It is not a `ModuleId`: it serves all four domains, so making it a module would
+break rule 5. Pure arithmetic in `analysis/calculations.py`; dependency rules in `tests/test_analysis_architecture.py`. No new
+dependency (NumPy/pandas already declared). `quality`/`device_id` are read with `getattr` so the engine works before and after the
+telemetry fields (proposal P-1) land. Numbered D-018 because D-016/D-017 were assigned on the telemetry branch; the two were developed in separate checkouts and merged. Not yet
+exposed through the API (a route ⇒ OpenAPI regeneration + frontend mirror). Method: SCIENTIFIC_METHODOLOGY §9.
+
 ## Open questions
 
 * **Q-1 Offline computation parity.** Summaries are computed server-side only, so an offline client cannot show derived values. Options: port calculations to TypeScript with shared test vectors; run the Python in Pyodide/WASM; or cache the last server summary. Decide before building the dashboard.

@@ -40,6 +40,7 @@ Status: v0.1 foundation. Statements marked **[not implemented]** are design, not
 | `modules/<m>/` | metric definitions, **pure calculations**, observation→summary adapter, `SPEC` | `core`, itself |
 | `registry.py` | composition root; builds the registry of all four modules | `core`, `modules` |
 | `simulation/` | fixed simulated profiles; seeded generator | `core` |
+| `analysis/` | cross-domain descriptive stats, personal baselines, data quality, statistical anomaly flags (D-018); not yet routed | `core`, itself |
 | `db/` | repository protocol, in-memory store, PostgreSQL schema + skeleton | `core` |
 | `ingest.py` | the single write path (semantic validation + idempotent append) | `core`, `db` |
 | `api/` | HTTP routes, boundary-only models | everything above |

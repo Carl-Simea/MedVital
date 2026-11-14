@@ -89,3 +89,33 @@ validation against external reference data yet** because none has been ingested 
 Sourced reference limits as injectable objects with mandatory citations; real-dataset ingestion with licences; uncertainty
 propagation; measurement-precision handling; expert review of each module's methods; the advanced analysis/AI layer
 (to be specified separately, and held to the same provenance and no-diagnosis rules).
+
+## 9. Analysis engine (`analysis/`, v0.1.0)
+
+A cross-domain, descriptive engine used *alongside* the module summaries (it does not replace them). Arithmetic is in
+`analysis/calculations.py` (NumPy only, pure); `analysis/engine.py` adapts observations and keeps provenance.
+Entry point: `medvital.analysis.analyze(observations, config, registry=None) -> AnalysisReport`.
+
+* **Series.** Values are compared only within one (subject, metric, unit, data origin, device id, full context) series.
+  Simulated, measured and modeled values are never pooled; neither are devices, sites, instruments or sessions.
+* **Exclusions are reported, never silent.** An observation is excluded from statistics, and listed with a reason, when it is
+  superseded by another observation in the input, when its `quality` is not in `analyzed_qualities` (default: `valid`, or no
+  quality field), or when it fails registry validation (only if a registry is passed).
+* **Descriptive statistics:** count, mean, sample SD (ddof = 1; `None` for n < 2), median, quartiles (linear interpolation),
+  IQR, MAD (median absolute deviation, unscaled), min, max.
+* **Personal baseline:** the first *n* analysed values of the series (default n = 7, engineering default) or a configured
+  time window `[start, end)`. Fewer than `min_count` (default 4) baseline values ⇒ no deviations, with a warning.
+  Post-baseline values get: delta from baseline median (series unit); z = (x − mean)/SD; modified z =
+  0.6745·(x − median)/MAD. Undefined scores (SD or MAD = 0) are `null`, never imputed.
+* **Statistical anomaly flags:** |modified z| > cutoff, default 3.5 — the statistical convention of Iglewicz & Hoaglin (1993),
+  *How to Detect and Handle Outliers*, ASQC Quality Press. It is an outlier heuristic for *review*, not a clinical threshold,
+  and it is configurable. Each flag carries the observation id, timestamp, value, unit, data origin, method and cutoff.
+* **Missingness / data quality:** quality-value counts, exclusion counts, duplicate timestamps, expected sampling interval
+  (configured per metric, else inferred as the median spacing and labelled `inferred`), gaps (spacing > `gap_factor` × interval,
+  default 2), expected count ⌊span/interval⌋ + 1, coverage = distinct timestamps / expected (capped at 1), and
+  `missing_series` for configured `expected_metrics` absent per subject.
+* **Output:** `AnalysisReport` (pydantic, frozen) → `model_dump(mode="json")`; strict JSON (no NaN). Carries `ANALYSIS_NOTICE`.
+
+Limitations: no autocorrelation, seasonality (e.g. circadian) or trend adjustment, so a drifting series will accumulate
+flags; baseline is a single fixed reference; no measurement-uncertainty handling; inferred intervals are meaningless for
+event-driven (irregular) metrics. Defaults are engineering choices and need expert review (Q-6).
