@@ -43,6 +43,7 @@ cd frontend; npm test; npm run typecheck; npm run build; npm run dev
 | New calculation | the module's `calculations.py` + a test with hand-computed expected values |
 | New health module | new `modules/<name>/` package, register in `registry.py`, extend `ModuleId`, `schema.sql` CHECK, frontend `types.ts`/`presentation.ts` |
 | API change | `api/contracts.py`, `api/routes.py`, `tests/test_api.py`, `docs/ARCHITECTURE.md` |
+| Import a real source | an `ImportSpec` JSON (see `docs/ARCHITECTURE.md`), after recording terms and verification in `docs/NASA_SOURCES.md`; new unit conversions in `importers/units.py` with a hand-computed test |
 | Schema change | `core/observation.py`, regenerate `contracts/`, update `frontend/src/domain/types.ts` |
 | Decision or limitation | `docs/DECISIONS.md` |
 

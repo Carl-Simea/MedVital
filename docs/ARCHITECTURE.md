@@ -11,6 +11,7 @@
 
 ```
 api/  ->  ingest, registry, db, sync, simulated_profiles
+importers/  ->  core, registry (never api, db, sync)
 registry.py  ->  modules/*   (the only file that sees all four modules)
 modules/<name>/  ->  core     (never other modules, api, db, sync)
 db/  ->  core                 (never api or modules)
@@ -61,6 +62,36 @@ is idempotent.
 
 Summaries group by `(metric, origin)`. Derived values are computed per input origin, recorded in
 `context.input_origin`. Simulated and measured values never feed the same calculation.
+
+## Source import pipeline
+
+`backend/medvital/importers/` turns an external table (CSV) into validated `measured`
+observations. It depends only on `core` and `registry`. **No NASA data ships with it**; a source is
+described by an `ImportSpec` that someone writes after reading that source's terms.
+
+An `ImportSpec` (JSON, loaded with `load_spec`) holds:
+
+| Field | Meaning |
+| --- | --- |
+| `source` | Producer: instrument or archive name |
+| `source_ref` | Citation, dataset id or URL; becomes `provenance.source_ref` |
+| `terms_note` | The source's reuse terms in the importer's own words (required, 10+ chars) |
+| `astronaut_id` or `astronaut_id_column` | Exactly one: a constant id, or the column holding it |
+| `time_column`, `assume_utc` | Naive timestamps are rejected unless `assume_utc` is set |
+| `columns[]` | `column`, `module`, `metric`, `source_unit` for each mapped column |
+
+Rules enforced by `validate_spec` and `import_frame`:
+
+- Each mapped metric must exist in the registry and accept `measured` data (derived metrics do not).
+- `source_unit` must equal the metric's unit or have an **exact** conversion in
+  `importers/units.py` (unit definitions only; each has a hand-computed test). Otherwise: refused.
+- Everything is read as text; bad cells are rejected one by one with a short reason, empty cells are
+  counted and skipped, and the rest of the file still imports.
+- Ids are UUIDv5 of `(source_ref, astronaut, observed_at, metric)`: re-importing the same file, or
+  the same rows in another order, produces the same ids, so storing twice is harmless.
+- Imported observations then go through the normal `ingest` path like any other write.
+
+Status: library and tests only. There is no CLI or HTTP endpoint for importing yet (D-022).
 
 ## HTTP API contract (v1)
 

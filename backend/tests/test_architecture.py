@@ -42,6 +42,7 @@ def test_health_module_depends_only_on_itself_and_core(module):
         "medvital.sync",
         "medvital.registry",
         "medvital.ingest",
+        "medvital.importers",
         "medvital.main",
         "medvital.simulated_profiles",
     ]
@@ -78,8 +79,16 @@ def test_core_does_not_depend_on_framework_or_upper_layers():
         "medvital.modules",
         "medvital.registry",
         "medvital.ingest",
+        "medvital.importers",
     ]
     assert violations(list((PKG / "core").rglob("*.py")), forbidden) == []
+
+
+def test_importers_depend_only_on_core_and_registry():
+    forbidden = ["fastapi", "starlette", "medvital.api", "medvital.db", "medvital.sync"]
+    files = list((PKG / "importers").rglob("*.py"))
+    assert files
+    assert violations(files, forbidden) == []
 
 
 def test_database_layer_does_not_import_api_or_modules():

@@ -16,6 +16,8 @@ A runnable foundation, not a dashboard:
 - **Seeded simulator** and four simulated astronaut profiles (parameters are illustrative, not NASA data).
 - **FastAPI backend** (Pydantic v2, NumPy, SciPy, Pandas, scikit-learn) with a versioned HTTP contract.
 - **Offline-first design**: IndexedDB store + outbox in the browser, idempotent push/pull sync.
+- **Source import pipeline** (`backend/medvital/importers/`): spec-driven CSV to `measured`
+  observations with exact unit conversion. No NASA data is bundled; none has been imported yet.
 - **PostgreSQL architecture** (schema + repository). The default store is in-memory; the
   PostgreSQL repository is an unverified skeleton (see `docs/DECISIONS.md`).
 - **React + TypeScript + Tailwind** frontend shell. Pytest and Vitest suites.

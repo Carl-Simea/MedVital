@@ -56,6 +56,13 @@ possible later step.
 **D-016. Vite dev proxy instead of CORS.** `/api` is proxied to port 8000 in development.
 Production deployment topology is undecided (D-017).
 
+**D-022. Import pipeline is a library driven by a declarative spec, with no bundled data.**
+Real sources differ in layout and terms, so each is described by a reviewed `ImportSpec` rather
+than hard-coded. Required `terms_note` and `source_ref` force the importer to read the terms and
+identify the exact record. Unit conversions are limited to exact definitions. Not done yet: a CLI,
+an upload endpoint, non-CSV formats (JSON, Parquet), and the actual RadLab/OSDR mapping, which is
+blocked on verifying units and terms (see `NASA_SOURCES.md`).
+
 ## Open questions
 
 **D-009. PostgreSQL sync cursor under concurrent writers.** `server_seq` is assigned at insert,
