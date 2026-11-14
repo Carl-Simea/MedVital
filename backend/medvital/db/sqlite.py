@@ -106,10 +106,13 @@ class SqliteObservationRepository:
         fingerprint = observation_fingerprint(observation)
         with self._lock:
             existing = self._conn.execute(
-                "SELECT server_seq, fingerprint FROM observations WHERE id = ?", (str(observation.id),)
+                "SELECT server_seq, payload FROM observations WHERE id = ?", (str(observation.id),)
             ).fetchone()
             if existing is not None:
-                seq, stored_fp = existing
+                seq, stored_payload = existing
+                # Re-fingerprint the stored row with the current model so additive schema fields
+                # (with defaults) never turn a legitimate retry into a false conflict.
+                stored_fp = observation_fingerprint(HealthObservation.model_validate_json(stored_payload))
                 status = AddStatus.DUPLICATE if stored_fp == fingerprint else AddStatus.CONFLICT
                 return AddOutcome(status, seq)
             cur = self._conn.execute(
@@ -238,11 +241,12 @@ class SqliteObservationRepository:
         fingerprint = schedule_fingerprint(schedule)
         with self._lock:
             existing = self._conn.execute(
-                "SELECT schedule_seq, fingerprint FROM measurement_schedules WHERE id = ?",
+                "SELECT schedule_seq, payload FROM measurement_schedules WHERE id = ?",
                 (str(schedule.id),),
             ).fetchone()
             if existing is not None:
-                seq, stored_fp = existing
+                seq, stored_payload = existing
+                stored_fp = schedule_fingerprint(MeasurementSchedule.model_validate_json(stored_payload))
                 status = AddStatus.DUPLICATE if stored_fp == fingerprint else AddStatus.CONFLICT
                 return AddOutcome(status, seq)
             cur = self._conn.execute(

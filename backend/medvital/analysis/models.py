@@ -14,7 +14,7 @@ from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, model_validato
 
 from medvital.core.schema import DataOrigin, Quality
 
-ANALYSIS_VERSION = "0.1.1"
+ANALYSIS_VERSION = "0.2.0"
 
 ANALYSIS_NOTICE = (
     "Statistical description only. Not a diagnosis, not medical advice; no clinical thresholds "
@@ -153,6 +153,7 @@ class Deviation(_Frozen):
     delta_from_baseline_median: float
     z: float | None
     modified_z: float | None
+    uncertainty: float | None = Field(default=None, description="The observation's own standard uncertainty.")
 
 
 class AnomalyFlag(_Frozen):
@@ -164,6 +165,7 @@ class AnomalyFlag(_Frozen):
     modified_z: float
     method: str
     cutoff: float
+    uncertainty: float | None = None
     note: str = "Statistically unusual relative to own baseline; for review. Not a clinical finding."
 
 
@@ -179,6 +181,9 @@ class DataQualityReport(_Frozen):
     excluded_counts: dict[str, int] = Field(description="Per ExclusionReason.")
     quality_counts: dict[str, int]
     duplicate_timestamps: int
+    uncertainty_known_count: int = Field(
+        default=0, description="Analysed values with a known uncertainty (others are unknown, not zero)."
+    )
     expected_interval_s: float | None
     interval_source: Literal["configured", "inferred"] | None
     expected_count: int | None

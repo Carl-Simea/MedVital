@@ -38,6 +38,8 @@ export interface HealthObservation {
   context: Record<string, string>
   device_id?: string | null
   quality?: 'valid' | 'suspect' | 'invalid'
+  /** Standard uncertainty in `unit`. null/absent = unknown (never treated as 0). */
+  uncertainty?: number | null
   provenance: Provenance
   supersedes?: string | null
 }
@@ -71,6 +73,9 @@ export function validateObservation(input: unknown): ValidationResult {
   else if (o.metric.split('.')[0] !== o.module) errors.push('metric does not belong to module')
   if (typeof o.value !== 'number' || !Number.isFinite(o.value)) errors.push('value must be a finite number')
   if (!nonEmpty(o.unit)) errors.push('unit is required')
+  if (o.uncertainty != null && (typeof o.uncertainty !== 'number' || !Number.isFinite(o.uncertainty) || o.uncertainty < 0)) {
+    errors.push('uncertainty must be a finite number >= 0, or null when unknown')
+  }
   for (const key of ['observed_at', 'recorded_at'] as const) {
     const v = o[key]
     if (typeof v !== 'string' || !AWARE_DATETIME.test(v) || Number.isNaN(Date.parse(v))) {

@@ -66,6 +66,7 @@ def event_to_observation(event: TelemetryEvent, registry: ModuleRegistry) -> Hea
         recorded_at=event.timestamp,
         device_id=event.device_id,
         quality=event.quality,
+        uncertainty=event.uncertainty,
         provenance=provenance,
     )
 

@@ -124,3 +124,9 @@ A plan, not a measurement. Never contains values.
 
 Resolved event: `planned_at`, `window_start` (inclusive), `window_end` (exclusive), `phase`
 (`preflight` < launch ≤ `inflight` < return ≤ `postflight`), `time_origin = modeled`.
+
+## Observation field added in M3
+
+| Field | Type | Notes |
+|---|---|---|
+| `uncertainty` | number ≥ 0, or null | Standard uncertainty (1 σ) in the observation's `unit`. `null` = unknown (never treated as 0). Optional; schema_version unchanged (D-025). |

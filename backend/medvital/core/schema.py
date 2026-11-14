@@ -143,6 +143,13 @@ class HealthObservation(BaseModel):
     quality: Quality = Field(
         default=Quality.VALID, description="Signal-quality verdict; non-valid is kept and flagged."
     )
+    uncertainty: float | None = Field(
+        default=None,
+        ge=0,
+        allow_inf_nan=False,
+        description="Standard uncertainty (1 sigma) in the observation's own unit. None = unknown (never 0 "
+        "by default); 0 means known exact. Additive optional field (D-025): schema_version stays 1.",
+    )
     provenance: Provenance
     supersedes: UUID | None = None
 
@@ -181,7 +188,13 @@ class HealthObservation(BaseModel):
 
 
 def observation_fingerprint(observation: HealthObservation) -> str:
-    """Stable content hash used for idempotent writes and conflict detection."""
+    """Stable content hash used for idempotent writes and conflict detection.
+
+    The hash covers the *current* model's full dump, so stores must compare fingerprints computed
+    with the same model version: re-parse a stored payload and fingerprint it again rather than
+    trusting a fingerprint persisted by an older version (an additive field would otherwise turn a
+    legitimate retry into a false conflict; see ``same_content``).
+    """
     payload = observation.model_dump(mode="json")
     canonical = json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=True)
     return hashlib.sha256(canonical.encode("utf-8")).hexdigest()

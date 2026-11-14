@@ -196,6 +196,19 @@
             ],
             "title": "Supersedes"
           },
+          "uncertainty": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Standard uncertainty (1 sigma) in the observation's own unit. None = unknown (never 0 by default); 0 means known exact. Additive optional field (D-025): schema_version stays 1.",
+            "title": "Uncertainty"
+          },
           "unit": {
             "description": "UCUM-style unit string. Must match the metric definition.",
             "maxLength": 256,

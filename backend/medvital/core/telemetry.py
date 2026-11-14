@@ -43,6 +43,9 @@ class TelemetryEvent(BaseModel):
     source_ref: ShortText | None = None
     generator_version: ShortText | None = None
     seed: int | None = None
+    uncertainty: float | None = Field(
+        default=None, ge=0, allow_inf_nan=False, description="Standard uncertainty in `unit`; None = unknown."
+    )
 
     @model_validator(mode="after")
     def _check_provenance_inputs(self) -> Self:

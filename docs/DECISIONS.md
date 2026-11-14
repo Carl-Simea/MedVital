@@ -111,6 +111,20 @@ Deferred, not cancelled: it follows the three-station interfaces (M8). The Neuro
 prompt (anatomical selection, layered overlays, timeline, data inspector with provenance; science computed only in
 Python; licensed assets only) is preserved unchanged for that milestone.
 
+## D-025 Observation `uncertainty` field; compatibility rules for additive schema changes (M3)
+`HealthObservation.uncertainty`: optional standard uncertainty (1 σ) in the observation's own unit, ≥ 0, finite.
+`None` = unknown and is never replaced by 0; an explicit 0 means known exact. Telemetry carries the same optional
+extension field. The analysis engine reports how many analysed values have a known uncertainty and carries each value's
+uncertainty onto deviations and flags; it never fabricates one.
+
+Compatibility: the field is additive and optional, so `schema_version` stays 1 and every existing payload remains valid;
+IndexedDB needs no migration (no new index). Stores now decide DUPLICATE vs CONFLICT by re-fingerprinting the *stored*
+payload with the current model instead of trusting a fingerprint persisted by an older release. Without this, any
+additive field with a default turned a legitimate retry of a pre-upgrade row into a false conflict (demonstrated on the
+pre-M3 code for rows written before `quality`/`device_id` existed; regression test in `test_uncertainty_and_compat.py`).
+Residual risk: an un-upgraded station rejects payloads containing the new key (`extra="forbid"`), so station-to-station
+pushes omit `None`-valued fields, and stations should be upgraded together.
+
 ## Open questions
 
 * **Q-1 Offline computation parity.** Summaries are computed server-side only, so an offline client cannot show derived values. Options: port calculations to TypeScript with shared test vectors; run the Python in Pyodide/WASM; or cache the last server summary. Decide before building the dashboard.

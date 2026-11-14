@@ -117,6 +117,7 @@ def analyze(
                 "t": o.observed_at.timestamp(),
                 "value": o.value,
                 "quality": quality,
+                "uncertainty": o.uncertainty,
                 "exclusion": exclusion,
             }
         )
@@ -220,6 +221,7 @@ def _analyze_series(
         excluded_counts=dict(sorted(Counter(e for e in part["exclusion"] if e).items())),
         quality_counts=dict(sorted(Counter(part["quality"]).items())),
         duplicate_timestamps=duplicates,
+        uncertainty_known_count=int(used["uncertainty"].notna().sum()),
         expected_interval_s=interval,
         interval_source=interval_source,
         expected_count=expected,
@@ -276,6 +278,7 @@ def _analyze_series(
                         delta_from_baseline_median=float(dev.delta[j]),
                         z=_finite_or_none(dev.z[j]),
                         modified_z=_finite_or_none(dev.modified_z[j]),
+                        uncertainty=by_id[ids[i]].uncertainty,
                     )
                     for j, i in enumerate(post_idx)
                 ]
@@ -292,6 +295,7 @@ def _analyze_series(
                         modified_z=float(dev.modified_z[j]),
                         method=ANOMALY_METHOD,
                         cutoff=cfg.modified_z_cutoff,
+                        uncertainty=rows[j].uncertainty,
                     )
                     for j in np.flatnonzero(flags)
                 ]

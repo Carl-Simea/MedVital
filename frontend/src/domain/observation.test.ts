@@ -54,6 +54,18 @@ describe('validateObservation', () => {
     expect(errorsOf({ ...o, supersedes: o.id })).toContain('supersedes must be a different observation UUID')
   })
 
+  it('accepts unknown or known uncertainty and rejects invalid uncertainty', () => {
+    expect(errorsOf(makeObservation())).toEqual([])
+    expect(errorsOf({ ...makeObservation(), uncertainty: null })).toEqual([])
+    expect(errorsOf({ ...makeObservation(), uncertainty: 0 })).toEqual([])
+    expect(errorsOf({ ...makeObservation(), uncertainty: 0.4 })).toEqual([])
+    for (const bad of [-1, Number.NaN, Number.POSITIVE_INFINITY, '0.4']) {
+      expect(errorsOf({ ...makeObservation(), uncertainty: bad })).toContain(
+        'uncertainty must be a finite number >= 0, or null when unknown',
+      )
+    }
+  })
+
   it('rejects non-objects', () => {
     expect(errorsOf(null)).toEqual(['observation must be an object'])
   })
