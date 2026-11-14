@@ -1,0 +1,9 @@
+# Local feedback reports (personal notes and screenshots) never go into the repo
+feedback/
+.DS_Store
+node_modules/
+# Anatomy rebuild inputs and caches (tools/get_bodyparts3d.sh, tools/build_anatomy.py)
+tools/_src/
+tools/_cache/
+tools/__pycache__/
+public/data/anatomy.bin

@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="MEDvital">
+<meta name="theme-color" content="#f2f2f7" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon-180.png">
+<link rel="apple-touch-icon" href="icon-180.png">
+<title>MEDvital</title>
+<script type="importmap">{"imports":{"three":"./vendor/three.module.js"}}</script>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="app">
+
+  <!-- Left: crew member and current vitals -->
+  <section class="col left">
+    <div class="head">
+      <h1 class="brand"><span class="brand-mark"><img src="medvital-logo.png" alt=""></span>MEDvital</h1>
+    </div>
+    <nav class="overview-nav" aria-label="Health overview"><button data-view="overview" aria-pressed="true">Overview</button><button data-view="sleep" aria-pressed="false">Sleep</button><button data-view="exercise" aria-pressed="false">Exercise</button><button data-view="nutrition" aria-pressed="false">Nutrition</button></nav>
+    <div class="view-intro" id="viewIntro"><span>YOUR HEALTH AT A GLANCE</span><h2>Daily overview</h2></div>
+    <div class="scores row" id="scores"></div>
+    <div class="tiles" id="tiles"></div>
+    <article class="card" id="partCard" hidden></article>
+  </section>
+
+  <!-- Center: rotatable body with layer switches -->
+  <section class="col center">
+    <div class="head">
+      <input id="crewName" class="crew" type="text" value="Crew member" maxlength="28" spellcheck="false" aria-label="Crew member name">
+      <span class="dot" id="dot"></span>
+      <span class="sub" id="sSub">Loading anatomy …</span>
+    </div>
+    <div class="stage">
+      <div class="cam" id="cam">
+        <canvas id="gl" aria-label="3D body. Drag to rotate, scroll to zoom, click a part to select it."></canvas>
+        <div class="tip glass" id="tip" hidden></div>
+        <div class="camMsg" id="camMsg"><div id="camTxt">Loading anatomy …</div></div>
+        <div class="tools">
+          <button class="tool glass" id="bBody" aria-label="Whole body" title="Whole body"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="5" r="2.4"/><path d="M12 8v7M7 10.5h10M12 15l-3 6M12 15l3 6"/></svg></button>
+          <button class="tool glass" id="bRotL" aria-label="Rotate left" title="Rotate left">‹</button>
+          <button class="tool glass" id="bRotR" aria-label="Rotate right" title="Rotate right">›</button>
+          <button class="tool glass" id="bReset" aria-label="Reset view" title="Reset view"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M20 11a8 8 0 0 0-14.3-4.9L4 8"/><path d="M4 4v4h4"/></svg></button>
+        </div>
+        <div class="hint glass" id="hint">Drag to rotate · click a part</div>
+      </div>
+    </div>
+    <div class="attn" id="attn"></div>
+    <div class="seg" id="seg">
+      <button data-layer="bone" class="on">Bones</button>
+      <button data-layer="organ">Organs</button>
+      <button data-layer="muscle">Muscles</button>
+      <button data-layer="all">All</button>
+    </div>
+    <div class="bar">
+      <button class="primary" id="sampleBtn">Load sample data</button>
+    </div>
+    
+  </section>
+
+  <!-- Right: past data and upcoming -->
+  <section class="col right">
+    <div class="head">
+      <span class="clock" id="clock"></span>
+      <button class="round" id="asBtn" aria-label="Assistant" title="Assistant"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v3M8 21h8M5 9a7 7 0 0 1 14 0v3a7 7 0 0 1-14 0z"/><circle cx="9.5" cy="10" r=".6" fill="currentColor"/><circle cx="14.5" cy="10" r=".6" fill="currentColor"/></svg></button>
+      <button class="round" id="fbBtn" aria-label="Feedback" title="Feedback"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M20 12a8 8 0 0 1-11.6 7.1L4 20l1-4.1A8 8 0 1 1 20 12Z"/></svg></button>
+      <button class="round" id="setBtn" aria-label="Settings"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h9M17 7h3M4 17h3M11 17h9"/><circle cx="15" cy="7" r="2"/><circle cx="9" cy="17" r="2"/></svg></button>
+    </div>
+    <div class="panel past">
+      <div class="ptitle"><b>Past data</b><span id="pastSub"></span></div>
+      <div class="chart" id="chart"></div>
+      <div class="stats" id="stats"></div>
+    </div>
+    <div class="panel upcoming">
+      <div class="ptitle"><b>Upcoming</b><span class="chip" id="sampleChip" hidden>Sample data</span></div>
+      <div class="two">
+        <div class="cell"><div class="ctitle">Environment</div><ul id="envList"></ul></div>
+        <div class="cell"><div class="ctitle">Predictions</div><ul id="predList"></ul></div>
+      </div>
+    </div>
+    <div class="panel dock" id="dock">
+      <div class="dtabs" role="tablist">
+        <button role="tab" data-dock="input" aria-selected="true">Data input</button>
+        <button role="tab" data-dock="assistant" aria-selected="false">Assistant</button>
+        <span class="dsub" id="asSub"></span>
+      </div>
+      <div class="dpane" id="inPane">
+        <div class="alog" id="inLog"></div>
+        <form class="ain multi" id="inForm">
+          <label class="micb" title="Attach a report (.txt, .csv, .json)"><input type="file" id="inFile" multiple accept=".txt,.csv,.tsv,.json,.md,.log,.xml,.html,.pdf,image/*" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5 12.6 19.9a5 5 0 0 1-7.1-7.1l8.4-8.4a3.3 3.3 0 0 1 4.7 4.7l-8.4 8.4a1.7 1.7 0 0 1-2.4-2.4l7.8-7.8"/></svg></label>
+          <textarea id="inText" rows="1" placeholder="Paste a report or values, or drop a file …"></textarea>
+          <button class="send" type="submit">Read</button>
+        </form>
+      </div>
+      <div class="dpane" id="asPane" hidden>
+        <div class="alog" id="alog"></div>
+        <div class="achips" id="achips"></div>
+        <form class="ain" id="asForm">
+          <button type="button" id="asMic" class="micb" aria-label="Speak"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg></button>
+          <input id="asIn" placeholder="Ask about your health data …" autocomplete="off">
+          <button class="send" type="submit">Send</button>
+        </form>
+      </div>
+      <div class="drop" id="drop" hidden>Drop the report to read it</div>
+    </div>
+  </section>
+</div>
+
+<div class="overlay" id="fbOv" hidden>
+  <div class="sheet">
+    <h2>Feedback</h2>
+    <form id="fbForm" style="display:contents">
+      <textarea id="fbT" placeholder="What should be better? What did not work?" rows="5"></textarea>
+      
+      <div class="fbmsg" id="fbMsg"></div>
+      <div class="two"><button class="plain" type="button" id="fbCancel">Cancel</button><button class="primary" type="submit" id="fbSend">Send</button></div>
+    </form>
+  </div>
+</div>
+
+
+<div class="overlay" id="ov" hidden>
+  <div class="sheet" id="sheet">
+    <h2>Settings</h2><div class="legal">Average anatomy, not an X-ray and not a diagnosis. Part status comes only from the data you enter or load. Models: BodyParts3D © DBCLS, CC BY-SA 2.1 JP.</div>
+    <div class="field"><label>Look</label><div class="seg small" id="segLook"><button data-look="solid" class="on">Solid</button><button data-look="xray">X-ray</button></div></div>
+    <div class="field"><label>Anatomy opacity <span id="vOp"></span></label><input id="rOp" type="range" min="30" max="100" value="100"></div>
+    <div class="field"><label>Auto-rotate</label><div class="seg small" id="segRot"><button data-rot="1" class="on">On</button><button data-rot="0">Off</button></div></div>
+    <div class="two"><button class="primary" id="setDone">Done</button></div>
+  </div>
+</div>
+
+<script type="module" src="app.js"></script>
+<script type="module" src="health.mjs"></script>
+</body>
+</html>
