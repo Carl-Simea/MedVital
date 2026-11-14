@@ -61,6 +61,23 @@ dependency (NumPy/pandas already declared). It reads `quality` and `device_id` (
 what enters statistics (default `valid` only), device splits series. Numbered D-018 because D-016/D-017 were assigned on the telemetry branch; the two were developed in separate checkouts and merged. Not yet
 exposed through the API (a route ⇒ OpenAPI regeneration + frontend mirror). Method: SCIENTIFIC_METHODOLOGY §9.
 
+## D-019 Published research values are `PublishedReference` records, not observations (decided 2026-11-14)
+`DataOrigin` stays exactly `simulated | measured | modeled` (rule 2, D-003 unchanged). A value taken from a publication
+(a cohort mean, a reported rate, a reference interval) is a separate, read-only record and **never** a `HealthObservation`,
+so a cohort average can never appear as an individual astronaut's reading.
+
+Planned fields (implementation not started; tracked in MODELING_GAP_ANALYSIS G-13):
+`reference_id` (`REF-` + stable slug, e.g. `REF-SIBONGA2007-…`), `citation` (required; authors, title, venue, year),
+`source_identifier` (required; DOI, PMID, NTRS id or dataset accession), `verification` (`verified_at_source` |
+`unverified`, plus who/when), `quantity` and `unit` (canonical, as for metrics), `value` and/or `interval`, `statistic`
+(mean, median, SD, …), `population` (n, species, cohort, mission type), `context` (site, method, posture, timepoint),
+`limitations` (required free text), `retrieved_at`.
+
+Rules: a reference may be *displayed beside* an individual's series and used as a *configured, cited assumption* in a
+modeled trajectory (the modeled value's provenance then names the `REF-` id); it is never pooled into, averaged with, or
+stored as observations, and it never becomes a clinical threshold unless rule 3 is explicitly changed. Unverified
+references may be stored but must render as unverified.
+
 ## Open questions
 
 * **Q-1 Offline computation parity.** Summaries are computed server-side only, so an offline client cannot show derived values. Options: port calculations to TypeScript with shared test vectors; run the Python in Pyodide/WASM; or cache the last server summary. Decide before building the dashboard.

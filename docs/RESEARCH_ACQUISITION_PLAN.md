@@ -40,7 +40,7 @@ crew member's dose rate.
 
 | Priority | Source | Tier | What it gives | Variables / units | Links | Ver. |
 |---|---|---|---|---|---|---|
-| 1 | **OSD-804**, Rodent Research-1 (37-day flight), femur and vertebra microCT and histology | 2 | Real spaceflight bone-structure measurements (mouse) | ? microCT parameter names and units: read the file list | <https://osdr.nasa.gov/bio/repo/data/studies/OSD-804>, DOI 10.26030/yh5h-h706 | S |
+| 1 | **OSD-804**, Rodent Research-1 (37-day flight), femur and vertebra microCT | 2 | Real spaceflight bone-structure measurements (mouse). **No BMD in the data.** | Verified in NASA_SOURCES §6b (unit defects noted) | <https://osdr.nasa.gov/bio/repo/data/studies/OSD-804> (DOI 10.26030/yh5h-h706 not seen in the files) | V |
 | 2 | **OSD-396**, femoral segmental defect healing (SpaceX-10, mouse) | 2 | microCT of the femur | ? | catalog <https://catalog.data.gov/dataset/gene-metabolite-networks-associated-with-impediment-of-bone-fracture-repair-in-spaceflight> | S |
 | 3 | **LSDA / NLSP**, astronaut DXA (Lifetime Surveillance of Astronaut Health) | 3 | Individual areal BMD (the metric `bone.areal_bmd` assumes) | — | Request form <https://nlsp.nasa.gov/explore/lsdahome/datarequest>, context <https://www.nasa.gov/content/bone-and-mineral-evaluation-and-analysis> | S |
 | — | Sibonga et al. 2007, *Bone* 41(6), DOI 10.1016/j.bone.2007.08.022 (post-flight BMD recovery, DXA) | 4 | Methods for fitting a recovery curve | Aggregate only | <https://ntrs.nasa.gov/citations/20070032016> | S |
@@ -51,7 +51,7 @@ crew member's dose rate.
 
 | Priority | Source | Tier | What it gives | Variables / units | Links | Ver. |
 |---|---|---|---|---|---|---|
-| 1 | **OSD-569**, Inspiration4 complete blood count (4 crew, pre/post flight) | 1 | Only clinical-lab-style astronaut table found so far (haematology, not haemodynamics) | ? Column names and units not read; files `LSDS-7_Complete_Blood_Count_CBC.*.csv` | <https://osdr.nasa.gov/osdr/data/osd/files/569> | V |
+| 1 | **OSD-569**, Inspiration4 complete blood count (4 crew, pre/post flight) | 1 | Only clinical-lab-style astronaut table found so far (haematology, not haemodynamics) | Verified in NASA_SOURCES §6a (hemoglobin unit defect in TRANSFORMED) | <https://osdr.nasa.gov/osdr/data/osd/files/569> | V |
 | 2 | **NLSP/LSDA**: browse for public, non-attributable cardiovascular downloads | 1 or 3 ? | LSDA says much non-attributable data downloads directly; which datasets do is unknown | ? | <https://data.nasa.gov/dataset/nasa-life-sciences-portal-nlsp> | S |
 | — | NASA Twins Study, Garrett-Bakelman et al. 2019, *Science*, DOI 10.1126/science.aau8650 | 4 (data availability still to check) | Methods for carotid and cardiovascular measurements across a long-duration mission | Aggregate | <https://pubmed.ncbi.nlm.nih.gov/30975860/> | S |
 | — | Miniature Biometric Sensor Project (ISS heart-rate monitoring context) | 4 | Background on sensor drop-out and motion artefact, for wearable design | — | <https://ntrs.nasa.gov/citations/20150016028> | V |
@@ -62,7 +62,7 @@ crew member's dose rate.
 
 | Priority | Source | Tier | What it gives | Variables / units | Links | Ver. |
 |---|---|---|---|---|---|---|
-| 1 | **NLSP "Standard Measures – HERA"** (analogue: behavioural health + cortisol) | 1 or 3 ? | Analogue-crew behavioural standard measures | ? Instruments and scales: read the page | <https://nlsp.nasa.gov/explore/home/lsda_sm_hera> | S |
+| 1 | **NLSP "Standard Measures – HERA"** (analogue: behavioural health + cortisol) | **3** (pass 2: "accessible via data request") | Analogue-crew behavioural standard measures | Variable names verified, no units (NASA_SOURCES §6c) | <https://nlsp.nasa.gov/resources/standard-measures> | V |
 | — | HERA facility capabilities (2019), which lists actigraphy | 4 | Which measures exist in HERA | — | <https://www.nasa.gov/wp-content/uploads/2016/05/2019_hera_facility_capabilities_information.pdf> | S |
 | — | Barger et al. 2014, *Lancet Neurology* 13(9):904–912 (actigraphy and sleep diaries, Shuttle/ISS) | 4 | Sleep-measurement methods for `behavioral.sleep_duration` | Aggregate | <https://pmc.ncbi.nlm.nih.gov/articles/PMC4188436/> (PMC4188436) | S |
 | — | Nasrini et al. 2020, *Front. Physiol.*, DOI 10.3389/fphys.2020.00394 (Cognition battery in HERA) | 4 | Named instrument for `behavioral.self_report_score`-style data | Aggregate | <https://www.frontiersin.org/article/10.3389/fphys.2020.00394> | S |

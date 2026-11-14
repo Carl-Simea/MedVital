@@ -89,6 +89,57 @@ Status key: **V** = read in a NASA primary source this pass; **S** = reported on
 - **NASA-STD-3001 (exposure limits, health standards):** exists per search results; **no limit or value has been read or copied**. Any threshold must be cited by revision and section before use (CLAUDE.md rule 3).
 - NASA Open Data Portal (data.nasa.gov) and Space Apps 2026 challenge materials: not checked.
 
+## 6. Research pass 2 (2026-11-14, 17:29–17:45 UTC): files opened and inspected
+
+Files were downloaded to a scratch directory, checksummed and read. **Nothing is committed and nothing has been ingested.**
+Licence and terms of use for public OSDR files: **still not found.**
+
+### 6a. OSD-569: Inspiration4 complete blood count (**V**)
+
+| Field | Entry |
+|---|---|
+| Population | **Human**: 4 private astronauts, C001–C004 (ISA `Organism = Homo sapiens`), 3-day LEO flight 2021-09-16..18. Weill Cornell IRB 21-05023569. Crew consented to data sharing (study description). |
+| Origin | *measured*: Sysmex XN analyzer (Quest Diagnostics), 4 mL K2EDTA tubes. Raw instrument files: "Not Available". |
+| Access | All 11 files have `restricted=false`. API <https://osdr.nasa.gov/osdr/data/osd/files/569>. Download `https://osdr.nasa.gov/geode-py/ws/studies/OSD-569/download?source=datamanager&file=<name>` |
+| Files read | `LSDS-7_Complete_Blood_Count_CBC.upload_SUBMITTED.csv` (26,138 B, SHA-256 `10a878b009eb2ea11a13fe92ad698098858639e8ed02f5ee849431313b9457d3`); `LSDS-7_Complete_Blood_Count_CBC_TRANSFORMED.csv` (9,317 B, `32e4f9c97d3b636b5d5c2e72dab8c4d3319dee64c437508b092dad04603b2b8f`); ISA zip (123,512 B, `5b3c19c5079816b283125caf4009db8e39d48377d92763e9e61e86e3e1b4c159`) |
+| SUBMITTED columns | `ANALYTE, VALUE, RANGE_MIN, RANGE_MAX, UNITS, TEST_TYPE, SUBJECT_ID, SEX, TEST_DATE`. 553 rows. |
+| Variables and units | WBC, platelets: Thousand/uL. RBC: Million/uL. Hemoglobin, MCHC: g/dL. Hematocrit, RDW, differential percentages: %. Absolute differential counts: cells/uL. MCV, MPV: fL. MCH: pg. |
+| Time | **Relative only**: L-92, L-44, L-3, R+1, R+45, R+82, R+194. No calendar dates. |
+| Missingness | 19–20 analytes per draw. MCHC is in 24 of 28 draws, MCH in 26. Hemoglobin, hematocrit and RBC appear once each under a separate `(FEMALE)` analyte name. |
+| Defects / cautions | The TRANSFORMED file labels hemoglobin `percent` (the SUBMITTED file says g/dL). `RANGE_MIN`/`RANGE_MAX` are the **lab's clinical reference intervals**: never use them as thresholds (rule 3). |
+
+### 6b. OSD-804: Rodent Research-1 bone microCT (**V**)
+
+| Field | Entry |
+|---|---|
+| Population | **Mouse, not human**: 40 female C57BL/6J, 16 weeks old. Groups basal, vivarium, ground control, flight (37 days on ISS, SpaceX-4, launched 2014-09-21). |
+| Origin | *measured*: Bruker SkyScan 1272, 60 kV, voxels 3×3×3 or 4×4×4 µm, frame averaging 3, saline, manual segmentation (CTAn). Raw images: "Not Available". |
+| Access | All 4 files have `restricted=false`. <https://osdr.nasa.gov/bio/repo/data/studies/OSD-804>. Released 2025-01-29. No publication DOI in the ISA file. |
+| Files read | SUBMITTED xlsx (22,940 B, `2c47f8cf9a1cea2ea9e41c9b309eb756b2f282f61a0f2765f3e15b37df0cae5b`); TRANSFORMED csv (13,052 B, `499541f23b4c3afcd39762456d98cb3046e1f56467fdf8ec5987f684534ccf0c`); data dictionary (1,664 B, `48435279f43e902280ce22ccb7025226b90a396f61b46458ab1c0323528012b8`); ISA zip (254,504 B, `62269d2cca516af7f75843b836b77422b21921ee5183acdb17601815c49ad372`) |
+| Variables | Cortical sites (femur, femoral neck): BA/TA, Ct.Th (mm), endosteal and periosteal perimeter (mm). Trabecular sites (distal femur, femoral head, vertebrae): BV/TV, Tb.Th and Tb.Sp (mm), Tb.N (1/mm), Conn.D (1/mm³), DA, Tb.Pf. 170 rows (animal × site). Uneven n for femoral head and neck. |
+| Defects | TRANSFORMED gives the ratios BA/TA and BV/TV the units mm² and mm³; the original workbook gives no unit. **BMD and Cort.TMD are defined in the dictionary but absent from all data.** |
+| Fit | Cannot populate `bone.areal_bmd`. Animal data must never use astronaut `subject_id`s. |
+
+### 6c. NLSP / LSDA Standard Measures (**V**, metadata only)
+
+Catalogue: <https://nlsp.nasa.gov/resources/standard-measures>. The legacy `explore/home/lsda_sm_hera` URL now loads an
+empty JavaScript application. Records: `https://nlsp.nasa.gov/api/v1/data/lsda_experiment/{id}/full`.
+There are 26 measures across HERA, ISS, NEK and :envihab. :envihab lists bone mineral density, tilt test and VO2max.
+
+**Every record inspected says: "Data collection is ongoing. Available datasets are accessible via data request."**
+Every record lists 0 related datasets. The data cannot be downloaded directly.
+
+| Record | Status | Variables (verbatim) and schedule |
+|---|---|---|
+| HERA PANAS, DOI 10.83263/whe7-1e26 | V | Positive affect, Negative affect. 20 items. L-13, L-1, weekly in mission, R+1, R+13. |
+| HERA GHQ, DOI 10.83263/j6g2-kj21 | V | Anxiety, Insomnia, Severe depression, Social dysfunction, Somatic symptoms. Same schedule. |
+| ISS Actigraphy, DOI 10.83263/ct85-fz22 | V | Sleep time total, Time in bed, Sleep efficiency, Sleep onset latency, Wake after sleep onset, Awakenings number, Bedtime, Wake time. Actiwatch Spectrum, non-dominant wrist. |
+| ISS Sleep Quality/Team, DOI 10.83263/cznc-8459 | V | Sleep quality and quantity, tiredness, sleepiness, stress, workload, team cohesion, group living, vehicle design. |
+| ISS Cognition, DOI 10.83263/nsjh-ec07 | V | Cognition battery (PVT, N-back, DSST, BART, VOLT, and others), plus pre-test state items. |
+| ISS Personality, DOI 10.83263/fe3k-4225 | V | Big-Five domains and facets. 120 items, preflight. |
+
+No units or score ranges are given. Variable names and schedules may shape *simulated* designs only (rule 8).
+
 ## Rules for adding a source
 1. Record exact URL/DOI/accession, retrieval date, licence and any access agreement.
 2. Confirm redistribution rights before committing files; prefer a download script + checksum.
@@ -99,6 +150,7 @@ Status key: **V** = read in a NASA primary source this pass; **S** = reported on
 ## Gaps blocking real-data use
 * **No source found for human bone density, continuous heart rate/ECG, blood pressure, sleep or mood time series.** Modules 2–4 will rely on *simulated* data unless another primary source is found.
 * DONKI: units of numeric fields, FLR endpoint failure, a real API key.
-* OSD-569 CBC: column names/units and per-subject availability.
+* OSD-569 CBC: columns and units resolved (§6a). Remaining: licence/terms of use; relative-only timepoints.
+* Standard Measures (HERA/ISS/:envihab): data only via formal LSDA request (§6c).
 * Curiosity RAD: per-product sizes, `.FMT` units, `TIMING_ERRORS`, and whether any dose-equivalent product exists elsewhere.
 * No documented clinical or regulatory threshold has been sourced; none may be used.
