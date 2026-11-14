@@ -1,0 +1,42 @@
+import { ProvenanceBadge } from './components/ProvenanceBadge'
+import { SyncStatus } from './components/SyncStatus'
+import { MODULES } from './domain/modules'
+import { DATA_ORIGINS } from './domain/observation'
+
+export default function App() {
+  return (
+    <div className="mx-auto max-w-4xl p-6 text-slate-900">
+      <header className="mb-6 border-b border-slate-300 pb-4">
+        <h1 className="text-2xl font-bold">MEDVITAL</h1>
+        <p className="text-sm text-slate-600">
+          Offline-first astronaut health observation platform — foundation build (no dashboard yet).
+        </p>
+        <div className="mt-3">
+          <SyncStatus />
+        </div>
+      </header>
+
+      <p role="note" className="mb-6 rounded border border-slate-300 bg-slate-50 p-3 text-sm">
+        MEDVITAL presents descriptive statistics only. It is not a medical device, gives no diagnosis,
+        and applies no clinical thresholds.
+      </p>
+
+      <section aria-label="Data origin legend" className="mb-6 flex flex-wrap items-center gap-2 text-sm">
+        <span className="font-semibold">Data origin:</span>
+        {DATA_ORIGINS.map((origin) => (
+          <ProvenanceBadge key={origin} origin={origin} />
+        ))}
+      </section>
+
+      <section aria-label="Health modules" className="grid gap-4 sm:grid-cols-2">
+        {MODULES.map((m) => (
+          <article key={m.id} data-module={m.id} className="rounded border border-slate-300 p-4">
+            <h2 className="text-lg font-semibold">{m.name}</h2>
+            <p className="text-sm text-slate-600">{m.description}</p>
+            <p className="mt-2 text-xs text-slate-500">No data loaded.</p>
+          </article>
+        ))}
+      </section>
+    </div>
+  )
+}
