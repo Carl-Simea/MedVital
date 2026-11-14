@@ -118,3 +118,16 @@ Entry point: `medvital.analysis.analyze(observations, config, registry=None) -> 
 Limitations: no autocorrelation, seasonality (e.g. circadian) or trend adjustment, so a drifting series will accumulate
 flags; baseline is a single fixed reference; no measurement-uncertainty handling; inferred intervals are meaningless for
 event-driven (irregular) metrics. Defaults are engineering choices and need expert review (Q-6).
+
+## 10. Pure calculations added in M1b (not yet wired into summaries)
+
+Formula provenance, assumptions and source status: docs/MODELING_GAP_ANALYSIS.md §1 (F1–F6). All take explicit units,
+reject anything else (no silent conversion), and return numbers only — no labels, no thresholds.
+
+| Function | Formula | Notes |
+|---|---|---|
+| `core.stats.percent_change(current, baseline, u_current, u_baseline)` | 100·(x − x₀)/x₀; u per F2 | `uncertainty=None` unless both input uncertainties are known; explicit 0 means known zero. x₀ ≠ 0. |
+| `cardiovascular.cardiac_output(hr, sv, heart_rate_unit, stroke_volume_unit)` | HR·SV/1000 → L/min | Units `{beats}/min`, `mL` only; HR, SV > 0. |
+| `cardiovascular.mean_arterial_pressure_estimate(sbp, dbp, unit)` | DBP + (SBP − DBP)/3 | **Uncited approximation** (G-7); `mm[Hg]`; SBP ≥ DBP > 0. Output is modeled, never a measured MAP. |
+| `behavioral.sleep_efficiency(tst, tib, unit)` | TST/TIB·100 | Hand & Siengsukon 2025. Same unit (h/min/s); 0 ≤ TST ≤ TIB, TIB > 0. TIB definition must be recorded by the caller (G-10). No cut-off. |
+| `radiation.dose_from_constant_rate(rate, rate_unit, elapsed_s)` | Ḋ·Δt | Units `uGy/h`, `mGy/d`, `uSv/h`, `mSv/d`; output keeps Gy vs Sv; assumes constant rate over the interval. |

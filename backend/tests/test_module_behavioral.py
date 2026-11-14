@@ -65,3 +65,17 @@ def test_instruments_are_not_pooled():
 
 def test_spec_metrics_belong_to_module():
     assert all(m.metric.startswith("behavioral.") for m in SPEC.metrics)
+
+
+def test_sleep_efficiency_hand_computed():
+    # 6 h / 8 h * 100 = 75 ; 420 min / 480 min * 100 = 87.5 ; 0 / 8 = 0
+    assert calc.sleep_efficiency(6, 8, unit="h") == pytest.approx(75.0)
+    assert calc.sleep_efficiency(420, 480, unit="min") == pytest.approx(87.5)
+    assert calc.sleep_efficiency(0, 8, unit="h") == 0.0
+    assert calc.sleep_efficiency(8, 8, unit="h") == 100.0
+
+
+@pytest.mark.parametrize("tst,tib,unit", [(9, 8, "h"), (-1, 8, "h"), (1, 0, "h"), (6, 8, "hours"), (6, 8, "%")])
+def test_sleep_efficiency_validates(tst, tib, unit):
+    with pytest.raises(ValueError):
+        calc.sleep_efficiency(tst, tib, unit=unit)

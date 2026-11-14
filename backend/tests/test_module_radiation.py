@@ -77,3 +77,25 @@ def test_summary_carries_non_diagnostic_notice():
 
 def test_spec_metrics_belong_to_module():
     assert all(m.metric.startswith("radiation.") for m in SPEC.metrics)
+
+
+def test_dose_from_constant_rate_hand_computed():
+    # 10 uGy/h * 7200 s / 3600 = 20 uGy ; 0.5 mGy/d * 3 d (259200 s) / 86400 = 1.5 mGy
+    assert calc.dose_from_constant_rate(10, rate_unit="uGy/h", elapsed_s=7200) == pytest.approx((20.0, "uGy"))
+    assert calc.dose_from_constant_rate(0.5, rate_unit="mGy/d", elapsed_s=3 * 86400) == pytest.approx((1.5, "mGy"))
+    assert calc.dose_from_constant_rate(0.0, rate_unit="uGy/h", elapsed_s=3600) == (0.0, "uGy")
+
+
+def test_dose_quantity_is_preserved_never_gy_to_sv():
+    dose, unit = calc.dose_from_constant_rate(2, rate_unit="uSv/h", elapsed_s=1800)  # 2 * 0.5 h = 1 uSv
+    assert (dose, unit) == (pytest.approx(1.0), "uSv")
+    assert calc.dose_from_constant_rate(1, rate_unit="mSv/d", elapsed_s=86400)[1] == "mSv"
+
+
+@pytest.mark.parametrize(
+    "rate,unit,elapsed",
+    [(1, "Gy/s", 10), (1, "uGy/min", 10), (-1, "uGy/h", 10), (1, "uGy/h", -5), (float("nan"), "uGy/h", 1)],
+)
+def test_dose_from_constant_rate_validates(rate, unit, elapsed):
+    with pytest.raises(ValueError):
+        calc.dose_from_constant_rate(rate, rate_unit=unit, elapsed_s=elapsed)

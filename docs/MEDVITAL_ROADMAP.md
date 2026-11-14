@@ -6,8 +6,8 @@ Canonical working branch: `feat/telemetry-pipeline` (local only; nothing is push
 |---|---|---|
 | M0 | Consolidate the two checkouts, all tests green | **Done** |
 | M1 | Scientific verification, modeling gap analysis, `PublishedReference` decision | **Done** |
-| M1b | Five pure calculations with hand-worked tests | Next |
-| M2 | Persist measurement schedules; storage and API contract tests | Planned |
+| M1b | Five pure calculations with hand-worked tests | **Done** |
+| M2 | Persist measurement schedules; storage and API contract tests | Next |
 | M3 | Radiation and behavioral modelling | Planned |
 | M4 | Mission engine (profiles, time model, four domains, reproducible scenarios) | Planned |
 | M5 | Standard dashboard on top of the analysis engine | Planned |
@@ -83,3 +83,22 @@ run against memory and SQLite.
 **Tests:** docs only. No code changed.
 
 **Next:** M1b.
+
+---
+
+## M1b — Five pure calculations (2026-11-14)
+
+**Changes:** `core/stats.py` (`PercentChange`, `percent_change` with first-order uncertainty);
+`modules/cardiovascular/calculations.py` (`cardiac_output`, `mean_arterial_pressure_estimate`);
+`modules/behavioral/calculations.py` (`sleep_efficiency`); `modules/radiation/calculations.py`
+(`dose_from_constant_rate`). Tests: new `tests/test_core_stats.py`; additions to `test_module_cardiovascular.py`,
+`test_module_behavioral.py`, `test_module_radiation.py` (each still imports only its own module). Docs:
+SCIENTIFIC_METHODOLOGY §10.
+**Design rules applied:** explicit unit arguments without defaults; unsupported units rejected, never converted;
+unknown uncertainty → `None`; Gy and Sv never converted into each other; no labels or cut-offs.
+**Tests run:** pytest 229 passed (30 new); ruff clean. (No frontend change.)
+**Assumptions:** F2 assumes independent inputs (conservative when same-scanner correlation exists); F4 is an uncited
+approximation; F6 assumes a constant rate.
+**Limitations:** functions are not yet called by module summaries or the API (needs stroke-volume, time-in-bed and
+paired-BP metrics — M3); observations still carry no uncertainty field (M2).
+**Next:** M2.
