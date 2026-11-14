@@ -1,0 +1,13 @@
+{
+  "mcpServers": {
+    "medvital-grok": {
+      "type": "stdio",
+      "command": "python",
+      "args": ["-I", "${CLAUDE_PROJECT_DIR:-.}/tools/grok_mcp/server.py"],
+      "env": {
+        "XAI_API_KEY": "${XAI_API_KEY}"
+      },
+      "timeout": 180000
+    }
+  }
+}

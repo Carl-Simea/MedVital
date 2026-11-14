@@ -15,6 +15,8 @@ class Settings:
     # Engineering default, not a scientific value.
     max_future_skew_seconds: int = 300
     cors_origins: tuple[str, ...] = ("http://localhost:5173",)
+    # "local": trusted station LAN (default). "jwt": Auth0 tokens - not implemented (D-029).
+    auth_mode: str = "local"
 
     @classmethod
     def from_env(cls) -> Settings:
@@ -25,4 +27,5 @@ class Settings:
             sqlite_path=os.environ.get("MEDVITAL_SQLITE_PATH", "medvital-gateway.db"),
             max_future_skew_seconds=int(os.environ.get("MEDVITAL_MAX_FUTURE_SKEW_SECONDS", "300")),
             cors_origins=tuple(o.strip() for o in origins.split(",") if o.strip()),
+            auth_mode=os.environ.get("MEDVITAL_AUTH_MODE", "local").strip().lower(),
         )

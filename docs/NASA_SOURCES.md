@@ -140,6 +140,26 @@ Every record lists 0 related datasets. The data cannot be downloaded directly.
 
 No units or score ranges are given. Variable names and schedules may shape *simulated* designs only (rule 8).
 
+## 7. Live acquisition through the MEDVITAL pipeline (2026-11-14, backend M3)
+
+Run with `backend/scripts/acquire.py` into a scratch store and a scratch station database, using NASA's public
+`DEMO_KEY`. The key was absent from every stored manifest and from the database (checked).
+
+| Source | URL (key removed) | SHA-256 (prefix) | Size | Ingest result |
+|---|---|---|---|---|
+| DONKI SEP 2024-05-10..14 | `https://api.nasa.gov/DONKI/SEP?startDate=2024-05-10&endDate=2024-05-14` | `1c92899e7dc0724d` | 8,594 B | 12 `EnvironmentalEvent`s, 0 skipped (matches the 12 records seen in pass 1) |
+| DONKI notifications 2024-05-10..12 | `https://api.nasa.gov/DONKI/notifications?startDate=2024-05-10&endDate=2024-05-12` | `c40fb041c3704f94` | 142,933 B | 38 events, 0 skipped (matches pass 1) |
+| OSD-804 data dictionary | OSDR geode download URL | `48435279f43e9022` | 1,664 B | Artifact registered. The checksum equals the one recorded in pass 2, so the download is reproducible. |
+| MSL RAD `AAREADME.TXT` | `https://pds-ppi.igpp.ucla.edu/data/MSL-M-RAD-3-RDR-V1.0/AAREADME.TXT` | `1fea5073924df190` | 11,753 B | Artifact registered (no parser) |
+
+What is imported:
+* **DONKI:** SEP, CMEAnalysis (without numeric fields, whose units are unverified) and notifications.
+* **Not imported:** FLR, GST and the other DONKI types, whose fields are unverified; MSL RAD product parsing (`.FMT`
+  not inspected); OSDR tables as records (no matching metric, or animal data).
+
+Licence and terms of use for OSDR and PDS files: **still not verified**. Raw files therefore stay git-ignored under
+`data/raw/`.
+
 ## Rules for adding a source
 1. Record exact URL/DOI/accession, retrieval date, licence and any access agreement.
 2. Confirm redistribution rights before committing files; prefer a download script + checksum.

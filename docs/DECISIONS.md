@@ -148,6 +148,108 @@ Not yet:
 * an API/UI for delivery status (M6/M8);
 * authentication (M5). The transport already accepts a bearer token, which is never logged.
 
+## D-027 xAI Grok as an optional, advisory MCP reviewer for development (2026-11-14)
+`tools/grok_mcp/server.py` exposes four explicit tools (`grok_review_code`, `grok_review_architecture`,
+`grok_analyze_data`, `grok_research_review`) to Claude Code through a project-scoped `.mcp.json`. Claude stays the
+primary model; `ANTHROPIC_BASE_URL` is untouched; Grok is called only when Claude chooses to, and its output is developer
+advice, never a MEDVITAL observation, result or alert.
+
+* **No new dependency.** Python standard library only: MCP over stdio as newline-delimited JSON-RPC, HTTPS via `urllib`.
+  The trade-off is that we maintain the small protocol layer ourselves (tested end to end over real stdio).
+* **API.** xAI Responses API (`POST https://api.x.ai/v1/responses`). The model defaults to `grok-4.7` and is
+  configurable through `XAI_MODEL`. Both were taken from docs.x.ai on 2026-11-14.
+* **Key.** Read only from `XAI_API_KEY`. It never appears in files, logs or responses. `.mcp.json` holds only the
+  `${XAI_API_KEY}` placeholder, and an unexpanded placeholder is refused.
+* **Data boundary (same principle as D-022).** Each call must declare a data classification (`source_code`,
+  `architecture_or_docs`, `simulated_data` or `public_research_data`). Public data must cite its source. Content with
+  measured-origin records or secret-like strings is refused before any network call. Requests set `store: false`.
+
+## D-028 One generic append-only document store for non-observation records (backend M3)
+Missions, published references, environmental events, source artifacts, RETURN_NOW commands and their status events,
+rule findings and AI explanations are all immutable documents in one store: the `documents` table in SQLite, and the
+same interface in memory. Each is keyed (kind, key) with an indexed `tag` and `sort_time`. The rules match
+observations: append-only (enforced by triggers), idempotent by content fingerprint, re-fingerprinted with the current
+model (D-025), and a conflict whenever the same key arrives with different content.
+
+Each record type carries explicit marker fields:
+* `EnvironmentalEvent.applies_to_individual=False`;
+* `RuleFinding.clinical=False`;
+* `AIExplanation.is_observation=False`;
+* `ReturnNowCommand.issuer.issuer_type="human"`.
+
+Command status is an append-only event history; the command record itself never changes. Every write goes through
+`records_service.py`. An accepted-write audit (`write_audit`) records channel, client and device for each accepted
+observation; rejections stay in the rejection log.
+
+## D-029 Authorization policy now; Auth0 token validation blocked on dependency approval (backend M3)
+`authz.py` defines the roles (astronaut, spacecraft_operator, ground_control, flight_surgeon, local_station), the
+permission map, and the subject/mission scope rules:
+* astronauts: their own subject;
+* operators, ground control and flight surgeons: the crews of their assigned missions;
+* local station: unrestricted.
+
+RETURN_NOW may be issued only by an authorized *human*, in their own name, for an assigned mission. Routes resolve
+authorization at the boundary and pass plain filters to processing code.
+
+`MEDVITAL_AUTH_MODE=local` (the default) means trusted station LAN, so local monitoring never needs internet
+authentication. `jwt` mode refuses to start: verifying Auth0 RS256 tokens needs a JWT library (e.g. `PyJWT[crypto]`),
+which has not been approved (rule 7). We will not hand-roll JWT crypto. Write-path per-item subject scoping was added in D-032.
+
+## D-030 Station-to-station replication of records reuses the sync pattern (backend M3)
+* Observations: `/sync/push` and `/sync/pull` (unchanged).
+* Documents: `/sync/documents/push` (validated per item through the same path as local writes) and
+  `/sync/documents/pull` (cursor over `doc_seq`).
+* Clients: `push_documents_upstream` (cursor `<dest>#documents`) and `pull_documents` (cursor `<source>#documents-pull`)
+  share the outage, refusal and audit semantics of D-026.
+
+Topology: astronaut → spacecraft → ground by push; ground → spacecraft by pull (e.g. a human-issued RETURN_NOW with its
+status history). A replicated command keeps its original history; no second "issued" event is created. Not yet:
+conflict-free handling when two stations change the *same* command's status concurrently. Both events are kept, and
+order follows each station's feed.
+
+## D-031 New metrics and wiring of the M1b calculations (backend M3)
+New metrics:
+* `bone.volumetric_bmd` (QCT, mg/cm3), separate from `bone.areal_bmd` (DXA, g/cm2): never pooled;
+* `cardiovascular.stroke_volume` (mL, context `method`);
+* `behavioral.time_in_bed` (h, **required** `tib_definition`).
+
+Derived values (all `modeled`) come only from pairs with the same subject, origin, device, timestamp and context, at
+`valid` quality. Ambiguous pairs are skipped and counted (`core/pairing.py`). The wired calculations are:
+* MAP, labelled an uncited approximation;
+* cardiac output;
+* sleep efficiency, carrying `tib_definition`;
+* BMD percent change with propagated uncertainty (`None` when unknown).
+
+`DerivedValue` gains the optional fields `uncertainty` and `observed_at`.
+
+Personal dose-rate series are integrated piecewise-constant over intervals ≤ 2× the median sampling interval. Longer
+gaps are excluded and reported, so the result is a lower bound. This replaces the earlier "dose rates are never
+summed" test wording: rates are still never summed, only integrated over time, and in dose units.
+
+## D-032 Write authorization at every boundary; device ownership (security fix, backend M3)
+**Vulnerability fixed.** A restricted principal could submit observations under another subject's or another device's
+identity through `POST /observations`, `/sync/push` and `/telemetry`. Several reads were also unscoped: `/live`, the
+rejection log, `/sync/pull`, schedules, and document pull.
+
+**Fix:**
+* **Ownership check.** `authz.observation_write_problem` requires every written observation's subject to be within the
+  caller's scope (astronauts: only themselves). Any `device_id` must be *currently* assigned to that subject through an
+  append-only `DeviceAssignment` record, where the latest assignment wins.
+* **Where it runs.** Routes build an authorizer at the boundary. `ingest_observation` and `ingest_telemetry` apply it
+  per item, so a failure is a logged per-item rejection, never a silent drop. Client-supplied subject, mission and
+  device identifiers are checked against ownership and never override it.
+* **Device assignments** need `write:records` plus mission scope, made in the caller's own name. The subject must be in
+  that mission's crew.
+* **Missions** can be created only within the caller's assigned missions, so creating one cannot grant new scope.
+* **Station-only operations:** persisting simulations, and record replication (`/sync/documents/*`).
+* **Other boundaries:** AI explanations must name the caller as `requested_by` and may cite only in-scope
+  observations. Schedules, `/sync/pull`, `/live` and the rejection log are scoped or permissioned.
+* **Astronauts gain `sync`** for their own-device outbox: every pushed item is checked, and every pull is limited to
+  their own subject.
+
+The local station principal (trusted LAN) is unrestricted, so offline local monitoring is unchanged. `jwt` mode still
+fails closed. Regression tests: `tests/test_write_authorization.py` (17 tests).
+
 ## Open questions
 
 * **Q-1 Offline computation parity.** Summaries are computed server-side only, so an offline client cannot show derived values. Options: port calculations to TypeScript with shared test vectors; run the Python in Pyodide/WASM; or cache the last server summary. Decide before building the dashboard.

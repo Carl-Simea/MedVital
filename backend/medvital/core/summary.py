@@ -55,6 +55,12 @@ class DerivedValue(BaseModel):
     input_origin: DataOrigin
     input_count: int
     context: dict[str, str] = Field(default_factory=dict)
+    uncertainty: float | None = Field(
+        default=None, description="Propagated standard uncertainty; None when any input's is unknown."
+    )
+    observed_at: datetime | None = Field(
+        default=None, description="Time of the input measurement(s) for single-event derived values."
+    )
 
 
 class ModuleSummary(BaseModel):

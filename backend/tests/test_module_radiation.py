@@ -82,7 +82,9 @@ def test_spec_metrics_belong_to_module():
 def test_dose_from_constant_rate_hand_computed():
     # 10 uGy/h * 7200 s / 3600 = 20 uGy ; 0.5 mGy/d * 3 d (259200 s) / 86400 = 1.5 mGy
     assert calc.dose_from_constant_rate(10, rate_unit="uGy/h", elapsed_s=7200) == pytest.approx((20.0, "uGy"))
-    assert calc.dose_from_constant_rate(0.5, rate_unit="mGy/d", elapsed_s=3 * 86400) == pytest.approx((1.5, "mGy"))
+    assert calc.dose_from_constant_rate(0.5, rate_unit="mGy/d", elapsed_s=3 * 86400) == pytest.approx(
+        (1.5, "mGy")
+    )
     assert calc.dose_from_constant_rate(0.0, rate_unit="uGy/h", elapsed_s=3600) == (0.0, "uGy")
 
 
@@ -99,3 +101,29 @@ def test_dose_quantity_is_preserved_never_gy_to_sv():
 def test_dose_from_constant_rate_validates(rate, unit, elapsed):
     with pytest.raises(ValueError):
         calc.dose_from_constant_rate(rate, rate_unit=unit, elapsed_s=elapsed)
+
+
+# --------------------------------------------------------------------------- M3 wiring: dose-rate integration
+
+from datetime import timedelta as _td  # noqa: E402
+
+
+def _rate(value, hours):
+    o = make_obs("radiation.dose_rate", value, unit="uGy/h", context={"instrument": "DOSI-1"})
+    t = o.observed_at + _td(hours=hours)
+    return o.model_copy(update={"observed_at": t, "recorded_at": t})
+
+
+def test_dose_rate_integration_hand_computed():
+    # samples at 0,1,2 h of 10 uGy/h: two 1 h intervals -> 10*1 + 10*1 = 20 uGy (last sample opens no interval)
+    s = summarize("SIM-T01", [_rate(10, 0), _rate(10, 1), _rate(10, 2)])
+    (d,) = [d for d in s.derived_values if d.name == "integrated_dose_over_sampled_intervals"]
+    assert d.value == pytest.approx(20.0) and d.unit == "uGy" and d.data_origin.value == "modeled"
+
+
+def test_dose_rate_long_gap_not_integrated():
+    # intervals 1 h, 1 h, 5 h: median 1 h -> max gap 2 h; the 5 h gap is excluded (lower bound) and reported
+    s = summarize("SIM-T01", [_rate(10, 0), _rate(20, 1), _rate(10, 2), _rate(10, 7)])
+    (d,) = [d for d in s.derived_values if d.name == "integrated_dose_over_sampled_intervals"]
+    assert d.value == pytest.approx(10 * 1 + 20 * 1)
+    assert any("not integrated" in w for w in s.warnings)

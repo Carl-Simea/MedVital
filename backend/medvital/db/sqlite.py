@@ -19,14 +19,21 @@ from pathlib import Path
 from typing import Any
 from uuid import UUID
 
+from pydantic import BaseModel
+
+from medvital.core.reference import PublishedReference, Verification
 from medvital.core.schedule import MeasurementSchedule, schedule_fingerprint
 from medvital.core.schema import DataOrigin, HealthObservation, ModuleId, observation_fingerprint
 from medvital.db.repository import (
     AddOutcome,
     AddStatus,
+    DocumentChange,
+    M,
     RejectedRecord,
     StoredObservation,
     UpstreamFailure,
+    WriteAuditRecord,
+    document_fingerprint,
     filter_schedules,
 )
 
@@ -98,6 +105,40 @@ CREATE TRIGGER IF NOT EXISTS upstream_failures_no_update BEFORE UPDATE ON upstre
 BEGIN SELECT RAISE(ABORT, 'upstream failures are append-only'); END;
 CREATE TRIGGER IF NOT EXISTS upstream_failures_no_delete BEFORE DELETE ON upstream_failures
 BEGIN SELECT RAISE(ABORT, 'upstream failures are append-only'); END;
+
+-- Immutable documents (M3): published references, environmental events. Append-only.
+CREATE TABLE IF NOT EXISTS documents (
+    doc_seq     INTEGER PRIMARY KEY AUTOINCREMENT,
+    kind        TEXT NOT NULL,
+    doc_key     TEXT NOT NULL,
+    fingerprint TEXT NOT NULL,
+    tag         TEXT,
+    sort_time   TEXT,
+    received_at TEXT NOT NULL,
+    payload     TEXT NOT NULL,
+    UNIQUE (kind, doc_key)
+);
+CREATE INDEX IF NOT EXISTS documents_kind_tag_time ON documents (kind, tag, sort_time);
+CREATE TRIGGER IF NOT EXISTS documents_no_update BEFORE UPDATE ON documents
+BEGIN SELECT RAISE(ABORT, 'documents are append-only'); END;
+CREATE TRIGGER IF NOT EXISTS documents_no_delete BEFORE DELETE ON documents
+BEGIN SELECT RAISE(ABORT, 'documents are append-only'); END;
+
+-- Accepted-write audit (M3): which channel/client/device wrote each accepted observation.
+CREATE TABLE IF NOT EXISTS write_audit (
+    audit_id       INTEGER PRIMARY KEY AUTOINCREMENT,
+    server_seq     INTEGER NOT NULL,
+    observation_id TEXT NOT NULL,
+    channel        TEXT NOT NULL,
+    client_id      TEXT,
+    device_id      TEXT,
+    recorded_at    TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS write_audit_observation ON write_audit (observation_id);
+CREATE TRIGGER IF NOT EXISTS write_audit_no_update BEFORE UPDATE ON write_audit
+BEGIN SELECT RAISE(ABORT, 'write audit is append-only'); END;
+CREATE TRIGGER IF NOT EXISTS write_audit_no_delete BEFORE DELETE ON write_audit
+BEGIN SELECT RAISE(ABORT, 'write audit is append-only'); END;
 """
 
 _TS = "%Y-%m-%dT%H:%M:%S.%fZ"  # fixed width, so lexicographic order == chronological order
@@ -357,6 +398,142 @@ class SqliteObservationRepository:
                 server_seq=r[3],
                 error=r[4],
                 recorded_at=_parse_ts(r[5]),
+            )
+            for r in rows
+        ]
+
+    # ----------------------------------------------------------------- immutable documents
+
+    def add_document(
+        self,
+        kind: str,
+        key: str,
+        doc: BaseModel,
+        *,
+        tag: str | None = None,
+        sort_time: datetime | None = None,
+    ) -> AddOutcome:
+        fingerprint = document_fingerprint(doc)
+        with self._lock:
+            existing = self._conn.execute(
+                "SELECT doc_seq, payload FROM documents WHERE kind = ? AND doc_key = ?", (kind, key)
+            ).fetchone()
+            if existing is not None:
+                seq, stored_payload = existing
+                # Re-fingerprint with the current model (D-025): additive fields never cause false conflicts.
+                stored_fp = document_fingerprint(type(doc).model_validate_json(stored_payload))
+                status = AddStatus.DUPLICATE if stored_fp == fingerprint else AddStatus.CONFLICT
+                return AddOutcome(status, seq)
+            cur = self._conn.execute(
+                "INSERT INTO documents (kind, doc_key, fingerprint, tag, sort_time, received_at, payload) "
+                "VALUES (?,?,?,?,?,?,?)",
+                (
+                    kind,
+                    key,
+                    fingerprint,
+                    tag,
+                    _ts(sort_time) if sort_time else None,
+                    _ts(datetime.now(UTC)),
+                    doc.model_dump_json(),
+                ),
+            )
+            return AddOutcome(AddStatus.INSERTED, int(cur.lastrowid))
+
+    def get_document(self, kind: str, key: str, model: type[M]) -> M | None:
+        with self._lock:
+            row = self._conn.execute(
+                "SELECT payload FROM documents WHERE kind = ? AND doc_key = ?", (kind, key)
+            ).fetchone()
+        return model.model_validate_json(row[0]) if row else None
+
+    def list_documents(
+        self,
+        kind: str,
+        model: type[M],
+        *,
+        tag: str | None = None,
+        since: datetime | None = None,
+        until: datetime | None = None,
+        order_by_time: bool = False,
+        limit: int = 10_000,
+    ) -> list[M]:
+        sql = "SELECT payload FROM documents WHERE kind = ?"
+        params: list[Any] = [kind]
+        if tag is not None:
+            sql += " AND tag = ?"
+            params.append(tag)
+        if since is not None:
+            sql += " AND sort_time >= ?"
+            params.append(_ts(since))
+        if until is not None:
+            sql += " AND sort_time < ?"
+            params.append(_ts(until))
+        sql += " ORDER BY sort_time IS NULL, sort_time, doc_seq" if order_by_time else " ORDER BY doc_seq"
+        sql += " LIMIT ?"
+        params.append(limit)
+        with self._lock:
+            rows = self._conn.execute(sql, params).fetchall()
+        return [model.model_validate_json(r[0]) for r in rows]
+
+    def add_reference(self, reference: PublishedReference) -> AddOutcome:
+        return self.add_document("reference", reference.reference_id, reference, tag=reference.metric)
+
+    def get_reference(self, reference_id: str) -> PublishedReference | None:
+        return self.get_document("reference", reference_id, PublishedReference)
+
+    def list_references(
+        self, *, metric: str | None = None, verification: Verification | None = None
+    ) -> list[PublishedReference]:
+        rows = self.list_documents("reference", PublishedReference, tag=metric)
+        return [r for r in rows if verification is None or r.verification is verification]
+
+    def document_changes_since(self, cursor: int, *, limit: int = 500) -> list[DocumentChange]:
+        with self._lock:
+            rows = self._conn.execute(
+                "SELECT doc_seq, kind, doc_key, payload FROM documents "
+                "WHERE doc_seq > ? ORDER BY doc_seq LIMIT ?",
+                (max(cursor, 0), limit),
+            ).fetchall()
+        return [DocumentChange(seq=r[0], kind=r[1], key=r[2], payload=json.loads(r[3])) for r in rows]
+
+    def document_head_seq(self) -> int:
+        with self._lock:
+            return int(self._conn.execute("SELECT COALESCE(MAX(doc_seq), 0) FROM documents").fetchone()[0])
+
+    # ----------------------------------------------------------------- accepted-write audit
+
+    def record_write(
+        self,
+        *,
+        server_seq: int,
+        observation_id: UUID,
+        channel: str,
+        client_id: str | None,
+        device_id: str | None,
+    ) -> None:
+        with self._lock:
+            self._conn.execute(
+                "INSERT INTO write_audit (server_seq, observation_id, channel, client_id, device_id, "
+                "recorded_at) VALUES (?,?,?,?,?,?)",
+                (server_seq, str(observation_id), channel, client_id, device_id, _ts(datetime.now(UTC))),
+            )
+
+    def list_writes(self, limit: int = 100) -> list[WriteAuditRecord]:
+        with self._lock:
+            rows = self._conn.execute(
+                "SELECT audit_id, server_seq, observation_id, channel, client_id, device_id, recorded_at "
+                "FROM write_audit ORDER BY audit_id DESC LIMIT ?",
+                (limit,),
+            ).fetchall()
+        return [
+            WriteAuditRecord(
+                audit_id=r[0],
+                server_seq=r[1],
+                observation_id=UUID(r[2]),
+                channel=r[3],
+                client_id=r[4],
+                device_id=r[5],
+                recorded_at=_parse_ts(r[6]),
             )
             for r in rows
         ]

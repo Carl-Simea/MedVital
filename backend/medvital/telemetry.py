@@ -7,6 +7,7 @@ is silently discarded (briefing §8).
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from datetime import UTC, datetime, timedelta
 from typing import Any
 from uuid import UUID, uuid5
@@ -82,6 +83,7 @@ def ingest_telemetry(
     *,
     max_future_skew_seconds: int = 300,
     now: datetime | None = None,
+    authorize: Callable[[HealthObservation], str | None] | None = None,
 ) -> TelemetryResponse:
     now = now or datetime.now(UTC)
     latest_allowed = now + timedelta(seconds=max_future_skew_seconds)
@@ -111,6 +113,10 @@ def ingest_telemetry(
             continue
         try:
             observation = event_to_observation(event, registry)
+            problem = authorize(observation) if authorize is not None else None
+            if problem:
+                reject(raw, event.event_id, f"authorization: {problem}")
+                continue
             registry.validate(observation)
         except ObservationRejected as exc:
             reject(raw, event.event_id, str(exc))
@@ -123,6 +129,14 @@ def ingest_telemetry(
             reject(raw, event.event_id, "event_id already used by this device with different content")
         else:
             inserted = outcome.status is AddStatus.INSERTED
+            if inserted:
+                repo.record_write(
+                    server_seq=outcome.server_seq,
+                    observation_id=observation.id,
+                    channel=SOURCE,
+                    client_id=None,
+                    device_id=observation.device_id,
+                )
             status = TelemetryStatus.ACCEPTED if inserted else TelemetryStatus.DUPLICATE
             results.append(
                 TelemetryResult(event_id=event.event_id, status=status, server_seq=outcome.server_seq)

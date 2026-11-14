@@ -131,3 +131,31 @@ reject anything else (no silent conversion), and return numbers only — no labe
 | `cardiovascular.mean_arterial_pressure_estimate(sbp, dbp, unit)` | DBP + (SBP − DBP)/3 | **Uncited approximation** (G-7); `mm[Hg]`; SBP ≥ DBP > 0. Output is modeled, never a measured MAP. |
 | `behavioral.sleep_efficiency(tst, tib, unit)` | TST/TIB·100 | Hand & Siengsukon 2025. Same unit (h/min/s); 0 ≤ TST ≤ TIB, TIB > 0. TIB definition must be recorded by the caller (G-10). No cut-off. |
 | `radiation.dose_from_constant_rate(rate, rate_unit, elapsed_s)` | Ḋ·Δt | Units `uGy/h`, `mGy/d`, `uSv/h`, `mSv/d`; output keeps Gy vs Sv; assumes constant rate over the interval. |
+
+## 11. Derived values wired into module summaries (backend M3, D-031)
+
+All of these are `modeled` and name their method and version. They are computed in Python only.
+
+| Module | Derived value | Inputs and pairing | Method notes |
+|---|---|---|---|
+| Bone | `percent_change_from_first_observation` | Areal (DXA) or volumetric (QCT) BMD series, per site, compartment, device and origin | `core.stats.percent_change`. Uncertainty uses first-order propagation assuming independent inputs, and is `None` unless both input uncertainties are known. DXA and QCT are never pooled. |
+| Cardiovascular | `mean_arterial_pressure_estimate` | One SBP and one DBP observation with the same subject, origin, device, time and posture | DBP + (SBP − DBP)/3. **Uncited approximation** (gap G-7). Never a measured MAP. |
+| Cardiovascular | `cardiac_output` | One HR and one SV observation paired the same way | HR · SV / 1000 → L/min; units are checked |
+| Behavioral | `sleep_efficiency` | One sleep-duration and one time-in-bed observation paired the same way | TST/TIB · 100 (Hand & Siengsukon 2025). `tib_definition` is carried into the result. No cut-off is applied. |
+| Radiation | `integrated_dose_over_sampled_intervals` | One personal dose-rate series per instrument and origin | Assumes the rate holds until the next sample (left-point). Intervals longer than 2× the median sampling interval are excluded and reported, so the result is a lower bound. Gy and Sv are never converted into each other. **Not** applicable to environmental detector data. |
+
+Pairing rules (`core/pairing.py`):
+* only `valid`-quality observations are used;
+* a key with more than one candidate on either side is skipped as ambiguous (counted in warnings);
+* nothing is interpolated;
+* exact timestamp equality is required, so devices that stamp the two quantities milliseconds apart do not pair.
+  This is a known limitation.
+
+Unresolved assumptions:
+* G-7: MAP citation;
+* G-8: GUM citation;
+* G-9: Iglewicz & Hoaglin citation;
+* G-10: definition of time in bed;
+* the 2× median gap rule for rate integration (an engineering default);
+* G-1 to G-6 and G-11 to G-13 are unchanged.
+

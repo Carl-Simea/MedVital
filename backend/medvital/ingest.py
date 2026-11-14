@@ -5,6 +5,7 @@ Used by both ``POST /observations`` and ``POST /sync/push`` so the rules cannot 
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from typing import Any
 
 from medvital.core.module_spec import ModuleRegistry, ObservationRejected
@@ -21,6 +22,7 @@ def ingest_observation(
     *,
     channel: str = "api",
     audit_context: dict[str, Any] | None = None,
+    authorize: Callable[[HealthObservation], str | None] | None = None,
 ) -> MutationResult:
     """Validate and append. Every rejection is also written to the rejection log (never silently
     dropped), tagged with ``channel`` ("api", "sync", "simulation") and ``audit_context``."""
@@ -44,6 +46,10 @@ def ingest_observation(
             error=error,
         )
 
+    if authorize is not None:
+        problem = authorize(observation)
+        if problem:
+            return rejected(f"authorization: {problem}")
     try:
         registry.validate(observation)
     except ObservationRejected as exc:
@@ -54,6 +60,14 @@ def ingest_observation(
             "an observation with this id already exists with different content; "
             "observations are immutable — submit a correction with `supersedes`",
             outcome.server_seq,
+        )
+    if outcome.status is AddStatus.INSERTED:
+        repo.record_write(
+            server_seq=outcome.server_seq,
+            observation_id=observation.id,
+            channel=channel,
+            client_id=(audit_context or {}).get("client_id"),
+            device_id=observation.device_id,
         )
     status = MutationStatus.ACCEPTED if outcome.status is AddStatus.INSERTED else MutationStatus.DUPLICATE
     return MutationResult(

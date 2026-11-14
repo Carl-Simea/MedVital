@@ -63,9 +63,7 @@ class SimulationRequest(BaseModel):
     start: datetime = Field(description="Timezone-aware start; truncated to 00:00 UTC.")
     days: int = Field(ge=1, le=730)
     seed: int = 0
-    persist: bool = Field(
-        default=False, description="Also store the generated observations on the server."
-    )
+    persist: bool = Field(default=False, description="Also store the generated observations on the server.")
 
 
 class SimulationResponse(BaseModel):

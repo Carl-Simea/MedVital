@@ -80,7 +80,10 @@ def test_modules_summarise_the_telemetry(gateway):
         assert s["observation_count"] > 0
         metrics[module] = {m["metric"] for m in s["metric_summaries"]}
         assert all(m["data_origin"] == "simulated" for m in s["metric_summaries"])
-        assert not s["derived_values"] or module != "radiation"  # dose rates are never summed
+        if module == "radiation":  # rates are never summed: only the labelled rate x time integration
+            for d in s["derived_values"]:
+                assert d["name"] == "integrated_dose_over_sampled_intervals" and d["unit"] == "uGy"
+                assert d["data_origin"] == "modeled" and "piecewise-constant" in d["method"]
     assert "radiation.dose_rate" in metrics["radiation"]
     assert "cardiovascular.heart_rate" in metrics["cardiovascular"]
     assert "bone.countermeasure_exercise_duration" in metrics["bone"]

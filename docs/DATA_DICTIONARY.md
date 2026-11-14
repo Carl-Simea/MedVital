@@ -130,3 +130,32 @@ Resolved event: `planned_at`, `window_start` (inclusive), `window_end` (exclusiv
 | Field | Type | Notes |
 |---|---|---|
 | `uncertainty` | number ≥ 0, or null | Standard uncertainty (1 σ) in the observation's `unit`. `null` = unknown (never treated as 0). Optional; schema_version unchanged (D-025). |
+
+## Metrics added in backend M3 (D-031)
+
+| Metric | Unit | Context | Notes |
+|---|---|---|---|
+| `bone.volumetric_bmd` | `mg/cm3` | `site`, `compartment`, `device` | QCT. Never pooled with `bone.areal_bmd` (DXA, `g/cm2`). |
+| `cardiovascular.stroke_volume` | `mL` | `method`, `device`, `posture` | Pairs with `cardiovascular.heart_rate` to give cardiac output. |
+| `behavioral.time_in_bed` | `h` | **`tib_definition` (required)**, `device` | Pairs with `behavioral.sleep_duration` to give sleep efficiency. Never pooled across definitions. |
+
+`DerivedValue` gains two optional fields: `uncertainty` (propagated; `null` when unknown) and `observed_at` (the time of
+the input event).
+
+## Records (non-observations, D-028). All immutable; `schema_version` 1
+
+| Record | Key fields | Markers / rules |
+|---|---|---|
+| `Mission` | `mission_id`, `name`, `launch_at`, `return_at` (null while ongoing), `crew[]` (1–32, unique), `data_origin` | Anchors the L±/R± time model and authorization scope |
+| `PublishedReference` | `reference_id` `REF-…`, `citation`, `source_identifier`, `verification` (+ `verified_by`/`verified_at`), `quantity`, `metric?`, `unit`, `statistic`, `value` and/or interval, `population`, `limitations`, `retrieved_at` | If it names a metric, the unit must be that metric's canonical unit. Never an observation. |
+| `SourceArtifact` | `artifact_id` = uuid5(url, sha256), `source_system`, `dataset_id`, `dataset_version?`, `source_url` (key removed), `original_filename`, `sha256`, `size_bytes`, `content_type?`, `retrieved_at`, `import_method`, `license_note?` (null = unverified), `processing_history[]` | The original file is stored unmodified |
+| `EnvironmentalEvent` | `event_id` = uuid5(source, id, version), `source_system` (NASA DONKI, MSL RAD or scenario), `event_type`, `source_event_id`, `start_time`, `end_time?`, `detector?` (instrument, detector, material, location), `measurements[]` (quantity, value, unit, uncertainty?), `linked_source_events[]`, `provenance`, `source_artifact_id?` | `applies_to_individual = false` (fixed); no subject field; scenario events must be simulated, DONKI and RAD never |
+| `ReturnNowCommand` | `command_id`, `mission_id`, `subject_ids[]` (empty = whole crew), `issuer` (human), `issued_at`, `reason`, `mission_context` | `issuer.issuer_type = "human"` (fixed) |
+| `CommandStatusEvent` | `event_id`, `command_id`, `status` (issued, acknowledged, in_progress, completed, withdrawn), `actor` (human), `at`, `note?` | Append-only history; transitions are validated |
+| `RuleFinding` | `finding_id` = uuid5(rule, key), `rule_id`, `rule_version`, `category`, scope ids, `evaluated_at`, window, `summary`, `evidence_ids[]`, `parameters{}` | `clinical = false`, `review_required = true` (fixed) |
+| `AIExplanation` | `explanation_id`, `provider`, `model`, `created_at`, `requested_by`, `question`, `summary`, `evidence[]` (≥ 1), `missing_information[]`, `uncertainty[]`, citations (at least one kind), `input_data_classes` (simulated or public_nasa) | `is_observation = false` (fixed); D-022 boundary enforced on storage |
+
+Audit records:
+* `write_audit`: `server_seq`, `observation_id`, `channel`, `client_id`, `device_id`, `recorded_at`.
+* `upstream_failures`: `destination`, `observation_id`, `server_seq`, `error`, `recorded_at`.
+

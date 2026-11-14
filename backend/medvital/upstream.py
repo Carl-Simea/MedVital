@@ -75,6 +75,28 @@ class HttpUpstreamTransport:
             raise UpstreamUnavailable(f"{type(exc).__name__}: {getattr(exc, 'reason', exc)}") from exc
 
 
+class HttpDocumentTransport(HttpUpstreamTransport):
+    def __init__(self, base_url: str, timeout: float = 10.0, bearer_token: str | None = None) -> None:
+        super().__init__(base_url, timeout, bearer_token)
+        self.url = base_url.rstrip("/") + "/api/v1/sync/documents/push"
+
+    def push_documents(self, client_id: str, documents: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        body = json.dumps({"client_id": client_id, "documents": documents}).encode("utf-8")
+        headers = {"Content-Type": "application/json"}
+        if self._token:
+            headers["Authorization"] = f"Bearer {self._token}"
+        req = urllib.request.Request(self.url, data=body, headers=headers, method="POST")
+        try:
+            with urllib.request.urlopen(req, timeout=self.timeout) as resp:  # noqa: S310 (operator-supplied URL)
+                return json.loads(resp.read().decode("utf-8"))
+        except urllib.error.HTTPError as exc:
+            if 400 <= exc.code < 500:
+                raise UpstreamRefused(f"HTTP {exc.code} from {self.url}") from exc
+            raise UpstreamUnavailable(f"HTTP {exc.code} from {self.url}") from exc
+        except (urllib.error.URLError, TimeoutError, OSError, ValueError) as exc:
+            raise UpstreamUnavailable(f"{type(exc).__name__}: {getattr(exc, 'reason', exc)}") from exc
+
+
 @dataclass
 class UpstreamReport:
     destination: str
@@ -169,6 +191,134 @@ def push_upstream(
         report.cursor_after = cursor
         batches += 1
     return report
+
+
+class DocumentTransport(Protocol):
+    def push_documents(self, client_id: str, documents: list[dict[str, Any]]) -> list[dict[str, Any]]: ...
+
+
+def push_documents_upstream(
+    repo: Any,
+    transport: DocumentTransport,
+    *,
+    destination: str,
+    client_id: str,
+    batch_size: int = MAX_BATCH,
+) -> UpstreamReport:
+    """Replicate non-observation records (missions, commands, events, findings, ...) upstream.
+
+    Same semantics as observations: separate persisted cursor (``<destination>#documents``),
+    refusals audited and skipped, outages leave the cursor untouched. A record refused only because
+    its parent has not arrived yet (e.g. a command status before its command) is audited like any
+    other refusal; the parent is earlier in the same feed, so in-order delivery avoids this case.
+    """
+    cursor_key = f"{destination}#documents"
+    cursor = repo.upstream_cursor(cursor_key)
+    report = UpstreamReport(destination=cursor_key, cursor_before=cursor, cursor_after=cursor)
+    while True:
+        rows = repo.document_changes_since(cursor, limit=batch_size)
+        if not rows:
+            break
+        try:
+            results = transport.push_documents(
+                client_id, [{"kind": r.kind, "document": r.payload} for r in rows]
+            )
+        except UpstreamUnavailable as exc:
+            report.status, report.error = "unavailable", str(exc)
+            break
+        except UpstreamRefused as exc:
+            report.status, report.error = "refused", str(exc)
+            break
+        if len(results) != len(rows):
+            report.status, report.error = "protocol_error", "result count does not match pushed documents"
+            break
+        for row, result in zip(rows, results, strict=True):
+            status = result.get("status")
+            if status == "accepted":
+                report.accepted += 1
+            elif status == "duplicate":
+                report.duplicate += 1
+            else:
+                report.rejected += 1
+                repo.record_upstream_failure(
+                    cursor_key, _doc_uuid(row.kind, row.key), row.seq, str(result.get("error"))
+                )
+        report.sent += len(rows)
+        cursor = rows[-1].seq
+        repo.set_upstream_cursor(cursor_key, cursor)
+        report.cursor_after = cursor
+    return report
+
+
+PageFetcher = Any  # callable(cursor:int) -> {"changes": [...], "next_cursor": int, "has_more": bool}
+
+
+def http_document_page_fetcher(base_url: str, timeout: float = 10.0, bearer_token: str | None = None):
+    def fetch(cursor: int) -> dict[str, Any]:
+        url = f"{base_url.rstrip('/')}/api/v1/sync/documents/pull?cursor={int(cursor)}&limit=500"
+        headers = {"Authorization": f"Bearer {bearer_token}"} if bearer_token else {}
+        req = urllib.request.Request(url, headers=headers)
+        try:
+            with urllib.request.urlopen(req, timeout=timeout) as resp:  # noqa: S310 (operator-supplied URL)
+                return json.loads(resp.read().decode("utf-8"))
+        except urllib.error.HTTPError as exc:
+            if 400 <= exc.code < 500:
+                raise UpstreamRefused(f"HTTP {exc.code} from {url}") from exc
+            raise UpstreamUnavailable(f"HTTP {exc.code} from {url}") from exc
+        except (urllib.error.URLError, TimeoutError, OSError, ValueError) as exc:
+            raise UpstreamUnavailable(f"{type(exc).__name__}: {getattr(exc, 'reason', exc)}") from exc
+
+    return fetch
+
+
+def pull_documents(
+    repo: Any, fetch_page: PageFetcher, *, source: str, registry: Any = None
+) -> UpstreamReport:
+    """Pull records from another station (e.g. ground -> spacecraft RETURN_NOW) through validation.
+
+    Cursor ``<source>#documents-pull`` advances only past changes that were processed; refusals are
+    audited. A child arriving before its parent cannot happen within one source's ordered feed.
+    """
+    from medvital.records_service import replicate
+
+    key = f"{source}#documents-pull"
+    cursor = repo.upstream_cursor(key)
+    report = UpstreamReport(destination=key, cursor_before=cursor, cursor_after=cursor)
+    while True:
+        try:
+            page = fetch_page(cursor)
+        except UpstreamUnavailable as exc:
+            report.status, report.error = "unavailable", str(exc)
+            break
+        except UpstreamRefused as exc:
+            report.status, report.error = "refused", str(exc)
+            break
+        for change in page["changes"]:
+            result = replicate(repo, repo, change["kind"], change["document"], registry)
+            if result.status == "accepted":
+                report.accepted += 1
+            elif result.status == "duplicate":
+                report.duplicate += 1
+            else:
+                report.rejected += 1
+                repo.record_upstream_failure(
+                    key, _doc_uuid(change["kind"], change["key"]), change["seq"], result.error or ""
+                )
+            report.sent += 1
+            cursor = change["seq"]
+        cursor = max(cursor, int(page["next_cursor"]))
+        repo.set_upstream_cursor(key, cursor)
+        report.cursor_after = cursor
+        if not page["has_more"]:
+            break
+    return report
+
+
+def _doc_uuid(kind: str, key: str) -> UUID:
+    try:
+        return UUID(key)
+    except ValueError:
+        return uuid5(_NAMESPACE, f"doc|{kind}|{key}")
 
 
 def main(argv: list[str] | None = None) -> int:

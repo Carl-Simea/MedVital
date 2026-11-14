@@ -75,7 +75,53 @@ def test_sleep_efficiency_hand_computed():
     assert calc.sleep_efficiency(8, 8, unit="h") == 100.0
 
 
-@pytest.mark.parametrize("tst,tib,unit", [(9, 8, "h"), (-1, 8, "h"), (1, 0, "h"), (6, 8, "hours"), (6, 8, "%")])
+@pytest.mark.parametrize(
+    "tst,tib,unit", [(9, 8, "h"), (-1, 8, "h"), (1, 0, "h"), (6, 8, "hours"), (6, 8, "%")]
+)
 def test_sleep_efficiency_validates(tst, tib, unit):
     with pytest.raises(ValueError):
         calc.sleep_efficiency(tst, tib, unit=unit)
+
+
+# --------------------------------------------------------------------------- M3 wiring: sleep efficiency
+
+from medvital.registry import build_registry as _reg  # noqa: E402
+
+
+def _m3_sleep(metric, value, tib_def=None, day=0):
+    ctx = {"tib_definition": tib_def} if tib_def else {}
+    return make_obs(metric, value, unit="h", day=day, context=ctx)
+
+
+def test_sleep_efficiency_from_paired_period_hand_computed():
+    s = summarize(
+        "SIM-T01",
+        [_m3_sleep("behavioral.sleep_duration", 6.0), _m3_sleep("behavioral.time_in_bed", 8.0, "literal_in_bed")],
+    )
+    (d,) = [d for d in s.derived_values if d.name == "sleep_efficiency"]
+    assert (
+        d.value == pytest.approx(75.0) and d.unit == "%" and d.context == {"tib_definition": "literal_in_bed"}
+    )
+    assert "zpaf045" in d.method
+
+
+def test_tib_definitions_are_never_pooled_and_required():
+    obs = [
+        _m3_sleep("behavioral.sleep_duration", 6.0, day=0),
+        _m3_sleep("behavioral.time_in_bed", 8.0, "literal_in_bed", day=0),
+        _m3_sleep("behavioral.sleep_duration", 6.0, day=1),
+        _m3_sleep("behavioral.time_in_bed", 7.5, "intention_to_sleep", day=1),
+    ]
+    defs = {
+        d.context["tib_definition"]
+        for d in summarize("SIM-T01", obs).derived_values
+        if d.name == "sleep_efficiency"
+    }
+    assert defs == {"literal_in_bed", "intention_to_sleep"}
+    with pytest.raises(Exception, match="tib_definition"):
+        _reg().validate(_m3_sleep("behavioral.time_in_bed", 8.0))
+
+
+def test_no_sleep_efficiency_without_time_in_bed():
+    s = summarize("SIM-T01", [_m3_sleep("behavioral.sleep_duration", 6.0)])
+    assert not [d for d in s.derived_values if d.name == "sleep_efficiency"]

@@ -65,7 +65,12 @@ def test_cardiac_output_hand_computed():
 
 @pytest.mark.parametrize(
     "hr,sv,hr_unit,sv_unit",
-    [(60, 70, "bpm", "mL"), (60, 70, "{beats}/min", "L"), (0, 70, "{beats}/min", "mL"), (60, -1, "{beats}/min", "mL")],
+    [
+        (60, 70, "bpm", "mL"),
+        (60, 70, "{beats}/min", "L"),
+        (0, 70, "{beats}/min", "mL"),
+        (60, -1, "{beats}/min", "mL"),
+    ],
 )
 def test_cardiac_output_validates_units_and_inputs(hr, sv, hr_unit, sv_unit):
     with pytest.raises(ValueError):
@@ -83,3 +88,74 @@ def test_map_estimate_hand_computed():
 def test_map_estimate_validates(sbp, dbp, unit):
     with pytest.raises(ValueError):
         calc.mean_arterial_pressure_estimate(sbp, dbp, unit=unit)
+
+
+# --------------------------------------------------------------------------- M3 wiring: paired MAP and cardiac output
+
+from datetime import timedelta as _td  # noqa: E402
+
+from conftest import measured_provenance as _measured  # noqa: E402
+
+
+def _cv(metric, unit, value, minutes=0, device="CUFF-1", **kw):
+    o = make_obs(metric, value, unit=unit, **kw)
+    t = o.observed_at + _td(minutes=minutes)
+    return o.model_copy(update={"observed_at": t, "recorded_at": t, "device_id": device})
+
+
+def _derived(obs, name):
+    return [d for d in summarize("SIM-T01", obs).derived_values if d.name == name]
+
+
+def test_map_from_paired_reading_hand_computed():
+    (d,) = _derived(
+        [_cv("cardiovascular.systolic_bp", "mm[Hg]", 120), _cv("cardiovascular.diastolic_bp", "mm[Hg]", 80)],
+        "mean_arterial_pressure_estimate",
+    )
+    assert d.value == pytest.approx(80 + 40 / 3) and d.unit == "mm[Hg]" and d.data_origin.value == "modeled"
+    assert "uncited approximation" in d.method and d.context == {"device": "CUFF-1"}
+
+
+def test_map_never_pairs_across_time_device_or_origin():
+    sbp = _cv("cardiovascular.systolic_bp", "mm[Hg]", 120)
+    for dbp in (
+        _cv("cardiovascular.diastolic_bp", "mm[Hg]", 80, minutes=1),
+        _cv("cardiovascular.diastolic_bp", "mm[Hg]", 80, device="CUFF-2"),
+        _cv("cardiovascular.diastolic_bp", "mm[Hg]", 80, provenance=_measured()),
+    ):
+        assert _derived([sbp, dbp], "mean_arterial_pressure_estimate") == []
+
+
+def test_ambiguous_pairs_are_skipped_with_warning():
+    obs = [
+        _cv("cardiovascular.systolic_bp", "mm[Hg]", 120),
+        _cv("cardiovascular.systolic_bp", "mm[Hg]", 130),
+        _cv("cardiovascular.diastolic_bp", "mm[Hg]", 80),
+    ]
+    s = summarize("SIM-T01", obs)
+    assert not [d for d in s.derived_values if d.name == "mean_arterial_pressure_estimate"]
+    assert any("ambiguous" in w for w in s.warnings)
+
+
+def test_cardiac_output_from_paired_hr_and_sv():
+    obs = [
+        _cv("cardiovascular.heart_rate", "{beats}/min", 60, device="ECHO-1"),
+        _cv("cardiovascular.stroke_volume", "mL", 70, device="ECHO-1"),
+    ]
+    (d,) = _derived(obs, "cardiac_output")
+    assert d.value == pytest.approx(4.2) and d.unit == "L/min"
+
+
+def test_hrv_is_never_derived_from_heart_rate():
+    # RMSSD needs beat-to-beat RR intervals; ordinary heart-rate values (even many) must not produce it.
+    hr = [
+        make_obs("cardiovascular.heart_rate", v, unit="{beats}/min", day=i)
+        for i, v in enumerate([60, 62, 61, 64, 59])
+    ]
+    rest = [make_obs("cardiovascular.resting_heart_rate", v, day=i) for i, v in enumerate([55, 56, 54])]
+    s = summarize("SIM-T01", hr + rest)
+    assert not [
+        d
+        for d in s.derived_values
+        if d.name == "rmssd" or d.input_metric.endswith("heart_rate") and "rmssd" in d.method.lower()
+    ]

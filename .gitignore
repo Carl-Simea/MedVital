@@ -31,3 +31,8 @@ Thumbs.db
 *.sqlite
 *.db
 pgdata/
+*.db-wal
+*.db-shm
+
+# Acquired source files (stored by checksum; redistribution rights unverified)
+data/raw/

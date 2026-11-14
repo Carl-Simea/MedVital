@@ -6,6 +6,7 @@ RESTING_HEART_RATE = "cardiovascular.resting_heart_rate"
 RR_INTERVAL = "cardiovascular.rr_interval"
 SYSTOLIC_BP = "cardiovascular.systolic_bp"
 DIASTOLIC_BP = "cardiovascular.diastolic_bp"
+STROKE_VOLUME = "cardiovascular.stroke_volume"
 
 METRICS = (
     MetricDefinition(
@@ -48,5 +49,13 @@ METRICS = (
         description="Diastolic blood pressure.",
         non_negative=True,
         optional_context=("device", "posture"),
+    ),
+    MetricDefinition(
+        metric=STROKE_VOLUME,
+        module=ModuleId.CARDIOVASCULAR,
+        unit="mL",
+        description="Stroke volume per beat from a named assessment method (context `method`).",
+        non_negative=True,
+        optional_context=("method", "device", "posture"),
     ),
 )

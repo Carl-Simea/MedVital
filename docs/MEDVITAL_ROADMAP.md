@@ -8,7 +8,7 @@ Canonical working branch: `feat/telemetry-pipeline` (local only; nothing is push
 | M1 | Scientific verification, modeling gap analysis, `PublishedReference` decision | **Done** |
 | M1b | Five pure calculations with hand-worked tests | **Done** |
 | M2 | Storage, measurement schedules, API contracts | **Done** |
-| M3 | Complete ingestion and analysis pipeline | **In progress** |
+| M3 | Complete ingestion and analysis pipeline (backend) | **Implemented, uncommitted, awaiting human review** |
 | M4 | Deterministic non-clinical rule engine (D-021) and DONKI event replay | Planned. Starts only after M3 review |
 | M5 | Auth0 identity and access | Planned |
 | M6 | Cloudflare synchronization (Workers, D1, R2, Queues) (D-023) | Planned. Deployment needs approval |
@@ -131,3 +131,48 @@ analysis engine does not yet consume schedules for its coverage measure (it infe
 **Next (proposed):** M3 radiation and behavioral modelling — wire M1b calculations into summaries via new metrics
 (time in bed with `tib_definition`, stroke volume, paired BP), environmental-radiation entity (P-2), optional observation
 `uncertainty` field (schema version bump).
+
+---
+
+## M3: Backend and data-engineering foundation (2026-11-14). UNCOMMITTED, awaiting review
+
+Commits `e50d775`, `1916e6f` and `1bfb073` (M3.1 to M3.3) were made before the "no commits" instruction. Everything
+after them is in the working tree only.
+
+**Changes:**
+* Generic append-only document store and accepted-write audit.
+* Record types: missions, references, environmental events, source artifacts, RETURN_NOW commands and status events,
+  rule findings, AI explanations.
+* Acquisition: checksummed downloads with manifests; DONKI parsers; OSDR and RAD acquisition.
+* M1b calculations wired into the module summaries through three new metrics and the pairing helper.
+* Non-clinical rule engine.
+* Authorization policy with `jwt` mode failing closed.
+* Station-to-station document push and pull.
+* 20 new API endpoints (43 in total), including device assignments.
+* Security fix D-032: write authorization and device ownership at every boundary, with 17 regression tests.
+* Grok MCP server and `.mcp.json`.
+
+Decisions D-021 to D-031.
+
+**Documents:**
+* BACKEND_ARCHITECTURE
+* SECURITY
+* RISK_ENGINE
+* CLOUDFLARE_ARCHITECTURE
+* GROK_REVIEW_REPORT
+* BACKEND_TEST_REPORT
+* updated DATA_DICTIONARY, SCIENTIFIC_METHODOLOGY and NASA_SOURCES
+
+**Tests:**
+* pytest: 370 passed
+* ruff: clean
+* Grok MCP: 23 passed
+* frontend: 42 passed; tsc and build OK
+* PostgreSQL: not run
+
+**Blocked:**
+* Grok reviews (no xAI credits)
+* Auth0 validation (dependency approval)
+
+**Next:** human review of M3, then commit and push to `friend/feat/foundation` once authorised. Note that a `friend`
+remote does not exist yet. M4 follows the review.
