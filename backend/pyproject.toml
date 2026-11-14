@@ -1,0 +1,51 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "medvital-backend"
+version = "0.1.0"
+description = "MEDVITAL backend: observation API, health-module calculations, provenance and sync."
+requires-python = ">=3.11"
+dependencies = [
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.30",
+    "pydantic>=2.7",
+    "numpy>=1.26",
+    "scipy>=1.12",
+    "pandas>=2.2",
+    "scikit-learn>=1.4",
+]
+
+[project.optional-dependencies]
+# PostgreSQL driver is only needed once the Postgres repository is implemented.
+postgres = ["psycopg[binary]>=3.2"]
+dev = [
+    "pytest>=8",
+    "httpx>=0.27",   # required by FastAPI's TestClient
+    "ruff>=0.6",
+]
+
+[tool.setuptools.packages.find]
+include = ["medvital*"]
+
+[tool.setuptools.package-data]
+medvital = ["db/*.sql"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra --strict-markers"
+filterwarnings = ["error::DeprecationWarning:medvital.*"]
+
+[tool.ruff]
+line-length = 110
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["E501"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["medvital", "conftest"]

@@ -1,0 +1,6282 @@
+{
+  "components": {
+    "schemas": {
+      "AIExplanation": {
+        "additionalProperties": false,
+        "description": "Output of an explanation model (e.g. Gemini, M7). Stored separately; never an observation.",
+        "properties": {
+          "cited_finding_ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "title": "Cited Finding Ids",
+            "type": "array"
+          },
+          "cited_observation_ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "title": "Cited Observation Ids",
+            "type": "array"
+          },
+          "cited_report_ids": {
+            "items": {
+              "maxLength": 256,
+              "minLength": 1,
+              "type": "string"
+            },
+            "title": "Cited Report Ids",
+            "type": "array"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "evidence": {
+            "items": {
+              "maxLength": 2000,
+              "minLength": 1,
+              "type": "string"
+            },
+            "minItems": 1,
+            "title": "Evidence",
+            "type": "array"
+          },
+          "explanation_id": {
+            "format": "uuid",
+            "title": "Explanation Id",
+            "type": "string"
+          },
+          "input_data_classes": {
+            "items": {
+              "enum": [
+                "simulated",
+                "public_nasa"
+              ],
+              "type": "string"
+            },
+            "minItems": 1,
+            "title": "Input Data Classes",
+            "type": "array"
+          },
+          "is_observation": {
+            "const": false,
+            "default": false,
+            "title": "Is Observation",
+            "type": "boolean"
+          },
+          "missing_information": {
+            "items": {
+              "maxLength": 2000,
+              "minLength": 1,
+              "type": "string"
+            },
+            "title": "Missing Information",
+            "type": "array"
+          },
+          "model": {
+            "maxLength": 256,
+            "minLength": 1,
+            "title": "Model",
+            "type": "string"
+          },
+          "provider": {
+            "maxLength": 256,
+            "minLength": 1,
+            "title": "Provider",
+            "type": "string"
+          },
+          "question": {
+            "maxLength": 2000,
+            "minLength": 1,
+            "title": "Question",
+            "type": "string"
+          },
+          "requested_by": {
+            "pattern": "^[A-Za-z0-9|@._:-]{1,128}$",
+            "title": "Requested By",
+            "type": "string"
+          },
+          "schema_version": {
+            "default": 1,
+            "title": "Schema Version",
+            "type": "integer"
+          },
+          "summary": {
+            "maxLength": 2000,
+            "minLength": 1,
+            "title": "Summary",
+            "type": "string"
+          },
+          "uncertainty": {
+            "items": {
+              "maxLength": 2000,
+              "minLength": 1,
+              "type": "string"
+            },
+            "title": "Uncertainty",
+            "type": "array"
+          }
+        },
+        "required": [
+          "explanation_id",
+          "provider",
+          "model",
+          "created_at",
+          "requested_by",
+          "question",
+          "summary",
+          "evidence",
+          "input_data_classes"
+        ],
+        "title": "AIExplanation",
+        "type": "object"
+      },
+      "AnalysisConfig": {
+        "additionalProperties": false,
+        "properties": {
+          "analyzed_qualities": {
+            "default": [
+              "valid"
+            ],
+            "description": "Quality values included in statistics. Others are excluded and counted, never dropped.",
+            "items": {
+              "$ref": "#/components/schemas/Quality"
+            },
+            "title": "Analyzed Qualities",
+            "type": "array"
+          },
+          "baseline": {
+            "$ref": "#/components/schemas/BaselineSpec"
+          },
+          "expected_interval_s": {
+            "additionalProperties": {
+              "type": "number"
+            },
+            "description": "Expected sampling interval per metric id (seconds). Missing => inferred from the series' median spacing and labelled 'inferred'.",
+            "title": "Expected Interval S",
+            "type": "object"
+          },
+          "expected_metrics": {
+            "default": [],
+            "description": "Metric ids every subject is expected to have; absences are reported.",
+            "items": {
+              "type": "string"
+            },
+            "title": "Expected Metrics",
+            "type": "array"
+          },
+          "gap_factor": {
+            "default": 2.0,
+            "description": "Spacing > gap_factor * expected interval = gap.",
+            "minimum": 1.0,
+            "title": "Gap Factor",
+            "type": "number"
+          },
+          "include_point_deviations": {
+            "default": false,
+            "description": "Return one deviation row per post-baseline observation.",
+            "title": "Include Point Deviations",
+            "type": "boolean"
+          },
+          "modified_z_cutoff": {
+            "default": 3.5,
+            "description": "Statistical outlier cutoff on |modified z| (Iglewicz & Hoaglin 1993 convention). Not a clinical threshold.",
+            "exclusiveMinimum": 0.0,
+            "title": "Modified Z Cutoff",
+            "type": "number"
+          }
+        },
+        "title": "AnalysisConfig",
+        "type": "object"
+      },
+      "AnalysisReport": {
+        "additionalProperties": false,
+        "properties": {
+          "analysis_version": {
+            "default": "0.2.0",
+            "title": "Analysis Version",
+            "type": "string"
+          },
+          "analyzed_count": {
+            "title": "Analyzed Count",
+            "type": "integer"
+          },
+          "config": {
+            "$ref": "#/components/schemas/AnalysisConfig"
+          },
+          "excluded": {
+            "items": {
+              "$ref": "#/components/schemas/ExcludedObservation"
+            },
+            "title": "Excluded",
+            "type": "array"
+          },
+          "input_count": {
+            "title": "Input Count",
+            "type": "integer"
+          },
+          "missing_series": {
+            "items": {
+              "$ref": "#/components/schemas/MissingSeries"
+            },
+            "title": "Missing Series",
+            "type": "array"
+          },
+          "notice": {
+            "default": "Statistical description only. Not a diagnosis, not medical advice; no clinical thresholds are applied. Anomaly flags mark values that are statistically unusual relative to the subject's own baseline within one series, for human review. Simulated, measured and modeled values are analysed separately and never pooled.",
+            "title": "Notice",
+            "type": "string"
+          },
+          "series": {
+            "items": {
+              "$ref": "#/components/schemas/SeriesAnalysis"
+            },
+            "title": "Series",
+            "type": "array"
+          }
+        },
+        "required": [
+          "config",
+          "input_count",
+          "analyzed_count",
+          "excluded",
+          "series",
+          "missing_series"
+        ],
+        "title": "AnalysisReport",
+        "type": "object"
+      },
+      "AnalysisRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "config": {
+            "$ref": "#/components/schemas/AnalysisConfig"
+          },
+          "metric": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Metric"
+          },
+          "module": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ModuleId"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "since": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Since"
+          },
+          "subject_id": {
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]{0,63}$",
+            "title": "Subject Id",
+            "type": "string"
+          },
+          "until": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Until"
+          }
+        },
+        "required": [
+          "subject_id"
+        ],
+        "title": "AnalysisRequest",
+        "type": "object"
+      },
+      "Anchor": {
+        "enum": [
+          "launch",
+          "return"
+        ],
+        "title": "Anchor",
+        "type": "string"
+      },
+      "AnomalyFlag": {
+        "additionalProperties": false,
+        "properties": {
+          "cutoff": {
+            "title": "Cutoff",
+            "type": "number"
+          },
+          "data_origin": {
+            "$ref": "#/components/schemas/DataOrigin"
+          },
+          "method": {
+            "title": "Method",
+            "type": "string"
+          },
+          "modified_z": {
+            "title": "Modified Z",
+            "type": "number"
+          },
+          "note": {
+            "default": "Statistically unusual relative to own baseline; for review. Not a clinical finding.",
+            "title": "Note",
+            "type": "string"
+          },
+          "observation_id": {
+            "title": "Observation Id",
+            "type": "string"
+          },
+          "observed_at": {
+            "format": "date-time",
+            "title": "Observed At",
+            "type": "string"
+          },
+          "uncertainty": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Uncertainty"
+          },
+          "unit": {
+            "title": "Unit",
+            "type": "string"
+          },
+          "value": {
+            "title": "Value",
+            "type": "number"
+          }
+        },
+        "required": [
+          "observation_id",
+          "observed_at",
+          "value",
+          "unit",
+          "data_origin",
+          "modified_z",
+          "method",
+          "cutoff"
+        ],
+        "title": "AnomalyFlag",
+        "type": "object"
+      },
+      "BaselineSpec": {
+        "additionalProperties": false,
+        "description": "How the personal baseline of each series is chosen.\n\n* ``first_n``: the first ``n`` analysed values of the series (time-ordered).\n* ``time_window``: values with ``start <= observed_at < end``.\n\nDefaults are engineering choices for exercising software, not scientific recommendations.",
+        "properties": {
+          "end": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "End"
+          },
+          "min_count": {
+            "default": 4,
+            "description": "Fewer baseline values => no deviations.",
+            "minimum": 2.0,
+            "title": "Min Count",
+            "type": "integer"
+          },
+          "mode": {
+            "default": "first_n",
+            "enum": [
+              "first_n",
+              "time_window"
+            ],
+            "title": "Mode",
+            "type": "string"
+          },
+          "n": {
+            "default": 7,
+            "minimum": 1.0,
+            "title": "N",
+            "type": "integer"
+          },
+          "start": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Start"
+          }
+        },
+        "title": "BaselineSpec",
+        "type": "object"
+      },
+      "BaselineSummary": {
+        "additionalProperties": false,
+        "properties": {
+          "count": {
+            "title": "Count",
+            "type": "integer"
+          },
+          "end": {
+            "format": "date-time",
+            "title": "End",
+            "type": "string"
+          },
+          "mode": {
+            "enum": [
+              "first_n",
+              "time_window"
+            ],
+            "title": "Mode",
+            "type": "string"
+          },
+          "start": {
+            "format": "date-time",
+            "title": "Start",
+            "type": "string"
+          },
+          "stats": {
+            "$ref": "#/components/schemas/DescriptiveStats"
+          }
+        },
+        "required": [
+          "mode",
+          "count",
+          "start",
+          "end",
+          "stats"
+        ],
+        "title": "BaselineSummary",
+        "type": "object"
+      },
+      "CommandState": {
+        "properties": {
+          "command": {
+            "$ref": "#/components/schemas/ReturnNowCommand"
+          },
+          "history": {
+            "items": {
+              "$ref": "#/components/schemas/CommandStatusEvent"
+            },
+            "title": "History",
+            "type": "array"
+          },
+          "status": {
+            "$ref": "#/components/schemas/CommandStatus"
+          }
+        },
+        "required": [
+          "command",
+          "status",
+          "history"
+        ],
+        "title": "CommandState",
+        "type": "object"
+      },
+      "CommandStatus": {
+        "enum": [
+          "issued",
+          "acknowledged",
+          "in_progress",
+          "completed",
+          "withdrawn"
+        ],
+        "title": "CommandStatus",
+        "type": "string"
+      },
+      "CommandStatusEvent": {
+        "additionalProperties": false,
+        "description": "Append-only status history; the command record itself never changes.",
+        "properties": {
+          "actor": {
+            "$ref": "#/components/schemas/HumanIssuer"
+          },
+          "at": {
+            "format": "date-time",
+            "title": "At",
+            "type": "string"
+          },
+          "command_id": {
+            "format": "uuid",
+            "title": "Command Id",
+            "type": "string"
+          },
+          "event_id": {
+            "format": "uuid",
+            "title": "Event Id",
+            "type": "string"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "maxLength": 2000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          },
+          "schema_version": {
+            "default": 1,
+            "title": "Schema Version",
+            "type": "integer"
+          },
+          "status": {
+            "$ref": "#/components/schemas/CommandStatus"
+          }
+        },
+        "required": [
+          "event_id",
+          "command_id",
+          "status",
+          "actor",
+          "at"
+        ],
+        "title": "CommandStatusEvent",
+        "type": "object"
+      },
+      "CommandTransitionRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "actor": {
+            "$ref": "#/components/schemas/HumanIssuer"
+          },
+          "at": {
+            "format": "date-time",
+            "title": "At",
+            "type": "string"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "maxLength": 2000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          },
+          "status": {
+            "$ref": "#/components/schemas/CommandStatus"
+          }
+        },
+        "required": [
+          "status",
+          "actor",
+          "at"
+        ],
+        "title": "CommandTransitionRequest",
+        "type": "object"
+      },
+      "DataOrigin": {
+        "description": "What kind of thing a value is. Never merge across origins implicitly.",
+        "enum": [
+          "simulated",
+          "measured",
+          "modeled"
+        ],
+        "title": "DataOrigin",
+        "type": "string"
+      },
+      "DataQualityReport": {
+        "additionalProperties": false,
+        "properties": {
+          "analyzed_count": {
+            "title": "Analyzed Count",
+            "type": "integer"
+          },
+          "coverage_fraction": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Distinct timestamps / expected, capped at 1.",
+            "title": "Coverage Fraction"
+          },
+          "duplicate_timestamps": {
+            "title": "Duplicate Timestamps",
+            "type": "integer"
+          },
+          "excluded_counts": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "description": "Per ExclusionReason.",
+            "title": "Excluded Counts",
+            "type": "object"
+          },
+          "expected_count": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expected Count"
+          },
+          "expected_interval_s": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expected Interval S"
+          },
+          "gaps": {
+            "items": {
+              "$ref": "#/components/schemas/GapInfo"
+            },
+            "title": "Gaps",
+            "type": "array"
+          },
+          "interval_source": {
+            "anyOf": [
+              {
+                "enum": [
+                  "configured",
+                  "inferred"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Interval Source"
+          },
+          "quality_counts": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "title": "Quality Counts",
+            "type": "object"
+          },
+          "total_count": {
+            "description": "Observations in this series before exclusions.",
+            "title": "Total Count",
+            "type": "integer"
+          },
+          "uncertainty_known_count": {
+            "default": 0,
+            "description": "Analysed values with a known uncertainty (others are unknown, not zero).",
+            "title": "Uncertainty Known Count",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "total_count",
+          "analyzed_count",
+          "excluded_counts",
+          "quality_counts",
+          "duplicate_timestamps",
+          "expected_interval_s",
+          "interval_source",
+          "expected_count",
+          "coverage_fraction",
+          "gaps"
+        ],
+        "title": "DataQualityReport",
+        "type": "object"
+      },
+      "DerivedValue": {
+        "description": "A value computed by a documented method. Always ``modeled`` by definition.",
+        "properties": {
+          "context": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "title": "Context",
+            "type": "object"
+          },
+          "data_origin": {
+            "const": "modeled",
+            "default": "modeled",
+            "title": "Data Origin",
+            "type": "string"
+          },
+          "description": {
+            "title": "Description",
+            "type": "string"
+          },
+          "input_count": {
+            "title": "Input Count",
+            "type": "integer"
+          },
+          "input_metric": {
+            "title": "Input Metric",
+            "type": "string"
+          },
+          "input_origin": {
+            "$ref": "#/components/schemas/DataOrigin"
+          },
+          "method": {
+            "title": "Method",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "observed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Time of the input measurement(s) for single-event derived values.",
+            "title": "Observed At"
+          },
+          "uncertainty": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Propagated standard uncertainty; None when any input's is unknown.",
+            "title": "Uncertainty"
+          },
+          "unit": {
+            "title": "Unit",
+            "type": "string"
+          },
+          "value": {
+            "title": "Value",
+            "type": "number"
+          }
+        },
+        "required": [
+          "name",
+          "description",
+          "value",
+          "unit",
+          "method",
+          "input_metric",
+          "input_origin",
+          "input_count"
+        ],
+        "title": "DerivedValue",
+        "type": "object"
+      },
+      "DescriptiveStats": {
+        "additionalProperties": false,
+        "properties": {
+          "count": {
+            "title": "Count",
+            "type": "integer"
+          },
+          "iqr": {
+            "title": "Iqr",
+            "type": "number"
+          },
+          "mad": {
+            "title": "Mad",
+            "type": "number"
+          },
+          "maximum": {
+            "title": "Maximum",
+            "type": "number"
+          },
+          "mean": {
+            "title": "Mean",
+            "type": "number"
+          },
+          "median": {
+            "title": "Median",
+            "type": "number"
+          },
+          "minimum": {
+            "title": "Minimum",
+            "type": "number"
+          },
+          "q1": {
+            "title": "Q1",
+            "type": "number"
+          },
+          "q3": {
+            "title": "Q3",
+            "type": "number"
+          },
+          "std": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Std"
+          }
+        },
+        "required": [
+          "count",
+          "mean",
+          "std",
+          "median",
+          "q1",
+          "q3",
+          "iqr",
+          "mad",
+          "minimum",
+          "maximum"
+        ],
+        "title": "DescriptiveStats",
+        "type": "object"
+      },
+      "DetectorContext": {
+        "additionalProperties": false,
+        "properties": {
+          "detector": {
+            "anyOf": [
+              {
+                "maxLength": 256,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Detector"
+          },
+          "detector_material": {
+            "anyOf": [
+              {
+                "maxLength": 256,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "None = not stated by the source.",
+            "title": "Detector Material"
+          },
+          "instrument": {
+            "maxLength": 256,
+            "minLength": 1,
+            "title": "Instrument",
+            "type": "string"
+          },
+          "location": {
+            "description": "Where the detector was, e.g. 'Mars surface (Gale crater)'.",
+            "maxLength": 256,
+            "minLength": 1,
+            "title": "Location",
+            "type": "string"
+          }
+        },
+        "required": [
+          "instrument",
+          "location"
+        ],
+        "title": "DetectorContext",
+        "type": "object"
+      },
+      "Deviation": {
+        "additionalProperties": false,
+        "properties": {
+          "delta_from_baseline_median": {
+            "title": "Delta From Baseline Median",
+            "type": "number"
+          },
+          "modified_z": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Modified Z"
+          },
+          "observation_id": {
+            "title": "Observation Id",
+            "type": "string"
+          },
+          "observed_at": {
+            "format": "date-time",
+            "title": "Observed At",
+            "type": "string"
+          },
+          "uncertainty": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The observation's own standard uncertainty.",
+            "title": "Uncertainty"
+          },
+          "value": {
+            "title": "Value",
+            "type": "number"
+          },
+          "z": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Z"
+          }
+        },
+        "required": [
+          "observation_id",
+          "observed_at",
+          "value",
+          "delta_from_baseline_median",
+          "z",
+          "modified_z"
+        ],
+        "title": "Deviation",
+        "type": "object"
+      },
+      "DeviceAssignment": {
+        "additionalProperties": false,
+        "description": "Which subject a device belongs to within a mission (append-only; the latest by\n``assigned_at`` is current). ``subject_id=None`` unassigns the device.\n\nUsed by write authorization (D-032): a restricted principal may submit an observation with a\n``device_id`` only if that device is currently assigned to the observation's subject.",
+        "properties": {
+          "assigned_at": {
+            "format": "date-time",
+            "title": "Assigned At",
+            "type": "string"
+          },
+          "assigned_by": {
+            "pattern": "^[A-Za-z0-9|@._:-]{1,128}$",
+            "title": "Assigned By",
+            "type": "string"
+          },
+          "assignment_id": {
+            "format": "uuid",
+            "title": "Assignment Id",
+            "type": "string"
+          },
+          "device_id": {
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]{0,63}$",
+            "title": "Device Id",
+            "type": "string"
+          },
+          "mission_id": {
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]{0,63}$",
+            "title": "Mission Id",
+            "type": "string"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "maxLength": 2000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          },
+          "schema_version": {
+            "default": 1,
+            "title": "Schema Version",
+            "type": "integer"
+          },
+          "subject_id": {
+            "anyOf": [
+              {
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]{0,63}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Subject Id"
+          }
+        },
+        "required": [
+          "assignment_id",
+          "device_id",
+          "subject_id",
+          "mission_id",
+          "assigned_by",
+          "assigned_at"
+        ],
+        "title": "DeviceAssignment",
+        "type": "object"
+      },
+      "DocumentChangeOut": {
+        "properties": {
+          "document": {
+            "additionalProperties": true,
+            "title": "Document",
+            "type": "object"
+          },
+          "key": {
+            "title": "Key",
+            "type": "string"
+          },
+          "kind": {
+            "title": "Kind",
+            "type": "string"
+          },
+          "seq": {
+            "title": "Seq",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "seq",
+          "kind",
+          "key",
+          "document"
+        ],
+        "title": "DocumentChangeOut",
+        "type": "object"
+      },
+      "DocumentItem": {
+        "additionalProperties": false,
+        "properties": {
+          "document": {
+            "additionalProperties": true,
+            "title": "Document",
+            "type": "object"
+          },
+          "kind": {
+            "title": "Kind",
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "document"
+        ],
+        "title": "DocumentItem",
+        "type": "object"
+      },
+      "DocumentPullResponse": {
+        "properties": {
+          "changes": {
+            "items": {
+              "$ref": "#/components/schemas/DocumentChangeOut"
+            },
+            "title": "Changes",
+            "type": "array"
+          },
+          "has_more": {
+            "title": "Has More",
+            "type": "boolean"
+          },
+          "next_cursor": {
+            "title": "Next Cursor",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "changes",
+          "next_cursor",
+          "has_more"
+        ],
+        "title": "DocumentPullResponse",
+        "type": "object"
+      },
+      "DocumentPushRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "client_id": {
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]{0,63}$",
+            "title": "Client Id",
+            "type": "string"
+          },
+          "documents": {
+            "items": {
+              "$ref": "#/components/schemas/DocumentItem"
+            },
+            "maxItems": 500,
+            "title": "Documents",
+            "type": "array"
+          }
+        },
+        "required": [
+          "client_id",
+          "documents"
+        ],
+        "title": "DocumentPushRequest",
+        "type": "object"
+      },
+      "EnvironmentalEvent": {
+        "additionalProperties": false,
+        "description": "Space-environment record (DONKI event/notice or a detector measurement such as MSL RAD).\n\nNever linked to a subject's dose: there is deliberately no subject field, and\n``applies_to_individual`` is fixed to False.",
+        "properties": {
+          "applies_to_individual": {
+            "const": false,
+            "default": false,
+            "title": "Applies To Individual",
+            "type": "boolean"
+          },
+          "detector": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DetectorContext"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "end_time": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "End Time"
+          },
+          "event_id": {
+            "format": "uuid",
+            "title": "Event Id",
+            "type": "string"
+          },
+          "event_type": {
+            "maxLength": 256,
+            "minLength": 1,
+            "title": "Event Type",
+            "type": "string"
+          },
+          "link": {
+            "anyOf": [
+              {
+                "maxLength": 256,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Link"
+          },
+          "linked_source_events": {
+            "items": {
+              "maxLength": 256,
+              "minLength": 1,
+              "type": "string"
+            },
+            "title": "Linked Source Events",
+            "type": "array"
+          },
+          "measurements": {
+            "items": {
+              "$ref": "#/components/schemas/EnvironmentalMeasurement"
+            },
+            "title": "Measurements",
+            "type": "array"
+          },
+          "provenance": {
+            "$ref": "#/components/schemas/Provenance"
+          },
+          "schema_version": {
+            "default": 1,
+            "title": "Schema Version",
+            "type": "integer"
+          },
+          "source_artifact_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Artifact Id"
+          },
+          "source_event_id": {
+            "maxLength": 256,
+            "minLength": 1,
+            "title": "Source Event Id",
+            "type": "string"
+          },
+          "source_system": {
+            "enum": [
+              "NASA DONKI",
+              "MSL RAD",
+              "scenario"
+            ],
+            "title": "Source System",
+            "type": "string"
+          },
+          "source_version": {
+            "anyOf": [
+              {
+                "maxLength": 256,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Version"
+          },
+          "start_time": {
+            "format": "date-time",
+            "title": "Start Time",
+            "type": "string"
+          },
+          "summary": {
+            "anyOf": [
+              {
+                "maxLength": 2000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Summary"
+          }
+        },
+        "required": [
+          "event_id",
+          "source_system",
+          "event_type",
+          "source_event_id",
+          "start_time",
+          "provenance"
+        ],
+        "title": "EnvironmentalEvent",
+        "type": "object"
+      },
+      "EnvironmentalMeasurement": {
+        "additionalProperties": false,
+        "properties": {
+          "quantity": {
+            "maxLength": 256,
+            "minLength": 1,
+            "title": "Quantity",
+            "type": "string"
+          },
+          "uncertainty": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Uncertainty"
+          },
+          "unit": {
+            "maxLength": 256,
+            "minLength": 1,
+            "title": "Unit",
+            "type": "string"
+          },
+          "value": {
+            "title": "Value",
+            "type": "number"
+          }
+        },
+        "required": [
+          "quantity",
+          "value",
+          "unit"
+        ],
+        "title": "EnvironmentalMeasurement",
+        "type": "object"
+      },
+      "EventCoverage": {
+        "additionalProperties": false,
+        "properties": {
+          "event": {
+            "$ref": "#/components/schemas/ResolvedEvent"
+          },
+          "observed_counts": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "description": "Observations inside the window, per data origin.",
+            "title": "Observed Counts",
+            "type": "object"
+          }
+        },
+        "required": [
+          "event",
+          "observed_counts"
+        ],
+        "title": "EventCoverage",
+        "type": "object"
+      },
+      "ExcludedObservation": {
+        "additionalProperties": false,
+        "properties": {
+          "detail": {
+            "title": "Detail",
+            "type": "string"
+          },
+          "observation_id": {
+            "title": "Observation Id",
+            "type": "string"
+          },
+          "reason": {
+            "$ref": "#/components/schemas/ExclusionReason"
+          }
+        },
+        "required": [
+          "observation_id",
+          "reason",
+          "detail"
+        ],
+        "title": "ExcludedObservation",
+        "type": "object"
+      },
+      "ExclusionReason": {
+        "enum": [
+          "superseded",
+          "quality",
+          "rejected"
+        ],
+        "title": "ExclusionReason",
+        "type": "string"
+      },
+      "FindingCategory": {
+        "enum": [
+          "device_offline",
+          "invalid_sensor_data",
+          "missed_scheduled_measurement",
+          "sync_failure",
+          "space_weather_notice",
+          "statistical_deviation_review"
+        ],
+        "title": "FindingCategory",
+        "type": "string"
+      },
+      "GapInfo": {
+        "additionalProperties": false,
+        "properties": {
+          "after": {
+            "format": "date-time",
+            "title": "After",
+            "type": "string"
+          },
+          "before": {
+            "format": "date-time",
+            "title": "Before",
+            "type": "string"
+          },
+          "duration_s": {
+            "title": "Duration S",
+            "type": "number"
+          }
+        },
+        "required": [
+          "after",
+          "before",
+          "duration_s"
+        ],
+        "title": "GapInfo",
+        "type": "object"
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "title": "Detail",
+            "type": "array"
+          }
+        },
+        "title": "HTTPValidationError",
+        "type": "object"
+      },
+      "HealthObservation": {
+        "additionalProperties": false,
+        "description": "One immutable observation of one metric for one subject at one time.\n\nObservations are append-only. A correction is a *new* observation whose\n``supersedes`` points at the old id; nothing is ever updated in place. The ``id``\nis generated by the client (UUID) so offline creation and retried sync are idempotent.",
+        "properties": {
+          "context": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "description": "Small qualifiers, e.g. {'site': ...}.",
+            "title": "Context",
+            "type": "object"
+          },
+          "device_id": {
+            "anyOf": [
+              {
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]{0,63}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Producing device. Always set for gateway telemetry; None for legacy/generated data.",
+            "title": "Device Id"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "metric": {
+            "description": "'<module>.<name>', e.g. 'bone.areal_bmd'.",
+            "pattern": "^[a-z][a-z0-9_]*\\.[a-z][a-z0-9_]*$",
+            "title": "Metric",
+            "type": "string"
+          },
+          "module": {
+            "$ref": "#/components/schemas/ModuleId"
+          },
+          "observed_at": {
+            "description": "When the phenomenon was observed (UTC-normalised).",
+            "format": "date-time",
+            "title": "Observed At",
+            "type": "string"
+          },
+          "provenance": {
+            "$ref": "#/components/schemas/Provenance"
+          },
+          "quality": {
+            "$ref": "#/components/schemas/Quality",
+            "default": "valid",
+            "description": "Signal-quality verdict; non-valid is kept and flagged."
+          },
+          "recorded_at": {
+            "description": "When the client recorded it (UTC-normalised).",
+            "format": "date-time",
+            "title": "Recorded At",
+            "type": "string"
+          },
+          "schema_version": {
+            "default": 1,
+            "title": "Schema Version",
+            "type": "integer"
+          },
+          "subject_id": {
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]{0,63}$",
+            "title": "Subject Id",
+            "type": "string"
+          },
+          "supersedes": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Supersedes"
+          },
+          "uncertainty": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Standard uncertainty (1 sigma) in the observation's own unit. None = unknown (never 0 by default); 0 means known exact. Additive optional field (D-025): schema_version stays 1.",
+            "title": "Uncertainty"
+          },
+          "unit": {
+            "description": "UCUM-style unit string. Must match the metric definition.",
+            "maxLength": 256,
+            "minLength": 1,
+            "title": "Unit",
+            "type": "string"
+          },
+          "value": {
+            "title": "Value",
+            "type": "number"
+          }
+        },
+        "required": [
+          "id",
+          "subject_id",
+          "module",
+          "metric",
+          "value",
+          "unit",
+          "observed_at",
+          "recorded_at",
+          "provenance"
+        ],
+        "title": "HealthObservation",
+        "type": "object"
+      },
+      "HealthResponse": {
+        "properties": {
+          "repository": {
+            "title": "Repository",
+            "type": "string"
+          },
+          "status": {
+            "default": "ok",
+            "title": "Status",
+            "type": "string"
+          },
+          "version": {
+            "title": "Version",
+            "type": "string"
+          }
+        },
+        "required": [
+          "version",
+          "repository"
+        ],
+        "title": "HealthResponse",
+        "type": "object"
+      },
+      "HumanIssuer": {
+        "additionalProperties": false,
+        "properties": {
+          "display_name": {
+            "maxLength": 256,
+            "minLength": 1,
+            "title": "Display Name",
+            "type": "string"
+          },
+          "issuer_type": {
+            "const": "human",
+            "default": "human",
+            "title": "Issuer Type",
+            "type": "string"
+          },
+          "principal_id": {
+            "pattern": "^[A-Za-z0-9|@._:-]{1,128}$",
+            "title": "Principal Id",
+            "type": "string"
+          },
+          "role": {
+            "enum": [
+              "flight_surgeon",
+              "ground_control",
+              "mission_commander"
+            ],
+            "title": "Role",
+            "type": "string"
+          }
+        },
+        "required": [
+          "principal_id",
+          "display_name",
+          "role"
+        ],
+        "title": "HumanIssuer",
+        "type": "object"
+      },
+      "LiveDevice": {
+        "properties": {
+          "crew_id": {
+            "title": "Crew Id",
+            "type": "string"
+          },
+          "device_id": {
+            "title": "Device Id",
+            "type": "string"
+          },
+          "last_seen": {
+            "format": "date-time",
+            "title": "Last Seen",
+            "type": "string"
+          },
+          "readings": {
+            "items": {
+              "$ref": "#/components/schemas/LiveReading"
+            },
+            "title": "Readings",
+            "type": "array"
+          }
+        },
+        "required": [
+          "device_id",
+          "crew_id",
+          "last_seen",
+          "readings"
+        ],
+        "title": "LiveDevice",
+        "type": "object"
+      },
+      "LiveReading": {
+        "properties": {
+          "data_origin": {
+            "$ref": "#/components/schemas/DataOrigin"
+          },
+          "domain": {
+            "$ref": "#/components/schemas/ModuleId"
+          },
+          "indicator": {
+            "title": "Indicator",
+            "type": "string"
+          },
+          "metric": {
+            "title": "Metric",
+            "type": "string"
+          },
+          "observed_at": {
+            "format": "date-time",
+            "title": "Observed At",
+            "type": "string"
+          },
+          "quality": {
+            "$ref": "#/components/schemas/Quality"
+          },
+          "source": {
+            "title": "Source",
+            "type": "string"
+          },
+          "unit": {
+            "title": "Unit",
+            "type": "string"
+          },
+          "value": {
+            "title": "Value",
+            "type": "number"
+          }
+        },
+        "required": [
+          "domain",
+          "indicator",
+          "metric",
+          "value",
+          "unit",
+          "observed_at",
+          "quality",
+          "data_origin",
+          "source"
+        ],
+        "title": "LiveReading",
+        "type": "object"
+      },
+      "LiveResponse": {
+        "properties": {
+          "devices": {
+            "items": {
+              "$ref": "#/components/schemas/LiveDevice"
+            },
+            "title": "Devices",
+            "type": "array"
+          },
+          "notice": {
+            "default": "Live gateway view. Values labelled simulated are synthetic test signals, not astronaut data.",
+            "title": "Notice",
+            "type": "string"
+          },
+          "server_time": {
+            "format": "date-time",
+            "title": "Server Time",
+            "type": "string"
+          },
+          "totals": {
+            "$ref": "#/components/schemas/LiveTotals"
+          }
+        },
+        "required": [
+          "server_time",
+          "totals",
+          "devices"
+        ],
+        "title": "LiveResponse",
+        "type": "object"
+      },
+      "LiveTotals": {
+        "properties": {
+          "observations_stored": {
+            "title": "Observations Stored",
+            "type": "integer"
+          },
+          "rejected": {
+            "title": "Rejected",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "observations_stored",
+          "rejected"
+        ],
+        "title": "LiveTotals",
+        "type": "object"
+      },
+      "MeasurementSchedule": {
+        "additionalProperties": false,
+        "properties": {
+          "basis": {
+            "$ref": "#/components/schemas/ScheduleBasis"
+          },
+          "context": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "description": "Same keys as the metric's context.",
+            "title": "Context",
+            "type": "object"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "events": {
+            "items": {
+              "discriminator": {
+                "mapping": {
+                  "recurring": "#/components/schemas/RecurringTimepoints",
+                  "single": "#/components/schemas/SingleTimepoint"
+                },
+                "propertyName": "kind"
+              },
+              "oneOf": [
+                {
+                  "$ref": "#/components/schemas/SingleTimepoint"
+                },
+                {
+                  "$ref": "#/components/schemas/RecurringTimepoints"
+                }
+              ]
+            },
+            "maxItems": 200,
+            "minItems": 1,
+            "title": "Events",
+            "type": "array"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "method": {
+            "description": "Measurement method, e.g. 'DXA', 'actigraphy', 'questionnaire'.",
+            "maxLength": 256,
+            "minLength": 1,
+            "title": "Method",
+            "type": "string"
+          },
+          "metric": {
+            "pattern": "^[a-z][a-z0-9_]*\\.[a-z][a-z0-9_]*$",
+            "title": "Metric",
+            "type": "string"
+          },
+          "notes": {
+            "anyOf": [
+              {
+                "maxLength": 2000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Notes"
+          },
+          "schema_version": {
+            "default": 1,
+            "title": "Schema Version",
+            "type": "integer"
+          },
+          "source": {
+            "description": "Who/what defined this plan.",
+            "maxLength": 256,
+            "minLength": 1,
+            "title": "Source",
+            "type": "string"
+          },
+          "source_ref": {
+            "anyOf": [
+              {
+                "maxLength": 256,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Protocol document, DOI or URL.",
+            "title": "Source Ref"
+          },
+          "subject_id": {
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]{0,63}$",
+            "title": "Subject Id",
+            "type": "string"
+          },
+          "supersedes": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Supersedes"
+          }
+        },
+        "required": [
+          "id",
+          "subject_id",
+          "metric",
+          "method",
+          "events",
+          "basis",
+          "source",
+          "created_at"
+        ],
+        "title": "MeasurementSchedule",
+        "type": "object"
+      },
+      "MetricInfo": {
+        "properties": {
+          "description": {
+            "title": "Description",
+            "type": "string"
+          },
+          "metric": {
+            "title": "Metric",
+            "type": "string"
+          },
+          "non_negative": {
+            "title": "Non Negative",
+            "type": "boolean"
+          },
+          "optional_context": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Optional Context",
+            "type": "array"
+          },
+          "required_context": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Required Context",
+            "type": "array"
+          },
+          "unit": {
+            "title": "Unit",
+            "type": "string"
+          }
+        },
+        "required": [
+          "metric",
+          "unit",
+          "description",
+          "non_negative",
+          "required_context",
+          "optional_context"
+        ],
+        "title": "MetricInfo",
+        "type": "object"
+      },
+      "MetricSummary": {
+        "properties": {
+          "context": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "title": "Context",
+            "type": "object"
+          },
+          "count": {
+            "title": "Count",
+            "type": "integer"
+          },
+          "data_origin": {
+            "$ref": "#/components/schemas/DataOrigin"
+          },
+          "first_observed_at": {
+            "format": "date-time",
+            "title": "First Observed At",
+            "type": "string"
+          },
+          "last_observed_at": {
+            "format": "date-time",
+            "title": "Last Observed At",
+            "type": "string"
+          },
+          "maximum": {
+            "title": "Maximum",
+            "type": "number"
+          },
+          "mean": {
+            "title": "Mean",
+            "type": "number"
+          },
+          "metric": {
+            "title": "Metric",
+            "type": "string"
+          },
+          "minimum": {
+            "title": "Minimum",
+            "type": "number"
+          },
+          "std": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Std"
+          },
+          "unit": {
+            "title": "Unit",
+            "type": "string"
+          }
+        },
+        "required": [
+          "metric",
+          "unit",
+          "data_origin",
+          "count",
+          "first_observed_at",
+          "last_observed_at",
+          "mean",
+          "std",
+          "minimum",
+          "maximum"
+        ],
+        "title": "MetricSummary",
+        "type": "object"
+      },
+      "MissingSeries": {
+        "additionalProperties": false,
+        "properties": {
+          "metric": {
+            "title": "Metric",
+            "type": "string"
+          },
+          "subject_id": {
+            "title": "Subject Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "subject_id",
+          "metric"
+        ],
+        "title": "MissingSeries",
+        "type": "object"
+      },
+      "Mission": {
+        "additionalProperties": false,
+        "description": "Mission context: anchors the time model (L\u00b1n / R\u00b1n) and scopes access (D-021, M5).",
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "crew": {
+            "items": {
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]{0,63}$",
+              "type": "string"
+            },
+            "maxItems": 32,
+            "minItems": 1,
+            "title": "Crew",
+            "type": "array"
+          },
+          "data_origin": {
+            "$ref": "#/components/schemas/DataOrigin",
+            "description": "simulated for demo missions; never invent a real mission."
+          },
+          "launch_at": {
+            "format": "date-time",
+            "title": "Launch At",
+            "type": "string"
+          },
+          "mission_id": {
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]{0,63}$",
+            "title": "Mission Id",
+            "type": "string"
+          },
+          "name": {
+            "maxLength": 256,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          },
+          "notes": {
+            "anyOf": [
+              {
+                "maxLength": 2000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Notes"
+          },
+          "return_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "None while the mission is ongoing.",
+            "title": "Return At"
+          },
+          "schema_version": {
+            "default": 1,
+            "title": "Schema Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "mission_id",
+          "name",
+          "launch_at",
+          "crew",
+          "data_origin",
+          "created_at"
+        ],
+        "title": "Mission",
+        "type": "object"
+      },
+      "MissionPhase": {
+        "enum": [
+          "preflight",
+          "inflight",
+          "postflight"
+        ],
+        "title": "MissionPhase",
+        "type": "string"
+      },
+      "ModuleId": {
+        "description": "The four independent health modules.",
+        "enum": [
+          "radiation",
+          "bone",
+          "cardiovascular",
+          "behavioral"
+        ],
+        "title": "ModuleId",
+        "type": "string"
+      },
+      "ModuleInfo": {
+        "properties": {
+          "description": {
+            "title": "Description",
+            "type": "string"
+          },
+          "method_notes": {
+            "title": "Method Notes",
+            "type": "string"
+          },
+          "metrics": {
+            "items": {
+              "$ref": "#/components/schemas/MetricInfo"
+            },
+            "title": "Metrics",
+            "type": "array"
+          },
+          "module": {
+            "$ref": "#/components/schemas/ModuleId"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "module",
+          "name",
+          "description",
+          "method_notes",
+          "metrics"
+        ],
+        "title": "ModuleInfo",
+        "type": "object"
+      },
+      "ModuleSummary": {
+        "properties": {
+          "derived_values": {
+            "items": {
+              "$ref": "#/components/schemas/DerivedValue"
+            },
+            "title": "Derived Values",
+            "type": "array"
+          },
+          "metric_summaries": {
+            "items": {
+              "$ref": "#/components/schemas/MetricSummary"
+            },
+            "title": "Metric Summaries",
+            "type": "array"
+          },
+          "module": {
+            "$ref": "#/components/schemas/ModuleId"
+          },
+          "notice": {
+            "default": "Descriptive statistics and documented calculations only. Not a diagnosis, not medical advice, and no clinical thresholds are applied. Values keep their data origin (simulated / measured / modeled).",
+            "title": "Notice",
+            "type": "string"
+          },
+          "observation_count": {
+            "title": "Observation Count",
+            "type": "integer"
+          },
+          "subject_id": {
+            "title": "Subject Id",
+            "type": "string"
+          },
+          "warnings": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Warnings",
+            "type": "array"
+          }
+        },
+        "required": [
+          "module",
+          "subject_id",
+          "observation_count",
+          "metric_summaries",
+          "derived_values"
+        ],
+        "title": "ModuleSummary",
+        "type": "object"
+      },
+      "MutationResult": {
+        "properties": {
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          },
+          "mutation_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mutation Id"
+          },
+          "observation_id": {
+            "format": "uuid",
+            "title": "Observation Id",
+            "type": "string"
+          },
+          "server_seq": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Server Seq"
+          },
+          "status": {
+            "$ref": "#/components/schemas/MutationStatus"
+          }
+        },
+        "required": [
+          "observation_id",
+          "status"
+        ],
+        "title": "MutationResult",
+        "type": "object"
+      },
+      "MutationStatus": {
+        "enum": [
+          "accepted",
+          "duplicate",
+          "rejected"
+        ],
+        "title": "MutationStatus",
+        "type": "string"
+      },
+      "ObservationBatch": {
+        "properties": {
+          "observations": {
+            "items": {
+              "$ref": "#/components/schemas/HealthObservation"
+            },
+            "maxItems": 500,
+            "title": "Observations",
+            "type": "array"
+          }
+        },
+        "required": [
+          "observations"
+        ],
+        "title": "ObservationBatch",
+        "type": "object"
+      },
+      "ObservationBatchResponse": {
+        "properties": {
+          "results": {
+            "items": {
+              "$ref": "#/components/schemas/MutationResult"
+            },
+            "title": "Results",
+            "type": "array"
+          }
+        },
+        "required": [
+          "results"
+        ],
+        "title": "ObservationBatchResponse",
+        "type": "object"
+      },
+      "ProcessingStep": {
+        "additionalProperties": false,
+        "properties": {
+          "at": {
+            "format": "date-time",
+            "title": "At",
+            "type": "string"
+          },
+          "detail": {
+            "anyOf": [
+              {
+                "maxLength": 2000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Detail"
+          },
+          "step": {
+            "maxLength": 256,
+            "minLength": 1,
+            "title": "Step",
+            "type": "string"
+          },
+          "tool": {
+            "maxLength": 256,
+            "minLength": 1,
+            "title": "Tool",
+            "type": "string"
+          }
+        },
+        "required": [
+          "at",
+          "step",
+          "tool"
+        ],
+        "title": "ProcessingStep",
+        "type": "object"
+      },
+      "Provenance": {
+        "additionalProperties": false,
+        "description": "Where a value came from. Requirements depend on ``data_origin``:\n\n* simulated: ``generator_version`` and ``seed`` required.\n* measured:  ``source_ref`` required (instrument, dataset id, DOI or URL a human can\n  resolve); ``generator_version`` forbidden.\n* modeled:   ``method`` required (model/algorithm name and version);\n  ``generator_version`` forbidden.",
+        "properties": {
+          "data_origin": {
+            "$ref": "#/components/schemas/DataOrigin"
+          },
+          "derived_from": {
+            "default": [],
+            "description": "Observation ids this value was computed from (modeled data).",
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "title": "Derived From",
+            "type": "array"
+          },
+          "generator_version": {
+            "anyOf": [
+              {
+                "maxLength": 256,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Generator Version"
+          },
+          "license": {
+            "anyOf": [
+              {
+                "maxLength": 256,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "License"
+          },
+          "method": {
+            "anyOf": [
+              {
+                "maxLength": 256,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Model or algorithm name + version.",
+            "title": "Method"
+          },
+          "notes": {
+            "anyOf": [
+              {
+                "maxLength": 2000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Notes"
+          },
+          "retrieved_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Retrieved At"
+          },
+          "seed": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Seed"
+          },
+          "source": {
+            "description": "System, instrument or dataset family that produced the value.",
+            "maxLength": 256,
+            "minLength": 1,
+            "title": "Source",
+            "type": "string"
+          },
+          "source_ref": {
+            "anyOf": [
+              {
+                "maxLength": 256,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Resolvable reference: dataset accession, DOI, URL, instrument id.",
+            "title": "Source Ref"
+          }
+        },
+        "required": [
+          "data_origin",
+          "source"
+        ],
+        "title": "Provenance",
+        "type": "object"
+      },
+      "ProvenanceDigest": {
+        "additionalProperties": false,
+        "properties": {
+          "data_origin": {
+            "$ref": "#/components/schemas/DataOrigin"
+          },
+          "generator_versions": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Generator Versions",
+            "type": "array"
+          },
+          "methods": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Methods",
+            "type": "array"
+          },
+          "source_refs": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Source Refs",
+            "type": "array"
+          },
+          "sources": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Sources",
+            "type": "array"
+          }
+        },
+        "required": [
+          "data_origin",
+          "sources",
+          "source_refs",
+          "methods",
+          "generator_versions"
+        ],
+        "title": "ProvenanceDigest",
+        "type": "object"
+      },
+      "PublishedReference": {
+        "additionalProperties": false,
+        "properties": {
+          "citation": {
+            "description": "Authors, title, venue, year.",
+            "maxLength": 2000,
+            "minLength": 1,
+            "title": "Citation",
+            "type": "string"
+          },
+          "context": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "description": "Site, method, posture, timepoint...",
+            "title": "Context",
+            "type": "object"
+          },
+          "interval_kind": {
+            "anyOf": [
+              {
+                "maxLength": 256,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "e.g. '95% CI', 'min-max'.",
+            "title": "Interval Kind"
+          },
+          "interval_lower": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Interval Lower"
+          },
+          "interval_upper": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Interval Upper"
+          },
+          "limitations": {
+            "maxLength": 2000,
+            "minLength": 1,
+            "title": "Limitations",
+            "type": "string"
+          },
+          "metric": {
+            "anyOf": [
+              {
+                "pattern": "^[a-z][a-z0-9_]*\\.[a-z][a-z0-9_]*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Registered metric this relates to, if any.",
+            "title": "Metric"
+          },
+          "notes": {
+            "anyOf": [
+              {
+                "maxLength": 2000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Notes"
+          },
+          "population": {
+            "$ref": "#/components/schemas/ReferencePopulation"
+          },
+          "quantity": {
+            "description": "What the value describes, in the source's terms.",
+            "maxLength": 256,
+            "minLength": 1,
+            "title": "Quantity",
+            "type": "string"
+          },
+          "reference_id": {
+            "pattern": "^REF-[A-Z0-9][A-Z0-9-]{2,63}$",
+            "title": "Reference Id",
+            "type": "string"
+          },
+          "retrieved_at": {
+            "format": "date-time",
+            "title": "Retrieved At",
+            "type": "string"
+          },
+          "schema_version": {
+            "default": 1,
+            "title": "Schema Version",
+            "type": "integer"
+          },
+          "source_identifier": {
+            "description": "DOI, PMID, NTRS id or dataset accession.",
+            "maxLength": 256,
+            "minLength": 1,
+            "title": "Source Identifier",
+            "type": "string"
+          },
+          "statistic": {
+            "description": "e.g. 'mean', 'median', 'SD', 'reported range'.",
+            "maxLength": 256,
+            "minLength": 1,
+            "title": "Statistic",
+            "type": "string"
+          },
+          "supersedes": {
+            "anyOf": [
+              {
+                "pattern": "^REF-[A-Z0-9][A-Z0-9-]{2,63}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Supersedes"
+          },
+          "unit": {
+            "maxLength": 256,
+            "minLength": 1,
+            "title": "Unit",
+            "type": "string"
+          },
+          "value": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Value"
+          },
+          "verification": {
+            "$ref": "#/components/schemas/Verification"
+          },
+          "verified_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Verified At"
+          },
+          "verified_by": {
+            "anyOf": [
+              {
+                "maxLength": 256,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Verified By"
+          }
+        },
+        "required": [
+          "reference_id",
+          "citation",
+          "source_identifier",
+          "verification",
+          "quantity",
+          "unit",
+          "statistic",
+          "population",
+          "limitations",
+          "retrieved_at"
+        ],
+        "title": "PublishedReference",
+        "type": "object"
+      },
+      "Quality": {
+        "description": "Signal-quality verdict attached by the producing device or gateway.\n\nProvisional vocabulary (docs/DECISIONS.md D-016): the team may extend it. Non-valid\nobservations are stored, never silently dropped, and are flagged in summaries/UI.",
+        "enum": [
+          "valid",
+          "suspect",
+          "invalid"
+        ],
+        "title": "Quality",
+        "type": "string"
+      },
+      "RecordWriteResult": {
+        "properties": {
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          },
+          "record_id": {
+            "title": "Record Id",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "accepted",
+              "duplicate",
+              "rejected"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "record_id",
+          "status"
+        ],
+        "title": "RecordWriteResult",
+        "type": "object"
+      },
+      "RecurringTimepoints": {
+        "additionalProperties": false,
+        "description": "Every ``every_days`` from (start_anchor + start_offset) to (end_anchor + end_offset), inclusive.",
+        "properties": {
+          "end_anchor": {
+            "$ref": "#/components/schemas/Anchor"
+          },
+          "end_offset_days": {
+            "maximum": 3650.0,
+            "minimum": -3650.0,
+            "title": "End Offset Days",
+            "type": "integer"
+          },
+          "every_days": {
+            "maximum": 365.0,
+            "minimum": 1.0,
+            "title": "Every Days",
+            "type": "integer"
+          },
+          "kind": {
+            "const": "recurring",
+            "default": "recurring",
+            "title": "Kind",
+            "type": "string"
+          },
+          "label": {
+            "anyOf": [
+              {
+                "maxLength": 256,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Label"
+          },
+          "start_anchor": {
+            "$ref": "#/components/schemas/Anchor"
+          },
+          "start_offset_days": {
+            "maximum": 3650.0,
+            "minimum": -3650.0,
+            "title": "Start Offset Days",
+            "type": "integer"
+          },
+          "window_days": {
+            "default": 0,
+            "maximum": 365.0,
+            "minimum": 0.0,
+            "title": "Window Days",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "start_anchor",
+          "start_offset_days",
+          "end_anchor",
+          "end_offset_days",
+          "every_days"
+        ],
+        "title": "RecurringTimepoints",
+        "type": "object"
+      },
+      "ReferencePopulation": {
+        "additionalProperties": false,
+        "properties": {
+          "cohort": {
+            "anyOf": [
+              {
+                "maxLength": 256,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cohort"
+          },
+          "description": {
+            "maxLength": 2000,
+            "minLength": 1,
+            "title": "Description",
+            "type": "string"
+          },
+          "mission_type": {
+            "anyOf": [
+              {
+                "maxLength": 256,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "e.g. 'ISS long-duration', 'bed rest'.",
+            "title": "Mission Type"
+          },
+          "n": {
+            "anyOf": [
+              {
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Sample size as reported; None if not reported.",
+            "title": "N"
+          },
+          "species": {
+            "maxLength": 256,
+            "minLength": 1,
+            "title": "Species",
+            "type": "string"
+          }
+        },
+        "required": [
+          "description",
+          "species"
+        ],
+        "title": "ReferencePopulation",
+        "type": "object"
+      },
+      "RejectionOut": {
+        "properties": {
+          "device_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Device Id"
+          },
+          "payload": {
+            "additionalProperties": true,
+            "title": "Payload",
+            "type": "object"
+          },
+          "reason": {
+            "title": "Reason",
+            "type": "string"
+          },
+          "received_at": {
+            "format": "date-time",
+            "title": "Received At",
+            "type": "string"
+          },
+          "rejection_id": {
+            "title": "Rejection Id",
+            "type": "integer"
+          },
+          "source": {
+            "title": "Source",
+            "type": "string"
+          }
+        },
+        "required": [
+          "rejection_id",
+          "received_at",
+          "source",
+          "device_id",
+          "reason",
+          "payload"
+        ],
+        "title": "RejectionOut",
+        "type": "object"
+      },
+      "ResolvedEvent": {
+        "additionalProperties": false,
+        "description": "A planned measurement time. ``planned_at`` is modeled (derived from mission anchors).",
+        "properties": {
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "phase": {
+            "$ref": "#/components/schemas/MissionPhase"
+          },
+          "planned_at": {
+            "format": "date-time",
+            "title": "Planned At",
+            "type": "string"
+          },
+          "schedule_id": {
+            "format": "uuid",
+            "title": "Schedule Id",
+            "type": "string"
+          },
+          "time_method": {
+            "default": "mission anchor + whole-day offset (core.schedule v1)",
+            "title": "Time Method",
+            "type": "string"
+          },
+          "time_origin": {
+            "const": "modeled",
+            "default": "modeled",
+            "title": "Time Origin",
+            "type": "string"
+          },
+          "window_end": {
+            "format": "date-time",
+            "title": "Window End",
+            "type": "string"
+          },
+          "window_start": {
+            "format": "date-time",
+            "title": "Window Start",
+            "type": "string"
+          }
+        },
+        "required": [
+          "schedule_id",
+          "label",
+          "planned_at",
+          "window_start",
+          "window_end",
+          "phase"
+        ],
+        "title": "ResolvedEvent",
+        "type": "object"
+      },
+      "ReturnNowCommand": {
+        "additionalProperties": false,
+        "description": "RETURN_NOW is issued by a human only (D-021). MEDVITAL stores, syncs and displays it.",
+        "properties": {
+          "command": {
+            "const": "RETURN_NOW",
+            "default": "RETURN_NOW",
+            "title": "Command",
+            "type": "string"
+          },
+          "command_id": {
+            "format": "uuid",
+            "title": "Command Id",
+            "type": "string"
+          },
+          "issued_at": {
+            "format": "date-time",
+            "title": "Issued At",
+            "type": "string"
+          },
+          "issuer": {
+            "$ref": "#/components/schemas/HumanIssuer"
+          },
+          "mission_context": {
+            "maxLength": 2000,
+            "minLength": 1,
+            "title": "Mission Context",
+            "type": "string"
+          },
+          "mission_id": {
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]{0,63}$",
+            "title": "Mission Id",
+            "type": "string"
+          },
+          "reason": {
+            "maxLength": 2000,
+            "minLength": 1,
+            "title": "Reason",
+            "type": "string"
+          },
+          "schema_version": {
+            "default": 1,
+            "title": "Schema Version",
+            "type": "integer"
+          },
+          "subject_ids": {
+            "description": "Empty = whole crew.",
+            "items": {
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]{0,63}$",
+              "type": "string"
+            },
+            "title": "Subject Ids",
+            "type": "array"
+          }
+        },
+        "required": [
+          "command_id",
+          "mission_id",
+          "issuer",
+          "issued_at",
+          "reason",
+          "mission_context"
+        ],
+        "title": "ReturnNowCommand",
+        "type": "object"
+      },
+      "RuleConfig": {
+        "additionalProperties": false,
+        "description": "Operational parameters (engineering defaults, not clinical or scientific values).",
+        "properties": {
+          "analysis": {
+            "$ref": "#/components/schemas/AnalysisConfig"
+          },
+          "deviation_window_s": {
+            "default": 604800.0,
+            "exclusiveMinimum": 0.0,
+            "title": "Deviation Window S",
+            "type": "number"
+          },
+          "device_offline_after_s": {
+            "default": 300.0,
+            "exclusiveMinimum": 0.0,
+            "title": "Device Offline After S",
+            "type": "number"
+          },
+          "invalid_data_window_s": {
+            "default": 3600.0,
+            "exclusiveMinimum": 0.0,
+            "title": "Invalid Data Window S",
+            "type": "number"
+          },
+          "space_weather_lookback_s": {
+            "default": 86400.0,
+            "exclusiveMinimum": 0.0,
+            "title": "Space Weather Lookback S",
+            "type": "number"
+          },
+          "sync_failure_window_s": {
+            "default": 86400.0,
+            "exclusiveMinimum": 0.0,
+            "title": "Sync Failure Window S",
+            "type": "number"
+          }
+        },
+        "title": "RuleConfig",
+        "type": "object"
+      },
+      "RuleEvaluationRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "config": {
+            "$ref": "#/components/schemas/RuleConfig"
+          },
+          "now": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Now"
+          },
+          "persist": {
+            "default": false,
+            "title": "Persist",
+            "type": "boolean"
+          }
+        },
+        "title": "RuleEvaluationRequest",
+        "type": "object"
+      },
+      "RuleFinding": {
+        "additionalProperties": false,
+        "description": "Non-clinical, deterministic rule output. A review flag, never a diagnosis or risk label.",
+        "properties": {
+          "category": {
+            "$ref": "#/components/schemas/FindingCategory"
+          },
+          "clinical": {
+            "const": false,
+            "default": false,
+            "title": "Clinical",
+            "type": "boolean"
+          },
+          "device_id": {
+            "anyOf": [
+              {
+                "maxLength": 256,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Device Id"
+          },
+          "evaluated_at": {
+            "format": "date-time",
+            "title": "Evaluated At",
+            "type": "string"
+          },
+          "evidence_ids": {
+            "items": {
+              "maxLength": 256,
+              "minLength": 1,
+              "type": "string"
+            },
+            "title": "Evidence Ids",
+            "type": "array"
+          },
+          "finding_id": {
+            "format": "uuid",
+            "title": "Finding Id",
+            "type": "string"
+          },
+          "mission_id": {
+            "anyOf": [
+              {
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]{0,63}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mission Id"
+          },
+          "module": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ModuleId"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "parameters": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "description": "Operational parameters used.",
+            "title": "Parameters",
+            "type": "object"
+          },
+          "review_required": {
+            "const": true,
+            "default": true,
+            "title": "Review Required",
+            "type": "boolean"
+          },
+          "rule_id": {
+            "maxLength": 256,
+            "minLength": 1,
+            "title": "Rule Id",
+            "type": "string"
+          },
+          "rule_version": {
+            "maxLength": 256,
+            "minLength": 1,
+            "title": "Rule Version",
+            "type": "string"
+          },
+          "schema_version": {
+            "default": 1,
+            "title": "Schema Version",
+            "type": "integer"
+          },
+          "subject_id": {
+            "anyOf": [
+              {
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]{0,63}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Subject Id"
+          },
+          "summary": {
+            "maxLength": 2000,
+            "minLength": 1,
+            "title": "Summary",
+            "type": "string"
+          },
+          "window_end": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Window End"
+          },
+          "window_start": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Window Start"
+          }
+        },
+        "required": [
+          "finding_id",
+          "rule_id",
+          "rule_version",
+          "category",
+          "evaluated_at",
+          "summary"
+        ],
+        "title": "RuleFinding",
+        "type": "object"
+      },
+      "ScheduleBasis": {
+        "enum": [
+          "protocol",
+          "simulated"
+        ],
+        "title": "ScheduleBasis",
+        "type": "string"
+      },
+      "ScheduleCoverage": {
+        "additionalProperties": false,
+        "properties": {
+          "events": {
+            "items": {
+              "$ref": "#/components/schemas/EventCoverage"
+            },
+            "title": "Events",
+            "type": "array"
+          },
+          "events_with_observations": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "description": "Per data origin; origins are never pooled.",
+            "title": "Events With Observations",
+            "type": "object"
+          },
+          "metric": {
+            "title": "Metric",
+            "type": "string"
+          },
+          "note": {
+            "default": "Coverage compares planned windows with recorded observations. Missing measurements stay missing: nothing is imputed or interpolated.",
+            "title": "Note",
+            "type": "string"
+          },
+          "planned_events": {
+            "title": "Planned Events",
+            "type": "integer"
+          },
+          "schedule_id": {
+            "format": "uuid",
+            "title": "Schedule Id",
+            "type": "string"
+          },
+          "unscheduled_observations": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "description": "Matching observations outside every planned window, per data origin.",
+            "title": "Unscheduled Observations",
+            "type": "object"
+          }
+        },
+        "required": [
+          "schedule_id",
+          "metric",
+          "planned_events",
+          "events_with_observations",
+          "events",
+          "unscheduled_observations"
+        ],
+        "title": "ScheduleCoverage",
+        "type": "object"
+      },
+      "ScheduleWriteResult": {
+        "properties": {
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          },
+          "schedule_id": {
+            "format": "uuid",
+            "title": "Schedule Id",
+            "type": "string"
+          },
+          "schedule_seq": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Schedule Seq"
+          },
+          "status": {
+            "enum": [
+              "accepted",
+              "duplicate",
+              "rejected"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "schedule_id",
+          "status"
+        ],
+        "title": "ScheduleWriteResult",
+        "type": "object"
+      },
+      "SeriesAnalysis": {
+        "additionalProperties": false,
+        "properties": {
+          "anomalies": {
+            "items": {
+              "$ref": "#/components/schemas/AnomalyFlag"
+            },
+            "title": "Anomalies",
+            "type": "array"
+          },
+          "baseline": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/BaselineSummary"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "descriptive": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DescriptiveStats"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "deviations": {
+            "items": {
+              "$ref": "#/components/schemas/Deviation"
+            },
+            "title": "Deviations",
+            "type": "array"
+          },
+          "first_observed_at": {
+            "format": "date-time",
+            "title": "First Observed At",
+            "type": "string"
+          },
+          "key": {
+            "$ref": "#/components/schemas/SeriesKey"
+          },
+          "last_observed_at": {
+            "format": "date-time",
+            "title": "Last Observed At",
+            "type": "string"
+          },
+          "latest_deviation": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Deviation"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "provenance": {
+            "$ref": "#/components/schemas/ProvenanceDigest"
+          },
+          "quality": {
+            "$ref": "#/components/schemas/DataQualityReport"
+          },
+          "warnings": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Warnings",
+            "type": "array"
+          }
+        },
+        "required": [
+          "key",
+          "provenance",
+          "first_observed_at",
+          "last_observed_at",
+          "descriptive",
+          "baseline",
+          "latest_deviation",
+          "anomalies",
+          "quality",
+          "warnings"
+        ],
+        "title": "SeriesAnalysis",
+        "type": "object"
+      },
+      "SeriesKey": {
+        "additionalProperties": false,
+        "description": "Everything that makes two values comparable. Values with different keys are never pooled.",
+        "properties": {
+          "context": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "title": "Context",
+            "type": "object"
+          },
+          "data_origin": {
+            "$ref": "#/components/schemas/DataOrigin"
+          },
+          "device_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Device Id"
+          },
+          "metric": {
+            "title": "Metric",
+            "type": "string"
+          },
+          "subject_id": {
+            "title": "Subject Id",
+            "type": "string"
+          },
+          "unit": {
+            "title": "Unit",
+            "type": "string"
+          }
+        },
+        "required": [
+          "subject_id",
+          "metric",
+          "unit",
+          "data_origin"
+        ],
+        "title": "SeriesKey",
+        "type": "object"
+      },
+      "ServerChange": {
+        "properties": {
+          "observation": {
+            "$ref": "#/components/schemas/HealthObservation"
+          },
+          "server_seq": {
+            "title": "Server Seq",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "server_seq",
+          "observation"
+        ],
+        "title": "ServerChange",
+        "type": "object"
+      },
+      "SimulatedAstronautProfile": {
+        "properties": {
+          "age_years": {
+            "title": "Age Years",
+            "type": "integer"
+          },
+          "bone_bmd_baseline_g_cm2": {
+            "title": "Bone Bmd Baseline G Cm2",
+            "type": "number"
+          },
+          "data_origin": {
+            "const": "simulated",
+            "default": "simulated",
+            "title": "Data Origin",
+            "type": "string"
+          },
+          "disclaimer": {
+            "default": "Synthetic profile for software testing. Baseline values are arbitrary placeholders, not derived from any NASA dataset or real individual.",
+            "title": "Disclaimer",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "planned_duration_days": {
+            "title": "Planned Duration Days",
+            "type": "integer"
+          },
+          "profile_id": {
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]{0,63}$",
+            "title": "Profile Id",
+            "type": "string"
+          },
+          "resting_hr_baseline_bpm": {
+            "title": "Resting Hr Baseline Bpm",
+            "type": "number"
+          },
+          "rr_mean_ms": {
+            "title": "Rr Mean Ms",
+            "type": "number"
+          },
+          "self_report_baseline": {
+            "title": "Self Report Baseline",
+            "type": "number"
+          },
+          "sleep_hours_baseline": {
+            "title": "Sleep Hours Baseline",
+            "type": "number"
+          }
+        },
+        "required": [
+          "profile_id",
+          "label",
+          "age_years",
+          "planned_duration_days",
+          "bone_bmd_baseline_g_cm2",
+          "resting_hr_baseline_bpm",
+          "rr_mean_ms",
+          "sleep_hours_baseline",
+          "self_report_baseline"
+        ],
+        "title": "SimulatedAstronautProfile",
+        "type": "object"
+      },
+      "SimulationRequest": {
+        "properties": {
+          "days": {
+            "maximum": 730.0,
+            "minimum": 1.0,
+            "title": "Days",
+            "type": "integer"
+          },
+          "persist": {
+            "default": false,
+            "description": "Also store the generated observations on the server.",
+            "title": "Persist",
+            "type": "boolean"
+          },
+          "seed": {
+            "default": 0,
+            "title": "Seed",
+            "type": "integer"
+          },
+          "start": {
+            "description": "Timezone-aware start; truncated to 00:00 UTC.",
+            "format": "date-time",
+            "title": "Start",
+            "type": "string"
+          }
+        },
+        "required": [
+          "start",
+          "days"
+        ],
+        "title": "SimulationRequest",
+        "type": "object"
+      },
+      "SimulationResponse": {
+        "properties": {
+          "generator_version": {
+            "default": "0.1.0",
+            "title": "Generator Version",
+            "type": "string"
+          },
+          "observations": {
+            "items": {
+              "$ref": "#/components/schemas/HealthObservation"
+            },
+            "title": "Observations",
+            "type": "array"
+          },
+          "persisted": {
+            "title": "Persisted",
+            "type": "boolean"
+          },
+          "profile_id": {
+            "title": "Profile Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "profile_id",
+          "observations",
+          "persisted"
+        ],
+        "title": "SimulationResponse",
+        "type": "object"
+      },
+      "SingleTimepoint": {
+        "additionalProperties": false,
+        "properties": {
+          "anchor": {
+            "$ref": "#/components/schemas/Anchor"
+          },
+          "kind": {
+            "const": "single",
+            "default": "single",
+            "title": "Kind",
+            "type": "string"
+          },
+          "label": {
+            "anyOf": [
+              {
+                "maxLength": 256,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Defaults to L\u00b1n / R\u00b1n.",
+            "title": "Label"
+          },
+          "offset_days": {
+            "maximum": 3650.0,
+            "minimum": -3650.0,
+            "title": "Offset Days",
+            "type": "integer"
+          },
+          "window_days": {
+            "default": 0,
+            "description": "Tolerance either side of the planned day.",
+            "maximum": 365.0,
+            "minimum": 0.0,
+            "title": "Window Days",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "anchor",
+          "offset_days"
+        ],
+        "title": "SingleTimepoint",
+        "type": "object"
+      },
+      "SourceArtifact": {
+        "additionalProperties": false,
+        "description": "Manifest of one downloaded source file. The file itself is stored unmodified, by checksum.",
+        "properties": {
+          "artifact_id": {
+            "format": "uuid",
+            "title": "Artifact Id",
+            "type": "string"
+          },
+          "content_type": {
+            "anyOf": [
+              {
+                "maxLength": 256,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Content Type"
+          },
+          "dataset_id": {
+            "maxLength": 256,
+            "minLength": 1,
+            "title": "Dataset Id",
+            "type": "string"
+          },
+          "dataset_version": {
+            "anyOf": [
+              {
+                "maxLength": 256,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Dataset Version"
+          },
+          "import_method": {
+            "maxLength": 256,
+            "minLength": 1,
+            "title": "Import Method",
+            "type": "string"
+          },
+          "license_note": {
+            "anyOf": [
+              {
+                "maxLength": 2000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "None = licence not yet verified.",
+            "title": "License Note"
+          },
+          "original_filename": {
+            "maxLength": 256,
+            "minLength": 1,
+            "title": "Original Filename",
+            "type": "string"
+          },
+          "processing_history": {
+            "items": {
+              "$ref": "#/components/schemas/ProcessingStep"
+            },
+            "title": "Processing History",
+            "type": "array"
+          },
+          "retrieved_at": {
+            "format": "date-time",
+            "title": "Retrieved At",
+            "type": "string"
+          },
+          "schema_version": {
+            "default": 1,
+            "title": "Schema Version",
+            "type": "integer"
+          },
+          "sha256": {
+            "pattern": "^[0-9a-f]{64}$",
+            "title": "Sha256",
+            "type": "string"
+          },
+          "size_bytes": {
+            "minimum": 0.0,
+            "title": "Size Bytes",
+            "type": "integer"
+          },
+          "source_system": {
+            "maxLength": 256,
+            "minLength": 1,
+            "title": "Source System",
+            "type": "string"
+          },
+          "source_url": {
+            "description": "Retrieval URL with any API key removed.",
+            "maxLength": 256,
+            "minLength": 1,
+            "title": "Source Url",
+            "type": "string"
+          }
+        },
+        "required": [
+          "artifact_id",
+          "source_system",
+          "dataset_id",
+          "source_url",
+          "original_filename",
+          "sha256",
+          "size_bytes",
+          "retrieved_at",
+          "import_method"
+        ],
+        "title": "SourceArtifact",
+        "type": "object"
+      },
+      "SyncMutation": {
+        "additionalProperties": false,
+        "properties": {
+          "mutation_id": {
+            "description": "Client-generated; echoed back in results.",
+            "format": "uuid",
+            "title": "Mutation Id",
+            "type": "string"
+          },
+          "observation": {
+            "$ref": "#/components/schemas/HealthObservation"
+          }
+        },
+        "required": [
+          "mutation_id",
+          "observation"
+        ],
+        "title": "SyncMutation",
+        "type": "object"
+      },
+      "SyncPullResponse": {
+        "properties": {
+          "changes": {
+            "items": {
+              "$ref": "#/components/schemas/ServerChange"
+            },
+            "title": "Changes",
+            "type": "array"
+          },
+          "has_more": {
+            "title": "Has More",
+            "type": "boolean"
+          },
+          "next_cursor": {
+            "description": "Pass as ?cursor= on the next pull.",
+            "title": "Next Cursor",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "changes",
+          "next_cursor",
+          "has_more"
+        ],
+        "title": "SyncPullResponse",
+        "type": "object"
+      },
+      "SyncPushRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "client_id": {
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]{0,63}$",
+            "title": "Client Id",
+            "type": "string"
+          },
+          "mutations": {
+            "items": {
+              "$ref": "#/components/schemas/SyncMutation"
+            },
+            "maxItems": 500,
+            "title": "Mutations",
+            "type": "array"
+          }
+        },
+        "required": [
+          "client_id",
+          "mutations"
+        ],
+        "title": "SyncPushRequest",
+        "type": "object"
+      },
+      "SyncPushResponse": {
+        "properties": {
+          "results": {
+            "items": {
+              "$ref": "#/components/schemas/MutationResult"
+            },
+            "title": "Results",
+            "type": "array"
+          },
+          "server_cursor": {
+            "description": "Highest server_seq currently stored.",
+            "title": "Server Cursor",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "results",
+          "server_cursor"
+        ],
+        "title": "SyncPushResponse",
+        "type": "object"
+      },
+      "TelemetryBatch": {
+        "description": "Raw event objects, validated one by one so a single bad event cannot block a batch.\nThe event shape is documented by ``GET /api/v1/telemetry/schema`` (``TelemetryEvent``).",
+        "properties": {
+          "events": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "maxItems": 500,
+            "title": "Events",
+            "type": "array"
+          }
+        },
+        "required": [
+          "events"
+        ],
+        "title": "TelemetryBatch",
+        "type": "object"
+      },
+      "TelemetryResponse": {
+        "properties": {
+          "accepted": {
+            "title": "Accepted",
+            "type": "integer"
+          },
+          "duplicate": {
+            "title": "Duplicate",
+            "type": "integer"
+          },
+          "rejected": {
+            "title": "Rejected",
+            "type": "integer"
+          },
+          "results": {
+            "items": {
+              "$ref": "#/components/schemas/TelemetryResult"
+            },
+            "title": "Results",
+            "type": "array"
+          }
+        },
+        "required": [
+          "results",
+          "accepted",
+          "duplicate",
+          "rejected"
+        ],
+        "title": "TelemetryResponse",
+        "type": "object"
+      },
+      "TelemetryResult": {
+        "properties": {
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          },
+          "event_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Event Id"
+          },
+          "server_seq": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Server Seq"
+          },
+          "status": {
+            "$ref": "#/components/schemas/TelemetryStatus"
+          }
+        },
+        "required": [
+          "status"
+        ],
+        "title": "TelemetryResult",
+        "type": "object"
+      },
+      "TelemetryStatus": {
+        "enum": [
+          "accepted",
+          "duplicate",
+          "rejected"
+        ],
+        "title": "TelemetryStatus",
+        "type": "string"
+      },
+      "UpstreamFailureOut": {
+        "properties": {
+          "destination": {
+            "title": "Destination",
+            "type": "string"
+          },
+          "error": {
+            "title": "Error",
+            "type": "string"
+          },
+          "failure_id": {
+            "title": "Failure Id",
+            "type": "integer"
+          },
+          "observation_id": {
+            "format": "uuid",
+            "title": "Observation Id",
+            "type": "string"
+          },
+          "recorded_at": {
+            "format": "date-time",
+            "title": "Recorded At",
+            "type": "string"
+          },
+          "server_seq": {
+            "title": "Server Seq",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "failure_id",
+          "destination",
+          "observation_id",
+          "server_seq",
+          "error",
+          "recorded_at"
+        ],
+        "title": "UpstreamFailureOut",
+        "type": "object"
+      },
+      "ValidationError": {
+        "properties": {
+          "ctx": {
+            "title": "Context",
+            "type": "object"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "title": "Location",
+            "type": "array"
+          },
+          "msg": {
+            "title": "Message",
+            "type": "string"
+          },
+          "type": {
+            "title": "Error Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError",
+        "type": "object"
+      },
+      "Verification": {
+        "enum": [
+          "verified_at_source",
+          "unverified"
+        ],
+        "title": "Verification",
+        "type": "string"
+      },
+      "WriteAuditOut": {
+        "properties": {
+          "audit_id": {
+            "title": "Audit Id",
+            "type": "integer"
+          },
+          "channel": {
+            "title": "Channel",
+            "type": "string"
+          },
+          "client_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Client Id"
+          },
+          "device_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Device Id"
+          },
+          "observation_id": {
+            "format": "uuid",
+            "title": "Observation Id",
+            "type": "string"
+          },
+          "recorded_at": {
+            "format": "date-time",
+            "title": "Recorded At",
+            "type": "string"
+          },
+          "server_seq": {
+            "title": "Server Seq",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "audit_id",
+          "server_seq",
+          "observation_id",
+          "channel",
+          "client_id",
+          "device_id",
+          "recorded_at"
+        ],
+        "title": "WriteAuditOut",
+        "type": "object"
+      }
+    }
+  },
+  "info": {
+    "description": "Offline-first astronaut health-observation platform. Values are labelled simulated / measured / modeled. Not a medical device; no diagnosis.",
+    "title": "MEDVITAL API",
+    "version": "0.1.0"
+  },
+  "openapi": "3.1.0",
+  "paths": {
+    "/api/v1/ai/explanations": {
+      "get": {
+        "operationId": "get_ai_explanations_api_v1_ai_explanations_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/AIExplanation"
+                  },
+                  "title": "Response Get Ai Explanations Api V1 Ai Explanations Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Get Ai Explanations",
+        "tags": [
+          "ai"
+        ]
+      },
+      "post": {
+        "description": "Store an explanation made elsewhere. Never an observation; citations must be permitted (D-022).",
+        "operationId": "post_ai_explanation_api_v1_ai_explanations_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AIExplanation"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecordWriteResult"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Post Ai Explanation",
+        "tags": [
+          "ai"
+        ]
+      }
+    },
+    "/api/v1/analysis": {
+      "post": {
+        "description": "Descriptive statistics, own-baseline deviations, data quality and review flags for one subject.",
+        "operationId": "run_analysis_api_v1_analysis_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AnalysisRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AnalysisReport"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Run Analysis",
+        "tags": [
+          "analysis"
+        ]
+      }
+    },
+    "/api/v1/audit/upstream-failures": {
+      "get": {
+        "operationId": "get_upstream_failures_api_v1_audit_upstream_failures_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "destination",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Destination"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 100,
+              "maximum": 1000,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/UpstreamFailureOut"
+                  },
+                  "title": "Response Get Upstream Failures Api V1 Audit Upstream Failures Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Upstream Failures",
+        "tags": [
+          "audit"
+        ]
+      }
+    },
+    "/api/v1/audit/writes": {
+      "get": {
+        "operationId": "get_write_audit_api_v1_audit_writes_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 100,
+              "maximum": 1000,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/WriteAuditOut"
+                  },
+                  "title": "Response Get Write Audit Api V1 Audit Writes Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Write Audit",
+        "tags": [
+          "audit"
+        ]
+      }
+    },
+    "/api/v1/commands": {
+      "get": {
+        "operationId": "get_commands_api_v1_commands_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "mission_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Mission Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ReturnNowCommand"
+                  },
+                  "title": "Response Get Commands Api V1 Commands Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Commands",
+        "tags": [
+          "commands"
+        ]
+      }
+    },
+    "/api/v1/commands/return-now": {
+      "post": {
+        "description": "Record a RETURN_NOW issued by a human. MEDVITAL never computes or suggests this command.",
+        "operationId": "post_return_now_api_v1_commands_return_now_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReturnNowCommand"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecordWriteResult"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Post Return Now",
+        "tags": [
+          "commands"
+        ]
+      }
+    },
+    "/api/v1/commands/{command_id}": {
+      "get": {
+        "operationId": "get_command_api_v1_commands__command_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "command_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Command Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CommandState"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Command",
+        "tags": [
+          "commands"
+        ]
+      }
+    },
+    "/api/v1/commands/{command_id}/status": {
+      "post": {
+        "operationId": "post_command_status_api_v1_commands__command_id__status_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "command_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Command Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CommandTransitionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecordWriteResult"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Post Command Status",
+        "tags": [
+          "commands"
+        ]
+      }
+    },
+    "/api/v1/devices/assignments": {
+      "get": {
+        "operationId": "get_device_assignments_api_v1_devices_assignments_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "device_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Device Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/DeviceAssignment"
+                  },
+                  "title": "Response Get Device Assignments Api V1 Devices Assignments Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Device Assignments",
+        "tags": [
+          "devices"
+        ]
+      },
+      "post": {
+        "description": "Assign a device to a crew member (operators/ground control in scope). Astronauts cannot.",
+        "operationId": "post_device_assignment_api_v1_devices_assignments_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DeviceAssignment"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecordWriteResult"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Post Device Assignment",
+        "tags": [
+          "devices"
+        ]
+      }
+    },
+    "/api/v1/environment/events": {
+      "get": {
+        "description": "Time-ordered environmental record (historical replay). Never a person's dose.",
+        "operationId": "get_environmental_timeline_api_v1_environment_events_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "since",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date-time",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Since"
+            }
+          },
+          {
+            "in": "query",
+            "name": "until",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date-time",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Until"
+            }
+          },
+          {
+            "in": "query",
+            "name": "event_type",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Event Type"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/EnvironmentalEvent"
+                  },
+                  "title": "Response Get Environmental Timeline Api V1 Environment Events Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Environmental Timeline",
+        "tags": [
+          "environment"
+        ]
+      },
+      "post": {
+        "operationId": "post_environmental_event_api_v1_environment_events_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EnvironmentalEvent"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecordWriteResult"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Post Environmental Event",
+        "tags": [
+          "environment"
+        ]
+      }
+    },
+    "/api/v1/health": {
+      "get": {
+        "operationId": "health_api_v1_health_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Health",
+        "tags": [
+          "system"
+        ]
+      }
+    },
+    "/api/v1/live": {
+      "get": {
+        "description": "Newest reading per device and indicator, for the dashboard (scoped to the caller).",
+        "operationId": "live_api_v1_live_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LiveResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Live",
+        "tags": [
+          "telemetry"
+        ]
+      }
+    },
+    "/api/v1/missions": {
+      "get": {
+        "operationId": "get_missions_api_v1_missions_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/Mission"
+                  },
+                  "title": "Response Get Missions Api V1 Missions Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Get Missions",
+        "tags": [
+          "missions"
+        ]
+      },
+      "post": {
+        "operationId": "post_mission_api_v1_missions_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Mission"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecordWriteResult"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Post Mission",
+        "tags": [
+          "missions"
+        ]
+      }
+    },
+    "/api/v1/missions/{mission_id}": {
+      "get": {
+        "operationId": "get_one_mission_api_v1_missions__mission_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "mission_id",
+            "required": true,
+            "schema": {
+              "title": "Mission Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Mission"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get One Mission",
+        "tags": [
+          "missions"
+        ]
+      }
+    },
+    "/api/v1/modules": {
+      "get": {
+        "operationId": "list_modules_api_v1_modules_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ModuleInfo"
+                  },
+                  "title": "Response List Modules Api V1 Modules Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "List Modules",
+        "tags": [
+          "modules"
+        ]
+      }
+    },
+    "/api/v1/modules/{module}/summary": {
+      "get": {
+        "operationId": "module_summary_api_v1_modules__module__summary_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "module",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/ModuleId"
+            }
+          },
+          {
+            "in": "query",
+            "name": "subject_id",
+            "required": true,
+            "schema": {
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]{0,63}$",
+              "title": "Subject Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ModuleSummary"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Module Summary",
+        "tags": [
+          "modules"
+        ]
+      }
+    },
+    "/api/v1/observations": {
+      "get": {
+        "operationId": "get_observations_api_v1_observations_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "subject_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]{0,63}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Subject Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "module",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/ModuleId"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Module"
+            }
+          },
+          {
+            "in": "query",
+            "name": "data_origin",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/DataOrigin"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Data Origin"
+            }
+          },
+          {
+            "in": "query",
+            "name": "since",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date-time",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Since"
+            }
+          },
+          {
+            "in": "query",
+            "name": "until",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date-time",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Until"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 1000,
+              "maximum": 10000,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/HealthObservation"
+                  },
+                  "title": "Response Get Observations Api V1 Observations Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Observations",
+        "tags": [
+          "observations"
+        ]
+      },
+      "post": {
+        "operationId": "post_observations_api_v1_observations_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ObservationBatch"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ObservationBatchResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Post Observations",
+        "tags": [
+          "observations"
+        ]
+      }
+    },
+    "/api/v1/profiles": {
+      "get": {
+        "operationId": "list_profiles_api_v1_profiles_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/SimulatedAstronautProfile"
+                  },
+                  "title": "Response List Profiles Api V1 Profiles Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "List Profiles",
+        "tags": [
+          "profiles"
+        ]
+      }
+    },
+    "/api/v1/profiles/{profile_id}": {
+      "get": {
+        "operationId": "read_profile_api_v1_profiles__profile_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "profile_id",
+            "required": true,
+            "schema": {
+              "title": "Profile Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SimulatedAstronautProfile"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Read Profile",
+        "tags": [
+          "profiles"
+        ]
+      }
+    },
+    "/api/v1/profiles/{profile_id}/simulate": {
+      "post": {
+        "operationId": "simulate_api_v1_profiles__profile_id__simulate_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "profile_id",
+            "required": true,
+            "schema": {
+              "title": "Profile Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SimulationRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SimulationResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Simulate",
+        "tags": [
+          "profiles"
+        ]
+      }
+    },
+    "/api/v1/references": {
+      "get": {
+        "operationId": "get_references_api_v1_references_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "metric",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Metric"
+            }
+          },
+          {
+            "in": "query",
+            "name": "verification",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/Verification"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Verification"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/PublishedReference"
+                  },
+                  "title": "Response Get References Api V1 References Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get References",
+        "tags": [
+          "references"
+        ]
+      },
+      "post": {
+        "operationId": "post_reference_api_v1_references_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PublishedReference"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecordWriteResult"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Post Reference",
+        "tags": [
+          "references"
+        ]
+      }
+    },
+    "/api/v1/references/{reference_id}": {
+      "get": {
+        "operationId": "get_reference_api_v1_references__reference_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "reference_id",
+            "required": true,
+            "schema": {
+              "title": "Reference Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublishedReference"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Reference",
+        "tags": [
+          "references"
+        ]
+      }
+    },
+    "/api/v1/rules/evaluate": {
+      "post": {
+        "description": "Non-clinical review flags (D-021). ``persist`` stores them (idempotent: same inputs, same ids).",
+        "operationId": "evaluate_rules_api_v1_rules_evaluate_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RuleEvaluationRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/RuleFinding"
+                  },
+                  "title": "Response Evaluate Rules Api V1 Rules Evaluate Post",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Evaluate Rules",
+        "tags": [
+          "rules"
+        ]
+      }
+    },
+    "/api/v1/rules/findings": {
+      "get": {
+        "operationId": "get_findings_api_v1_rules_findings_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "category",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Category"
+            }
+          },
+          {
+            "in": "query",
+            "name": "since",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date-time",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Since"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/RuleFinding"
+                  },
+                  "title": "Response Get Findings Api V1 Rules Findings Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Findings",
+        "tags": [
+          "rules"
+        ]
+      }
+    },
+    "/api/v1/schedules": {
+      "get": {
+        "operationId": "list_schedules_api_v1_schedules_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "subject_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]{0,63}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Subject Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "metric",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Metric"
+            }
+          },
+          {
+            "in": "query",
+            "name": "current_only",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Current Only",
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/MeasurementSchedule"
+                  },
+                  "title": "Response List Schedules Api V1 Schedules Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Schedules",
+        "tags": [
+          "schedules"
+        ]
+      },
+      "post": {
+        "operationId": "post_schedule_api_v1_schedules_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MeasurementSchedule"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ScheduleWriteResult"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Post Schedule",
+        "tags": [
+          "schedules"
+        ]
+      }
+    },
+    "/api/v1/schedules/{schedule_id}": {
+      "get": {
+        "operationId": "read_schedule_api_v1_schedules__schedule_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "schedule_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Schedule Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MeasurementSchedule"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Read Schedule",
+        "tags": [
+          "schedules"
+        ]
+      }
+    },
+    "/api/v1/schedules/{schedule_id}/coverage": {
+      "get": {
+        "description": "Which planned windows contain observations, per data origin. Nothing is imputed.",
+        "operationId": "coverage_api_v1_schedules__schedule_id__coverage_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "schedule_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Schedule Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "launch_at",
+            "required": true,
+            "schema": {
+              "format": "date-time",
+              "title": "Launch At",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "return_at",
+            "required": true,
+            "schema": {
+              "format": "date-time",
+              "title": "Return At",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ScheduleCoverage"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Coverage",
+        "tags": [
+          "schedules"
+        ]
+      }
+    },
+    "/api/v1/schedules/{schedule_id}/resolve": {
+      "get": {
+        "description": "Planned times for a mission. Resolved times are modeled (anchor + offset), not observations.",
+        "operationId": "resolve_api_v1_schedules__schedule_id__resolve_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "schedule_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Schedule Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "launch_at",
+            "required": true,
+            "schema": {
+              "format": "date-time",
+              "title": "Launch At",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "return_at",
+            "required": true,
+            "schema": {
+              "format": "date-time",
+              "title": "Return At",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ResolvedEvent"
+                  },
+                  "title": "Response Resolve Api V1 Schedules  Schedule Id  Resolve Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Resolve",
+        "tags": [
+          "schedules"
+        ]
+      }
+    },
+    "/api/v1/sources/artifacts": {
+      "get": {
+        "operationId": "get_artifacts_api_v1_sources_artifacts_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "dataset_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Dataset Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/SourceArtifact"
+                  },
+                  "title": "Response Get Artifacts Api V1 Sources Artifacts Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Artifacts",
+        "tags": [
+          "environment"
+        ]
+      }
+    },
+    "/api/v1/sync/documents/pull": {
+      "get": {
+        "operationId": "pull_documents_api_v1_sync_documents_pull_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "minimum": 0,
+              "title": "Cursor",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 500,
+              "maximum": 1000,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DocumentPullResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Pull Documents",
+        "tags": [
+          "sync"
+        ]
+      }
+    },
+    "/api/v1/sync/documents/push": {
+      "post": {
+        "description": "Replicate records from another station. Each goes through the same validation as a local write.",
+        "operationId": "push_documents_api_v1_sync_documents_push_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DocumentPushRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/RecordWriteResult"
+                  },
+                  "title": "Response Push Documents Api V1 Sync Documents Push Post",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Push Documents",
+        "tags": [
+          "sync"
+        ]
+      }
+    },
+    "/api/v1/sync/pull": {
+      "get": {
+        "operationId": "sync_pull_api_v1_sync_pull_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "minimum": 0,
+              "title": "Cursor",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 500,
+              "maximum": 1000,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "subject_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]{0,63}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Subject Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SyncPullResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Sync Pull",
+        "tags": [
+          "sync"
+        ]
+      }
+    },
+    "/api/v1/sync/push": {
+      "post": {
+        "operationId": "sync_push_api_v1_sync_push_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SyncPushRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SyncPushResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Sync Push",
+        "tags": [
+          "sync"
+        ]
+      }
+    },
+    "/api/v1/telemetry": {
+      "post": {
+        "description": "Wearable -> gateway. One result per event; rejected events are kept in the audit log.",
+        "operationId": "post_telemetry_api_v1_telemetry_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TelemetryBatch"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TelemetryResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Post Telemetry",
+        "tags": [
+          "telemetry"
+        ]
+      }
+    },
+    "/api/v1/telemetry/rejections": {
+      "get": {
+        "operationId": "telemetry_rejections_api_v1_telemetry_rejections_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 100,
+              "maximum": 1000,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/RejectionOut"
+                  },
+                  "title": "Response Telemetry Rejections Api V1 Telemetry Rejections Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Telemetry Rejections",
+        "tags": [
+          "telemetry"
+        ]
+      }
+    },
+    "/api/v1/telemetry/schema": {
+      "get": {
+        "description": "JSON Schema of one ``TelemetryEvent`` (the 11-field contract plus optional provenance extensions).",
+        "operationId": "telemetry_schema_api_v1_telemetry_schema_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Telemetry Schema Api V1 Telemetry Schema Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Telemetry Schema",
+        "tags": [
+          "telemetry"
+        ]
+      }
+    }
+  }
+}
