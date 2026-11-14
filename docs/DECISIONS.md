@@ -60,3 +60,37 @@ Acceptable only because no real data exists and the API is local. Must be design
 * **Q-9 Test dependency warning.** Starlette's TestClient emits a deprecation warning recommending `httpx2` over `httpx`; left on `httpx` (the documented dependency) pending review of the replacement package.
 * **Q-10 Sync ordering under concurrent Postgres writers** (see ARCHITECTURE §5.4).
 * **Q-11 Advanced analysis/AI engine.** Out of scope for v0.1; specify separately under the same provenance and no-diagnosis rules.
+
+## Proposals (not accepted, not implemented) — 2026-11-14
+
+### P-1 Telemetry contract in the master briefing vs. the current backend schema
+
+Briefing contract: `event_id, device_id, crew_id, timestamp, domain, indicator, value, unit, source, quality, synthetic`.
+Current schema: `core/schema.py` (`HealthObservation`). Nothing below has been changed; the team should decide.
+
+| Briefing field | Current schema | Difference / proposal |
+|---|---|---|
+| `event_id` (`"EVT-000001"`) | `id` (UUID, client-generated) | Format differs. Sequential ids collide across devices; keep UUID, or accept `EVT-<device>-<seq>` only if uniqueness per device is guaranteed. Pick one. |
+| `device_id` | none (only an optional `device` context key on some metrics) | **Missing.** Add a required `device_id` (first-class, not context) for wearable/gateway attribution and audit. |
+| `crew_id` (`"CREW-001"`) | `subject_id` | Rename or alias. Current pattern already accepts `CREW-001`. |
+| `timestamp` | `observed_at` and `recorded_at` | We keep two times (event vs. client record). Map `timestamp` → `observed_at`; keep `recorded_at`. Add plausibility bounds (reject far-future times) — currently only "timezone-aware" is checked. |
+| `domain` | `module` | Same four values; rename or alias. |
+| `indicator` (`"heart_rate"`) | `metric` (`"cardiovascular.resting_heart_rate"`) | Our ids are namespaced and more specific; briefing's `heart_rate` is not in the registry (nearest is *resting* HR, and a wearable stream is not resting-only). Needs a metric-catalogue decision. |
+| `value` | `value` | Same (finite floats only). |
+| `unit` (`"bpm"`) | `unit` (canonical `{beats}/min`) | **Example in the briefing would be rejected today** (`bpm` ≠ `{beats}/min`). Decide: change canonical unit to `bpm`, or add an alias table (Q-3). |
+| `source` (`"simulated_sensor"`) | `provenance.source` + `provenance.data_origin` | The briefing's `source` mixes *what kind of thing* (simulated) with *which sensor*. Keep `data_origin` ∈ simulated/measured/modeled plus a free `source`. |
+| `quality` (`"valid"`) | none | **Missing.** Add a `quality` enum (e.g. valid / suspect / invalid / unknown — values to be decided by the team) and make summaries exclude or flag non-valid points. Never silently drop invalid observations (briefing §8). |
+| `synthetic` (bool) | derivable: `provenance.data_origin == simulated` | Keep derived (a stored boolean can contradict `data_origin`, and a bool cannot express measured vs modeled). Expose it in the API response for convenience. |
+
+Related gaps against briefing §8 ("must not silently discard health observations"; "audit records"):
+* **Rejected observations are returned to the client but not stored server-side.** There is no audit/quarantine table. Proposal: persist rejected payloads with reason, client/device id and time.
+* Audit records for accepted writes (who/what/when, source device) do not exist beyond `received_at`.
+* Retry, offline buffering, duplicate protection and conflict detection already exist (D-002, D-010).
+
+### P-2 Briefing items that conflict with, or are not covered by, current rules
+
+* **Alert levels (Normal/Watch/Warning/Critical)** vs. `CLAUDE.md` rule 3 and D-004 ("no risk labels, no clinical thresholds"). Resolvable only with sourced thresholds injected as cited reference objects, deterministic and AI-independent. **No NASA threshold has been read or verified yet (NASA_SOURCES §5).** Until then the system can only report statistical deviation from a personal baseline, labelled as such, or "insufficient data". If the team wants these labels, change rule 3 explicitly first.
+* **Cloudflare stack** (Workers, D1, R2, Queues, Durable Objects, Workers AI) is not in the repo, and the preferred backend is Python/FastAPI. How the Python gateway (spacecraft) and the Workers (connected infrastructure) divide work, and which side owns the schema, is undecided. Not researched in this pass.
+* **Twilio, Plotly, Service Workers**: not present; Plotly and Twilio would be new dependencies requiring a DECISIONS entry (rule 7). Twilio credentials must stay out of git.
+* **Environmental vs. individual radiation** (briefing §5, module 1): DONKI events and Curiosity RAD are *environmental*; they should not be `HealthObservation`s for a subject. Proposal: a separate `EnvironmentalEvent`/`EnvironmentalMeasurement` entity with its own provenance, linked to subjects only by time window, never merged into individual exposure.
+* **Four-laptop demo timestamps:** laptops need synchronised clocks (this laptop's Windows Time service was stopped when checked); see Q-4.
