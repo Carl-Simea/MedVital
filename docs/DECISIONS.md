@@ -47,6 +47,12 @@ Acceptable only because no real data exists and the API is local. Must be design
 ## D-015 Version pins follow the registry at build time
 `package.json` uses caret ranges of versions current on 2026-11-13 (Vite 8, Vitest 5, TypeScript 7, Tailwind 4.3, React 19.3). Python uses lower bounds only; installed: see `pip list`. Add a lock/constraints file before CI or release.
 
+## D-016 Telemetry contract adopted (partially implements proposal P-1)
+The briefing's 11-field event (`event_id, device_id, crew_id, timestamp, domain, indicator, value, unit, source, quality, synthetic`) is the gateway wire contract (`core/telemetry.py`). Three **optional** extension fields carry provenance the storage model requires: `generator_version` + `seed` (required when `synthetic: true`) and `source_ref` (required when `synthetic: false`). The gateway maps each event to a `HealthObservation` (new fields `device_id`, `quality`); `crew_id → subject_id`, `domain → module`, `indicator → metric` (`<domain>.<indicator>`), `timestamp → observed_at`. `synthetic` stays derived from `provenance.data_origin`. Units: wire aliases such as `bpm` are rewritten to the canonical unit (identity conversion only). `quality` ∈ valid/suspect/invalid is a **provisional vocabulary** — non-valid events are stored and shown, never dropped. Events are validated one by one: a bad event is recorded in the rejection audit log (reason + raw payload) and never blocks the batch. New metrics: `cardiovascular.heart_rate`, `radiation.dose_rate`, `bone.countermeasure_exercise_duration` (activity logging only; a wearable does not measure bone density). Dose rates are summarised descriptively and never summed. **Not yet done:** accumulated exposure from dose rate, the Normal/Watch/Warning/Critical alert layer (needs sourced thresholds, P-2), ground sync.
+
+## D-017 SQLite as the gateway's local store
+Stdlib `sqlite3` (no new dependency; runs on a Raspberry Pi), WAL mode, append-only triggers, same repository contract as the in-memory store (contract tests run against both). PostgreSQL stays the intended ground/cloud store (D-006). Device-side buffering is in memory only: it survives a gateway outage, not a device-process restart.
+
 ## Open questions
 
 * **Q-1 Offline computation parity.** Summaries are computed server-side only, so an offline client cannot show derived values. Options: port calculations to TypeScript with shared test vectors; run the Python in Pyodide/WASM; or cache the last server summary. Decide before building the dashboard.

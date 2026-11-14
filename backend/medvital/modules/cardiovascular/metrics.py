@@ -1,12 +1,22 @@
 from medvital.core.module_spec import MetricDefinition
 from medvital.core.schema import ModuleId
 
+HEART_RATE = "cardiovascular.heart_rate"
 RESTING_HEART_RATE = "cardiovascular.resting_heart_rate"
 RR_INTERVAL = "cardiovascular.rr_interval"
 SYSTOLIC_BP = "cardiovascular.systolic_bp"
 DIASTOLIC_BP = "cardiovascular.diastolic_bp"
 
 METRICS = (
+    MetricDefinition(
+        metric=HEART_RATE,
+        module=ModuleId.CARDIOVASCULAR,
+        unit="{beats}/min",
+        description="Heart rate from a wearable stream (any activity state).",
+        non_negative=True,
+        optional_context=("device",),
+        unit_aliases=("bpm", "beats/min"),
+    ),
     MetricDefinition(
         metric=RESTING_HEART_RATE,
         module=ModuleId.CARDIOVASCULAR,

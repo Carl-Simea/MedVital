@@ -8,11 +8,17 @@ import pytest
 from conftest import T0, make_obs, measured_provenance
 from medvital.core.schema import DataOrigin, ModuleId
 from medvital.db.repository import AddStatus, InMemoryObservationRepository
+from medvital.db.sqlite import SqliteObservationRepository
 
 
-@pytest.fixture(params=[InMemoryObservationRepository], ids=["memory"])
-def repo(request):
-    return request.param()
+@pytest.fixture(params=["memory", "sqlite"])
+def repo(request, tmp_path):
+    if request.param == "memory":
+        yield InMemoryObservationRepository()
+    else:
+        r = SqliteObservationRepository(tmp_path / "gateway.db")
+        yield r
+        r.close()
 
 
 def test_insert_then_duplicate(repo):

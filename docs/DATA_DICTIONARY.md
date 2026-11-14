@@ -51,6 +51,23 @@ Observations are immutable. Same `id` + identical content = duplicate (safe); sa
 "Physical rule" is plausibility (a dose cannot be negative), **not** a clinical threshold. The metric list is an initial set,
 pending scientific review. Only canonical units are accepted; there is no unit conversion yet.
 
+## TelemetryEvent (wearable → gateway, `POST /api/v1/telemetry`)
+
+Contract fields (all required): `event_id`, `device_id`, `crew_id`, `timestamp` (timezone-aware), `domain`, `indicator`, `value` (finite), `unit`, `source`, `quality` (`valid|suspect|invalid`, provisional), `synthetic` (bool). Optional provenance extensions: `generator_version` + `seed` (required if `synthetic`), `source_ref` (required if not `synthetic`). Unknown fields are rejected. Example (synthetic):
+
+```json
+{"event_id":"EVT-20300101T120000-000001","device_id":"MEDVITAL-WEARABLE-001","crew_id":"CREW-001",
+ "timestamp":"2030-01-01T12:00:00.000Z","domain":"cardiovascular","indicator":"heart_rate","value":61.3,
+ "unit":"bpm","source":"simulated_sensor","quality":"valid","synthetic":true,
+ "generator_version":"device-sim-0.1.0","seed":1}
+```
+
+Mapping to `HealthObservation`: `crew_id→subject_id`, `domain→module`, `domain.indicator→metric`, `timestamp→observed_at/recorded_at`, plus `device_id`, `quality`, provenance. The stored `id` is a UUIDv5 of `device_id|event_id`, so retries are idempotent. Response: one result per event (`accepted|duplicate|rejected`); rejected events go to the audit log (`GET /api/v1/telemetry/rejections`).
+
+New wearable metrics: `cardiovascular.heart_rate` (`{beats}/min`; alias `bpm`), `radiation.dose_rate` (`uGy/h`; alias `µGy/h`), `bone.countermeasure_exercise_duration` (`min`). `behavioral.sleep_duration` (`h`) is reused.
+
+`GET /api/v1/live`: newest reading per device and indicator with `quality`, `data_origin`, totals (stored, rejected) and the gateway's `server_time` (the dashboard computes reading age against it, not the browser clock).
+
 ## ModuleSummary (response of `GET /modules/{module}/summary`)
 
 | Field | Notes |

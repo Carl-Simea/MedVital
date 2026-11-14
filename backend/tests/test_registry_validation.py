@@ -58,4 +58,5 @@ def test_no_clinical_thresholds_in_definitions(registry):
 
     assert {f.name for f in fields(MetricDefinition)} == {
         "metric", "module", "unit", "description", "non_negative", "required_context", "optional_context",
+        "unit_aliases",  # accepted wire spellings of the same unit; identity conversion, not a threshold
     }

@@ -8,7 +8,7 @@ from medvital.core.frame import group_series
 from medvital.core.schema import HealthObservation, ModuleId
 from medvital.core.summary import DerivedValue, ModuleSummary, summarize_metric
 from medvital.modules.radiation import calculations as calc
-from medvital.modules.radiation.metrics import METRICS
+from medvital.modules.radiation.metrics import DAILY_METRICS, METRICS
 
 METHOD_CUMULATIVE = "sum of supplied daily values (radiation.calculations.cumulative_dose) v1"
 METHOD_MEAN = "arithmetic mean of supplied daily values v1"
@@ -22,6 +22,8 @@ def summarize(subject_id: str, observations: Sequence[HealthObservation]) -> Mod
 
     for definition in METRICS:
         summaries.extend(summarize_metric(mine, definition.metric))
+        if definition.metric not in DAILY_METRICS:
+            continue  # e.g. dose_rate: descriptive statistics only; summing rates would be meaningless
         for group in group_series(mine, definition.metric):
             values = group.frame["value"].to_numpy()
             days = group.frame["observed_at"].dt.strftime("%Y%m%d").astype(int).to_numpy()

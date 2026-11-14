@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime
+from typing import Any
 
 from pydantic import BaseModel, Field
 
@@ -40,6 +41,22 @@ class ObservationBatch(BaseModel):
 
 class ObservationBatchResponse(BaseModel):
     results: list[MutationResult]
+
+
+class TelemetryBatch(BaseModel):
+    """Raw event objects, validated one by one so a single bad event cannot block a batch.
+    The event shape is documented by ``GET /api/v1/telemetry/schema`` (``TelemetryEvent``)."""
+
+    events: list[dict[str, Any]] = Field(max_length=500)
+
+
+class RejectionOut(BaseModel):
+    rejection_id: int
+    received_at: datetime
+    source: str
+    device_id: str | None
+    reason: str
+    payload: dict[str, Any]
 
 
 class SimulationRequest(BaseModel):

@@ -36,6 +36,8 @@ export interface HealthObservation {
   observed_at: string
   recorded_at: string
   context: Record<string, string>
+  device_id?: string | null
+  quality?: 'valid' | 'suspect' | 'invalid'
   provenance: Provenance
   supersedes?: string | null
 }

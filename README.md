@@ -57,6 +57,34 @@ Open <http://localhost:5173> (Vite proxies `/api` to the backend on port 8000).
 
 macOS/Linux: replace `.\.venv\Scripts\python.exe` with `.venv/bin/python`.
 
+## Run the telemetry pipeline (two simulated wearables → spacecraft gateway → dashboard)
+
+Everything the devices send is **synthetic** (`synthetic: true`, labelled *Simulated* in the UI).
+
+```powershell
+# terminal 1 — spacecraft gateway with durable local storage (SQLite file)
+cd backend
+$env:MEDVITAL_REPOSITORY = "sqlite"; $env:MEDVITAL_SQLITE_PATH = "gateway.db"
+.\.venv\Scripts\python.exe -m uvicorn medvital.main:app --host 0.0.0.0 --port 8000
+
+# terminals 2 and 3 — one process per simulated wearable (run these on other laptops/a Raspberry Pi too)
+cd backend
+.\.venv\Scripts\python.exe -m medvital.device --device-id MEDVITAL-WEARABLE-001 --crew-id CREW-001 --gateway http://<gateway-ip>:8000
+.\.venv\Scripts\python.exe -m medvital.device --device-id MEDVITAL-WEARABLE-002 --crew-id CREW-002 --gateway http://<gateway-ip>:8000 --seed 2
+
+# terminal 4 — dashboard (proxies /api to localhost:8000)
+cd frontend; npm run dev
+```
+
+* A device keeps buffering (in memory) while the gateway is unreachable and delivers in order when it returns; the
+  gateway de-duplicates retries. Stop and restart the gateway on the same `.db` file: data is kept.
+* `--host 0.0.0.0` exposes the gateway to your network and **there is no authentication yet** (DECISIONS D-013). Use it
+  only on a trusted network. Devices only need the Python standard library and `medvital.core`.
+* Rejected telemetry is never discarded: `GET /api/v1/telemetry/rejections`. Event contract:
+  `GET /api/v1/telemetry/schema`. Live view: `GET /api/v1/live`.
+* The devices' clocks must be roughly in sync with the gateway; events stamped more than 5 minutes in the future are
+  rejected (`MEDVITAL_MAX_FUTURE_SKEW_SECONDS`).
+
 ## Tests
 
 ```powershell

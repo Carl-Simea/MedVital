@@ -39,6 +39,17 @@ def test_calculations_are_pure(module):
         assert top not in forbidden, f"{module}/calculations.py imports {name}"
 
 
+def test_device_package_depends_only_on_core_and_stdlib():
+    """Devices run on small machines (e.g. a Raspberry Pi): no web framework, DB, or module imports."""
+    for path in (ROOT / "device").rglob("*.py"):
+        for name in _imports(path):
+            if name == "medvital" or name.startswith("medvital."):
+                assert name.startswith(("medvital.core", "medvital.device")), f"{path.name} imports {name}"
+            assert name.split(".")[0] not in {"fastapi", "pydantic", "pandas", "scipy", "sklearn", "sqlite3"}, (
+                f"{path.name} imports {name}"
+            )
+
+
 def test_core_does_not_import_modules_or_api():
     for path in (ROOT / "core").rglob("*.py"):
         for name in _imports(path):

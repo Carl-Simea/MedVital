@@ -32,6 +32,7 @@ SCHEMA_VERSION = 1
 
 # Identifiers are restricted so they are safe in URLs, IndexedDB keys and SQL text columns.
 SubjectId = Annotated[str, StringConstraints(pattern=r"^[A-Za-z0-9][A-Za-z0-9_.:-]{0,63}$")]
+DeviceId = Annotated[str, StringConstraints(pattern=r"^[A-Za-z0-9][A-Za-z0-9_.:-]{0,63}$")]
 MetricId = Annotated[str, StringConstraints(pattern=r"^[a-z][a-z0-9_]*\.[a-z][a-z0-9_]*$")]
 ShortText = Annotated[str, StringConstraints(min_length=1, max_length=256)]
 LongText = Annotated[str, StringConstraints(max_length=2000)]
@@ -47,6 +48,18 @@ class ModuleId(StrEnum):
     BONE = "bone"
     CARDIOVASCULAR = "cardiovascular"
     BEHAVIORAL = "behavioral"
+
+
+class Quality(StrEnum):
+    """Signal-quality verdict attached by the producing device or gateway.
+
+    Provisional vocabulary (docs/DECISIONS.md D-016): the team may extend it. Non-valid
+    observations are stored, never silently dropped, and are flagged in summaries/UI.
+    """
+
+    VALID = "valid"
+    SUSPECT = "suspect"
+    INVALID = "invalid"
 
 
 class DataOrigin(StrEnum):
@@ -123,6 +136,13 @@ class HealthObservation(BaseModel):
     observed_at: AwareDatetime = Field(description="When the phenomenon was observed (UTC-normalised).")
     recorded_at: AwareDatetime = Field(description="When the client recorded it (UTC-normalised).")
     context: dict[str, str] = Field(default_factory=dict, description="Small qualifiers, e.g. {'site': ...}.")
+    device_id: DeviceId | None = Field(
+        default=None,
+        description="Producing device. Always set for gateway telemetry; None for legacy/generated data.",
+    )
+    quality: Quality = Field(
+        default=Quality.VALID, description="Signal-quality verdict; non-valid is kept and flagged."
+    )
     provenance: Provenance
     supersedes: UUID | None = None
 

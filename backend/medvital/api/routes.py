@@ -15,8 +15,10 @@ from medvital.api.schemas import (
     ModuleInfo,
     ObservationBatch,
     ObservationBatchResponse,
+    RejectionOut,
     SimulationRequest,
     SimulationResponse,
+    TelemetryBatch,
 )
 from medvital.core.module_spec import ModuleRegistry
 from medvital.core.schema import DataOrigin, HealthObservation, ModuleId, SubjectId
@@ -28,10 +30,13 @@ from medvital.core.sync import (
     SyncPushRequest,
     SyncPushResponse,
 )
+from medvital.core.telemetry import TelemetryEvent, TelemetryResponse
 from medvital.db.repository import ObservationRepository
 from medvital.ingest import ingest_observation
+from medvital.live import LiveResponse, build_live
 from medvital.simulation.generator import generate_observations
 from medvital.simulation.profiles import SIMULATED_PROFILES, SimulatedAstronautProfile, get_profile
+from medvital.telemetry import ingest_telemetry
 
 router = APIRouter(prefix="/api/v1")
 
@@ -137,6 +142,48 @@ def get_observations(
         until=until,
         limit=limit,
     )
+
+
+@router.post("/telemetry", response_model=TelemetryResponse, tags=["telemetry"])
+def post_telemetry(
+    body: TelemetryBatch, request: Request, repo: Repo, registry: Registry
+) -> TelemetryResponse:
+    """Wearable -> gateway. One result per event; rejected events are kept in the audit log."""
+    return ingest_telemetry(
+        repo,
+        registry,
+        body.events,
+        max_future_skew_seconds=request.app.state.settings.max_future_skew_seconds,
+    )
+
+
+@router.get("/telemetry/schema", tags=["telemetry"])
+def telemetry_schema() -> dict:
+    """JSON Schema of one ``TelemetryEvent`` (the 11-field contract plus optional provenance extensions)."""
+    return TelemetryEvent.model_json_schema()
+
+
+@router.get("/telemetry/rejections", response_model=list[RejectionOut], tags=["telemetry"])
+def telemetry_rejections(
+    repo: Repo, limit: Annotated[int, Query(ge=1, le=1000)] = 100
+) -> list[RejectionOut]:
+    return [
+        RejectionOut(
+            rejection_id=r.rejection_id,
+            received_at=r.received_at,
+            source=r.source,
+            device_id=r.device_id,
+            reason=r.reason,
+            payload=r.payload,
+        )
+        for r in repo.list_rejections(limit)
+    ]
+
+
+@router.get("/live", response_model=LiveResponse, tags=["telemetry"])
+def live(repo: Repo) -> LiveResponse:
+    """Newest reading per device and indicator, for the dashboard."""
+    return build_live(repo)
 
 
 @router.post("/sync/push", response_model=SyncPushResponse, tags=["sync"])

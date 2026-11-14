@@ -15,7 +15,7 @@ import threading
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from enum import StrEnum
-from typing import Protocol
+from typing import Any, Protocol
 from uuid import UUID
 
 from medvital.core.schema import DataOrigin, HealthObservation, ModuleId, observation_fingerprint
@@ -40,8 +40,32 @@ class StoredObservation:
     observation: HealthObservation
 
 
+@dataclass(frozen=True)
+class RejectedRecord:
+    """Audit entry for a payload the gateway refused. Rejections are kept, never dropped."""
+
+    rejection_id: int
+    received_at: datetime
+    source: str  # e.g. "telemetry"
+    device_id: str | None
+    reason: str
+    payload: dict[str, Any]
+
+
 class ObservationRepository(Protocol):
     def add(self, observation: HealthObservation) -> AddOutcome: ...
+
+    def latest_by_device_metric(self) -> list[HealthObservation]:
+        """Newest observation (by observed_at) for every (device, subject, metric) series."""
+        ...
+
+    def record_rejection(
+        self, *, source: str, device_id: str | None, reason: str, payload: dict[str, Any]
+    ) -> None: ...
+
+    def rejection_count(self) -> int: ...
+
+    def list_rejections(self, limit: int = 100) -> list[RejectedRecord]: ...
 
     def get(self, observation_id: UUID) -> StoredObservation | None: ...
 
@@ -70,6 +94,7 @@ class InMemoryObservationRepository:
         self._lock = threading.Lock()
         self._rows: list[StoredObservation] = []
         self._by_id: dict[UUID, tuple[StoredObservation, str]] = {}
+        self._rejections: list[RejectedRecord] = []
 
     def add(self, observation: HealthObservation) -> AddOutcome:
         fingerprint = observation_fingerprint(observation)
@@ -134,3 +159,38 @@ class InMemoryObservationRepository:
     def head_seq(self) -> int:
         with self._lock:
             return len(self._rows)
+
+    def latest_by_device_metric(self) -> list[HealthObservation]:
+        with self._lock:
+            rows = list(self._rows)
+        newest: dict[tuple[str, str, str], HealthObservation] = {}
+        for row in rows:
+            o = row.observation
+            key = (o.device_id or "", o.subject_id, o.metric)
+            current = newest.get(key)
+            if current is None or o.observed_at >= current.observed_at:
+                newest[key] = o
+        return sorted(newest.values(), key=lambda o: (o.device_id or "", o.subject_id, o.metric))
+
+    def record_rejection(
+        self, *, source: str, device_id: str | None, reason: str, payload: dict[str, Any]
+    ) -> None:
+        with self._lock:
+            self._rejections.append(
+                RejectedRecord(
+                    rejection_id=len(self._rejections) + 1,
+                    received_at=datetime.now(UTC),
+                    source=source,
+                    device_id=device_id,
+                    reason=reason,
+                    payload=payload,
+                )
+            )
+
+    def rejection_count(self) -> int:
+        with self._lock:
+            return len(self._rejections)
+
+    def list_rejections(self, limit: int = 100) -> list[RejectedRecord]:
+        with self._lock:
+            return list(reversed(self._rejections))[:limit]

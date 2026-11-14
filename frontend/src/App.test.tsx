@@ -1,7 +1,13 @@
 import { render, screen, within } from '@testing-library/react'
-import { describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import App from './App'
 import { ProvenanceBadge } from './components/ProvenanceBadge'
+
+beforeEach(() => {
+  // The shell polls the gateway; in unit tests there is none, so the poll never resolves.
+  vi.stubGlobal('fetch', vi.fn(() => new Promise<Response>(() => undefined)))
+})
+afterEach(() => vi.unstubAllGlobals())
 
 describe('App shell', () => {
   it('renders the four independent health modules', () => {

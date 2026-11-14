@@ -9,7 +9,7 @@ from medvital.core.schema import HealthObservation, ModuleId
 from medvital.core.stats import fit_linear_trend
 from medvital.core.summary import DerivedValue, ModuleSummary, summarize_metric
 from medvital.modules.bone import calculations as calc
-from medvital.modules.bone.metrics import AREAL_BMD
+from medvital.modules.bone.metrics import AREAL_BMD, EXERCISE_DURATION
 
 METHOD_PCT = "percent change of latest value vs earliest value in the same series v1"
 METHOD_TREND = "ordinary least squares of value vs elapsed days (scipy.stats.linregress) v1"
@@ -69,7 +69,10 @@ def summarize(subject_id: str, observations: Sequence[HealthObservation]) -> Mod
         module=ModuleId.BONE,
         subject_id=subject_id,
         observation_count=len(mine),
-        metric_summaries=summarize_metric(mine, AREAL_BMD, CONTEXT_KEYS),
+        metric_summaries=[
+            *summarize_metric(mine, AREAL_BMD, CONTEXT_KEYS),
+            *summarize_metric(mine, EXERCISE_DURATION, ("activity", "device")),
+        ],
         derived_values=derived,
         warnings=warnings,
     )

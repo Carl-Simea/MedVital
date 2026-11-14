@@ -22,6 +22,11 @@ class MetricDefinition:
     non_negative: bool = False
     required_context: tuple[str, ...] = ()
     optional_context: tuple[str, ...] = ()
+    # Spellings the gateway accepts on the wire and rewrites to ``unit`` (identity conversions only).
+    unit_aliases: tuple[str, ...] = ()
+
+    def accepts_unit(self, unit: str) -> bool:
+        return unit == self.unit or unit in self.unit_aliases
 
     def __post_init__(self) -> None:
         if self.metric.split(".", 1)[0] != self.module.value:
@@ -71,6 +76,14 @@ class ModuleRegistry:
 
     def get(self, module_id: ModuleId) -> HealthModuleSpec:
         return self._modules[module_id]
+
+    def resolve_indicator(self, domain: ModuleId, indicator: str) -> MetricDefinition:
+        """Telemetry (domain, indicator) -> metric definition; ``heart_rate`` in ``cardiovascular``
+        resolves to ``cardiovascular.heart_rate``."""
+        definition = self._metrics.get(f"{domain.value}.{indicator}")
+        if definition is None:
+            raise ObservationRejected(f"unknown indicator {indicator!r} in domain {domain.value!r}")
+        return definition
 
     def validate(self, obs: HealthObservation) -> None:
         """Semantic checks: known metric, canonical unit, physical bounds, required context."""

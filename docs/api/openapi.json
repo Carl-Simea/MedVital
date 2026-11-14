@@ -97,6 +97,19 @@
             "title": "Context",
             "type": "object"
           },
+          "device_id": {
+            "anyOf": [
+              {
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]{0,63}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Producing device. Required for gateway telemetry; None for legacy/generated data.",
+            "title": "Device Id"
+          },
           "id": {
             "format": "uuid",
             "title": "Id",
@@ -119,6 +132,11 @@
           },
           "provenance": {
             "$ref": "#/components/schemas/Provenance"
+          },
+          "quality": {
+            "$ref": "#/components/schemas/Quality",
+            "default": "valid",
+            "description": "Signal-quality verdict; non-valid is kept and flagged."
           },
           "recorded_at": {
             "description": "When the client recorded it (UTC-normalised).",
@@ -195,6 +213,138 @@
           "repository"
         ],
         "title": "HealthResponse",
+        "type": "object"
+      },
+      "LiveDevice": {
+        "properties": {
+          "crew_id": {
+            "title": "Crew Id",
+            "type": "string"
+          },
+          "device_id": {
+            "title": "Device Id",
+            "type": "string"
+          },
+          "last_seen": {
+            "format": "date-time",
+            "title": "Last Seen",
+            "type": "string"
+          },
+          "readings": {
+            "items": {
+              "$ref": "#/components/schemas/LiveReading"
+            },
+            "title": "Readings",
+            "type": "array"
+          }
+        },
+        "required": [
+          "device_id",
+          "crew_id",
+          "last_seen",
+          "readings"
+        ],
+        "title": "LiveDevice",
+        "type": "object"
+      },
+      "LiveReading": {
+        "properties": {
+          "data_origin": {
+            "$ref": "#/components/schemas/DataOrigin"
+          },
+          "domain": {
+            "$ref": "#/components/schemas/ModuleId"
+          },
+          "indicator": {
+            "title": "Indicator",
+            "type": "string"
+          },
+          "metric": {
+            "title": "Metric",
+            "type": "string"
+          },
+          "observed_at": {
+            "format": "date-time",
+            "title": "Observed At",
+            "type": "string"
+          },
+          "quality": {
+            "$ref": "#/components/schemas/Quality"
+          },
+          "source": {
+            "title": "Source",
+            "type": "string"
+          },
+          "unit": {
+            "title": "Unit",
+            "type": "string"
+          },
+          "value": {
+            "title": "Value",
+            "type": "number"
+          }
+        },
+        "required": [
+          "domain",
+          "indicator",
+          "metric",
+          "value",
+          "unit",
+          "observed_at",
+          "quality",
+          "data_origin",
+          "source"
+        ],
+        "title": "LiveReading",
+        "type": "object"
+      },
+      "LiveResponse": {
+        "properties": {
+          "devices": {
+            "items": {
+              "$ref": "#/components/schemas/LiveDevice"
+            },
+            "title": "Devices",
+            "type": "array"
+          },
+          "notice": {
+            "default": "Live gateway view. Values labelled simulated are synthetic test signals, not astronaut data.",
+            "title": "Notice",
+            "type": "string"
+          },
+          "server_time": {
+            "format": "date-time",
+            "title": "Server Time",
+            "type": "string"
+          },
+          "totals": {
+            "$ref": "#/components/schemas/LiveTotals"
+          }
+        },
+        "required": [
+          "server_time",
+          "totals",
+          "devices"
+        ],
+        "title": "LiveResponse",
+        "type": "object"
+      },
+      "LiveTotals": {
+        "properties": {
+          "observations_stored": {
+            "title": "Observations Stored",
+            "type": "integer"
+          },
+          "rejected": {
+            "title": "Rejected",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "observations_stored",
+          "rejected"
+        ],
+        "title": "LiveTotals",
         "type": "object"
       },
       "MetricInfo": {
@@ -625,6 +775,63 @@
         "title": "Provenance",
         "type": "object"
       },
+      "Quality": {
+        "description": "Signal-quality verdict attached by the producing device or gateway.\n\nProvisional vocabulary (docs/DECISIONS.md D-016): the team may extend it. Non-valid\nobservations are stored, never silently dropped, and are flagged in summaries/UI.",
+        "enum": [
+          "valid",
+          "suspect",
+          "invalid"
+        ],
+        "title": "Quality",
+        "type": "string"
+      },
+      "RejectionOut": {
+        "properties": {
+          "device_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Device Id"
+          },
+          "payload": {
+            "additionalProperties": true,
+            "title": "Payload",
+            "type": "object"
+          },
+          "reason": {
+            "title": "Reason",
+            "type": "string"
+          },
+          "received_at": {
+            "format": "date-time",
+            "title": "Received At",
+            "type": "string"
+          },
+          "rejection_id": {
+            "title": "Rejection Id",
+            "type": "integer"
+          },
+          "source": {
+            "title": "Source",
+            "type": "string"
+          }
+        },
+        "required": [
+          "rejection_id",
+          "received_at",
+          "source",
+          "device_id",
+          "reason",
+          "payload"
+        ],
+        "title": "RejectionOut",
+        "type": "object"
+      },
       "ServerChange": {
         "properties": {
           "observation": {
@@ -864,6 +1071,110 @@
         "title": "SyncPushResponse",
         "type": "object"
       },
+      "TelemetryBatch": {
+        "description": "Raw event objects, validated one by one so a single bad event cannot block a batch.\nThe event shape is documented by ``GET /api/v1/telemetry/schema`` (``TelemetryEvent``).",
+        "properties": {
+          "events": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "maxItems": 500,
+            "title": "Events",
+            "type": "array"
+          }
+        },
+        "required": [
+          "events"
+        ],
+        "title": "TelemetryBatch",
+        "type": "object"
+      },
+      "TelemetryResponse": {
+        "properties": {
+          "accepted": {
+            "title": "Accepted",
+            "type": "integer"
+          },
+          "duplicate": {
+            "title": "Duplicate",
+            "type": "integer"
+          },
+          "rejected": {
+            "title": "Rejected",
+            "type": "integer"
+          },
+          "results": {
+            "items": {
+              "$ref": "#/components/schemas/TelemetryResult"
+            },
+            "title": "Results",
+            "type": "array"
+          }
+        },
+        "required": [
+          "results",
+          "accepted",
+          "duplicate",
+          "rejected"
+        ],
+        "title": "TelemetryResponse",
+        "type": "object"
+      },
+      "TelemetryResult": {
+        "properties": {
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          },
+          "event_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Event Id"
+          },
+          "server_seq": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Server Seq"
+          },
+          "status": {
+            "$ref": "#/components/schemas/TelemetryStatus"
+          }
+        },
+        "required": [
+          "status"
+        ],
+        "title": "TelemetryResult",
+        "type": "object"
+      },
+      "TelemetryStatus": {
+        "enum": [
+          "accepted",
+          "duplicate",
+          "rejected"
+        ],
+        "title": "TelemetryStatus",
+        "type": "string"
+      },
       "ValidationError": {
         "properties": {
           "ctx": {
@@ -931,6 +1242,28 @@
         "summary": "Health",
         "tags": [
           "system"
+        ]
+      }
+    },
+    "/api/v1/live": {
+      "get": {
+        "description": "Newest reading per device and indicator, for the dashboard.",
+        "operationId": "live_api_v1_live_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LiveResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Live",
+        "tags": [
+          "telemetry"
         ]
       }
     },
@@ -1411,6 +1744,121 @@
         "summary": "Sync Push",
         "tags": [
           "sync"
+        ]
+      }
+    },
+    "/api/v1/telemetry": {
+      "post": {
+        "description": "Wearable -> gateway. One result per event; rejected events are kept in the audit log.",
+        "operationId": "post_telemetry_api_v1_telemetry_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TelemetryBatch"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TelemetryResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Post Telemetry",
+        "tags": [
+          "telemetry"
+        ]
+      }
+    },
+    "/api/v1/telemetry/rejections": {
+      "get": {
+        "operationId": "telemetry_rejections_api_v1_telemetry_rejections_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 100,
+              "maximum": 1000,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/RejectionOut"
+                  },
+                  "title": "Response Telemetry Rejections Api V1 Telemetry Rejections Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Telemetry Rejections",
+        "tags": [
+          "telemetry"
+        ]
+      }
+    },
+    "/api/v1/telemetry/schema": {
+      "get": {
+        "description": "JSON Schema of one ``TelemetryEvent`` (the 11-field contract plus optional provenance extensions).",
+        "operationId": "telemetry_schema_api_v1_telemetry_schema_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Telemetry Schema Api V1 Telemetry Schema Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Telemetry Schema",
+        "tags": [
+          "telemetry"
         ]
       }
     }
