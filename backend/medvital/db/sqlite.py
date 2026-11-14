@@ -26,6 +26,7 @@ from medvital.db.repository import (
     AddStatus,
     RejectedRecord,
     StoredObservation,
+    UpstreamFailure,
     filter_schedules,
 )
 
@@ -77,6 +78,26 @@ CREATE TRIGGER IF NOT EXISTS schedules_no_update BEFORE UPDATE ON measurement_sc
 BEGIN SELECT RAISE(ABORT, 'schedules are append-only'); END;
 CREATE TRIGGER IF NOT EXISTS schedules_no_delete BEFORE DELETE ON measurement_schedules
 BEGIN SELECT RAISE(ABORT, 'schedules are append-only'); END;
+
+-- Upstream delivery (M3). Cursors are operational metadata (monotonic, enforced in code);
+-- failures are an append-only audit log.
+CREATE TABLE IF NOT EXISTS upstream_cursors (
+    destination TEXT PRIMARY KEY,
+    acked_seq   INTEGER NOT NULL,
+    updated_at  TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS upstream_failures (
+    failure_id     INTEGER PRIMARY KEY AUTOINCREMENT,
+    destination    TEXT NOT NULL,
+    observation_id TEXT NOT NULL,
+    server_seq     INTEGER NOT NULL,
+    error          TEXT NOT NULL,
+    recorded_at    TEXT NOT NULL
+);
+CREATE TRIGGER IF NOT EXISTS upstream_failures_no_update BEFORE UPDATE ON upstream_failures
+BEGIN SELECT RAISE(ABORT, 'upstream failures are append-only'); END;
+CREATE TRIGGER IF NOT EXISTS upstream_failures_no_delete BEFORE DELETE ON upstream_failures
+BEGIN SELECT RAISE(ABORT, 'upstream failures are append-only'); END;
 """
 
 _TS = "%Y-%m-%dT%H:%M:%S.%fZ"  # fixed width, so lexicographic order == chronological order
@@ -281,6 +302,64 @@ class SqliteObservationRepository:
         return filter_schedules(
             [MeasurementSchedule.model_validate_json(r[0]) for r in rows], subject_id, metric, current_only
         )
+
+    def upstream_cursor(self, destination: str) -> int:
+        with self._lock:
+            row = self._conn.execute(
+                "SELECT acked_seq FROM upstream_cursors WHERE destination = ?", (destination,)
+            ).fetchone()
+        return int(row[0]) if row else 0
+
+    def set_upstream_cursor(self, destination: str, server_seq: int) -> None:
+        with self._lock:
+            row = self._conn.execute(
+                "SELECT acked_seq FROM upstream_cursors WHERE destination = ?", (destination,)
+            ).fetchone()
+            if row and server_seq < int(row[0]):
+                raise ValueError("upstream cursor cannot move backwards")
+            self._conn.execute(
+                "INSERT INTO upstream_cursors (destination, acked_seq, updated_at) VALUES (?,?,?) "
+                "ON CONFLICT(destination) DO UPDATE SET acked_seq = excluded.acked_seq, "
+                "updated_at = excluded.updated_at",
+                (destination, server_seq, _ts(datetime.now(UTC))),
+            )
+
+    def record_upstream_failure(
+        self, destination: str, observation_id: UUID, server_seq: int, error: str
+    ) -> None:
+        with self._lock:
+            self._conn.execute(
+                "INSERT INTO upstream_failures (destination, observation_id, server_seq, error, recorded_at) "
+                "VALUES (?,?,?,?,?)",
+                (destination, str(observation_id), server_seq, error, _ts(datetime.now(UTC))),
+            )
+
+    def list_upstream_failures(
+        self, destination: str | None = None, limit: int = 100
+    ) -> list[UpstreamFailure]:
+        sql = (
+            "SELECT failure_id, destination, observation_id, server_seq, error, recorded_at "
+            "FROM upstream_failures"
+        )
+        params: list[Any] = []
+        if destination is not None:
+            sql += " WHERE destination = ?"
+            params.append(destination)
+        sql += " ORDER BY failure_id DESC LIMIT ?"
+        params.append(limit)
+        with self._lock:
+            rows = self._conn.execute(sql, params).fetchall()
+        return [
+            UpstreamFailure(
+                failure_id=r[0],
+                destination=r[1],
+                observation_id=UUID(r[2]),
+                server_seq=r[3],
+                error=r[4],
+                recorded_at=_parse_ts(r[5]),
+            )
+            for r in rows
+        ]
 
     @staticmethod
     def _stored(row: tuple[int, str, str]) -> StoredObservation:

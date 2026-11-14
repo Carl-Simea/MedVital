@@ -53,6 +53,36 @@ class RejectedRecord:
     payload: dict[str, Any]
 
 
+@dataclass(frozen=True)
+class UpstreamFailure:
+    """An observation an upstream station refused. Kept for audit; never retried automatically."""
+
+    failure_id: int
+    destination: str
+    observation_id: UUID
+    server_seq: int
+    error: str
+    recorded_at: datetime
+
+
+class UpstreamStateRepository(Protocol):
+    """Per-destination delivery cursor over the local ``server_seq`` plus a refusal audit log."""
+
+    def upstream_cursor(self, destination: str) -> int: ...
+
+    def set_upstream_cursor(self, destination: str, server_seq: int) -> None:
+        """Monotonic: moving a cursor backwards raises ValueError."""
+        ...
+
+    def record_upstream_failure(
+        self, destination: str, observation_id: UUID, server_seq: int, error: str
+    ) -> None: ...
+
+    def list_upstream_failures(
+        self, destination: str | None = None, limit: int = 100
+    ) -> list[UpstreamFailure]: ...
+
+
 class ObservationRepository(Protocol):
     def add(self, observation: HealthObservation) -> AddOutcome: ...
 
@@ -125,6 +155,8 @@ class InMemoryObservationRepository:
         self._rejections: list[RejectedRecord] = []
         self._schedules: list[MeasurementSchedule] = []
         self._schedule_index: dict[UUID, tuple[int, str]] = {}  # id -> (seq, fingerprint)
+        self._upstream_cursors: dict[str, int] = {}
+        self._upstream_failures: list[UpstreamFailure] = []
 
     def add(self, observation: HealthObservation) -> AddOutcome:
         fingerprint = observation_fingerprint(observation)
@@ -249,3 +281,35 @@ class InMemoryObservationRepository:
         with self._lock:
             rows = list(self._schedules)
         return filter_schedules(rows, subject_id, metric, current_only)
+
+    def upstream_cursor(self, destination: str) -> int:
+        with self._lock:
+            return self._upstream_cursors.get(destination, 0)
+
+    def set_upstream_cursor(self, destination: str, server_seq: int) -> None:
+        with self._lock:
+            if server_seq < self._upstream_cursors.get(destination, 0):
+                raise ValueError("upstream cursor cannot move backwards")
+            self._upstream_cursors[destination] = server_seq
+
+    def record_upstream_failure(
+        self, destination: str, observation_id: UUID, server_seq: int, error: str
+    ) -> None:
+        with self._lock:
+            self._upstream_failures.append(
+                UpstreamFailure(
+                    failure_id=len(self._upstream_failures) + 1,
+                    destination=destination,
+                    observation_id=observation_id,
+                    server_seq=server_seq,
+                    error=error,
+                    recorded_at=datetime.now(UTC),
+                )
+            )
+
+    def list_upstream_failures(
+        self, destination: str | None = None, limit: int = 100
+    ) -> list[UpstreamFailure]:
+        with self._lock:
+            rows = [f for f in self._upstream_failures if destination is None or f.destination == destination]
+        return list(reversed(rows))[:limit]

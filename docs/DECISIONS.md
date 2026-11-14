@@ -125,6 +125,29 @@ pre-M3 code for rows written before `quality`/`device_id` existed; regression te
 Residual risk: an un-upgraded station rejects payloads containing the new key (`extra="forbid"`), so station-to-station
 pushes omit `None`-valued fields, and stations should be upgraded together.
 
+## D-026 Station-to-upstream delivery is a cursor over the local append-only log (M3)
+`medvital/upstream.py`. Local SQLite stays authoritative (D-023). Upstream receives copies through the existing
+`POST /sync/push` contract, so any MEDVITAL gateway (and later the Cloudflare Worker) can act as the upstream.
+
+The outbox is not a second queue: pending means rows whose `server_seq` is above the destination's persisted cursor, so a
+restart loses nothing. Mutation ids are uuid5(destination, observation id), so a retry (including one after a lost reply)
+arrives as a duplicate, never a double.
+
+Outcomes:
+* accepted or duplicate: the cursor advances;
+* upstream *rejection*: the item is appended to the `upstream_failures` audit table (append-only triggers) and skipped;
+* batch-level 422: retried item by item to isolate the bad record;
+* network error or 5xx: the cursor does not move;
+* 401/403: delivery stops without advancing;
+* a response missing results: protocol error, no advance.
+
+Cursors are monotonic. Payloads omit `None` fields so older upstreams accept them.
+
+Not yet:
+* pulling from upstream (M6);
+* an API/UI for delivery status (M6/M8);
+* authentication (M5). The transport already accepts a bearer token, which is never logged.
+
 ## Open questions
 
 * **Q-1 Offline computation parity.** Summaries are computed server-side only, so an offline client cannot show derived values. Options: port calculations to TypeScript with shared test vectors; run the Python in Pyodide/WASM; or cache the last server summary. Decide before building the dashboard.
