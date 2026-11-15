@@ -48,7 +48,10 @@ class CheckerLink:
                     **self.checker,
                     "via": "cloudflare",
                     "ok": False,
-                    "error": "Cloudflare unreachable" if status is None else f"Cloudflare answered HTTP {status}",
+                    "error": "Cloudflare unreachable" if status is None
+                    else "Wrong key: MEDVITAL_CLOUDFLARE_KEY in .env is not the MEDVITAL_KEY secret in Cloudflare" if status == 401
+                    else "Cloudflare blocked the request (403)" if status == 403
+                    else f"Cloudflare answered HTTP {status}",
                     "at": now_iso(),
                 }
             return

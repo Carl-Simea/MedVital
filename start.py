@@ -253,6 +253,9 @@ def main() -> None:
         else:
             say(f"Cloudflare Worker {cf_url} answered {status or 'nothing'}"
                 f"{' (wrong key)' if status == 401 else ''}: the hub keeps everything in its outbox until it answers")
+            if status == 401:
+                say("  -> the key in .env does not match MEDVITAL_KEY in Cloudflare. Copy the MEDVITAL_CLOUDFLARE_KEY line")
+                say("     from a machine where it works (Codespace: `cat .env`) into this .env, then restart.")
 
     if args.role in ("all", "nasa"):
         port = free_port(args.nasa_port, host)

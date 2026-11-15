@@ -25,6 +25,21 @@ REPORTS = REPO / "reports"
 # so one burst covers 24 mission minutes and a mission day has 60 bursts.
 DAY_SECONDS = float(os.environ.get("MEDVITAL_DAY_SECONDS", "60"))
 
+VERSION = "v4.3"
+
+
+def git_commit() -> str:
+    """The commit this checkout runs (shown on the astronaut screen); '?' outside a git checkout."""
+    import subprocess  # noqa: PLC0415
+
+    try:
+        out = subprocess.run(["git", "rev-parse", "--short", "HEAD"], cwd=Path(__file__).resolve().parent,
+                             capture_output=True, text=True, timeout=3)
+        return out.stdout.strip() or "?"
+    except (OSError, subprocess.SubprocessError):
+        return "?"
+
+
 # ---- Cloudflare link to Earth (cloudflare/ Worker + D1 + Workers AI). Both unset = local mode.
 # The key is a secret: environment / Codespaces secret / gitignored .env only, never in the repo.
 CLOUDFLARE_URL = os.environ.get("MEDVITAL_CLOUDFLARE_URL", "")

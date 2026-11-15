@@ -66,6 +66,12 @@ def config() -> dict[str, Any]:
     return S.public_config()
 
 
+@router.get("/version")
+def version() -> dict[str, Any]:
+    """Which code this hub runs, so an old copy is easy to spot on screen."""
+    return {"version": S.VERSION, "commit": S.git_commit()}
+
+
 @router.get("/clock")
 def clock(request: Request) -> dict[str, Any]:
     return _hub(request).clock_view()

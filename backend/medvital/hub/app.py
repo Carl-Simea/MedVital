@@ -19,6 +19,13 @@ from fastapi import FastAPI
 from fastapi.responses import RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
+from medvital.config import Settings
+from medvital.db.sqlite import SqliteObservationRepository
+from medvital.hub.routes import router as hub_router
+from medvital.hub.service import Hub
+from medvital.hub.store import HubStore
+from medvital.main import create_app
+
 
 class NoCache(StaticFiles):
     """Pages and scripts are always fetched fresh, so an update shows up on a normal reload."""
@@ -28,12 +35,6 @@ class NoCache(StaticFiles):
         response.headers["Cache-Control"] = "no-cache, must-revalidate"
         return response
 
-from medvital.config import Settings
-from medvital.db.sqlite import SqliteObservationRepository
-from medvital.hub.routes import router as hub_router
-from medvital.hub.service import Hub
-from medvital.hub.store import HubStore
-from medvital.main import create_app
 
 REPO = Path(os.environ.get("MEDVITAL_REPO_ROOT", Path(__file__).resolve().parents[3]))
 

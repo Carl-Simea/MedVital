@@ -91,21 +91,27 @@ function furnish() {
   .mv-src{display:block;font-size:11px;opacity:.6;margin-top:4px}
   .mv-send{margin-top:8px;padding:7px 12px;border-radius:999px;border:1px solid #ff6b6b;background:transparent;color:#ff6b6b;font-weight:600;font-size:13px;cursor:pointer}
   .mv-send:disabled{opacity:.5;cursor:default}
-  /* readable on smaller screens: the right column scrolls as a whole, no tiny boxes inside boxes */
+  /* large, fixed sizes on every screen: the right column scrolls as one page, no small boxes inside it */
   .col.right{overflow-y:auto!important;min-height:0}
-  .col.right .past{flex:none!important}
-  .upcoming{flex:none!important;min-height:auto!important}
+  .col.right .panel{flex:none!important}
+  .col.right .past{min-height:300px!important}
+  .upcoming{min-height:auto!important}
   .upcoming .two{grid-template-columns:1fr!important;gap:12px}
   .upcoming .cell{overflow:visible!important;max-height:none!important}
   .upcoming .cell+.cell{border-left:0!important;border-top:1px solid var(--line);padding:12px 0 0!important}
-  .upcoming .ctitle{font-size:12px!important}
-  .cell li{font-size:15px!important;line-height:1.4!important}
-  .cell li small{font-size:13px!important;overflow-wrap:anywhere}
-  .dock{flex:none!important;min-height:520px!important}
-  .dock .msg{font-size:14.5px!important;line-height:1.5!important}
+  .upcoming .ctitle{font-size:13px!important}
+  .cell li{font-size:16px!important;line-height:1.45!important}
+  .cell li small{font-size:14px!important;overflow-wrap:anywhere}
+  .ptitle b{font-size:18px!important}
+  .stats b,.stats span{font-size:15px!important}
+  #pastSub{font-size:14px!important}
+  .dock{min-height:600px!important}
+  .dock .msg{font-size:16px!important;line-height:1.5!important;max-width:96%!important}
   .dock .achips{flex-wrap:wrap}
-  .dock .achips button{font-size:13px!important;padding:6px 12px!important}
-  .mv-log{font-size:14.5px}
+  .dock .achips button{font-size:14px!important;padding:7px 13px!important}
+  #chatIn{font-size:16px!important}
+  .mv-log{font-size:16px}
+  .mv-ver{position:fixed;left:20px;bottom:64px;z-index:79;font-size:11px;opacity:.55;pointer-events:none}
   *{scrollbar-color:rgba(160,184,196,.35) transparent;scrollbar-width:thin}`;
   document.head.append(css);
 
@@ -388,6 +394,7 @@ if (id) {
     try { await api(`/hub/labs/${encodeURIComponent(id)}`, e.detail); }
     catch (err) { console.warn('could not save to the spacecraft', err); }
   });
+  api('/hub/version').then(v => { const t = el('div', 'mv-ver', `MedVital ${v.version} · ${v.commit}`); document.body.append(t); }).catch(() => {});
   waitForApi().then(async AB => {
     if (!AB) return;
     if (AB.stopLive) AB.stopLive();   // the dashboard's own test stream stays off: the spacecraft is the source

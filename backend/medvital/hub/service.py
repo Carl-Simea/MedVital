@@ -852,7 +852,7 @@ class Hub(CrewActions, CheckerLink):
                 if status == 503
                 else f"{who} unreachable"
                 if status is None
-                else "Cloudflare refused the key (401)"
+                else "Wrong key: MEDVITAL_CLOUDFLARE_KEY in .env is not the MEDVITAL_KEY secret in Cloudflare"
                 if status == 401 and self.cf_url
                 else f"{who} answered HTTP {status}"
             )

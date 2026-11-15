@@ -143,7 +143,7 @@ def test_wrong_key_is_refused_and_records_stay(tmp_path, worker, monkeypatch):
         before = hub.store.scalar("SELECT COUNT(*) FROM outbox")
         hub.sync_once()
         assert FakeWorker.records == {} and hub.store.scalar("SELECT COUNT(*) FROM outbox") == before
-        assert hub.sync_state["lastError"] == "Cloudflare refused the key (401)"
+        assert hub.sync_state["lastError"].startswith("Wrong key")
     finally:
         hub.store.close()
 
