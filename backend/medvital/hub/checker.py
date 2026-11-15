@@ -80,7 +80,8 @@ class CheckerLink:
                 "donki": {"up": not self.donki_state.get("error"), "fetchedAt": self.donki_state.get("lastFetch")},
                 "devices": devs,
             },
-            "link": {"up": bool(link.get("up")), "retryEveryS": S.RETRY_S},
+            "link": {"up": bool(link.get("up")), "retryEveryS": S.RETRY_S,
+                     "lastNasaTry": self.sync_state.get("lastTry"), "retries": self.sync_state.get("retries", 0)},
             "db": {
                 "spacecraftConfirmed": report["confirmed"],
                 "spacecraftWaiting": report["outbox"],

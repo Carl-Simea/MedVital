@@ -772,12 +772,28 @@ class Hub(CrewActions, CheckerLink):
             return None, None
 
     def sync_tick(self) -> None:
-        """Every second: urgent alerts go now; everything else waits for the end of the day."""
+        """Every second: urgent alerts go now; everything else waits for the end of the day.
+
+        While the link is down, the spacecraft retries every ``settings.RETRY_S`` seconds (not every second),
+        counts the retries and logs each one, so the hub screen's countdown is the real one.
+        """
+        waiting = self.sync_state.get("pendingDayEnd") or self.store.scalar("SELECT COUNT(*) FROM outbox WHERE urgent=1")
+        if self.sync_state.get("linkUp") is False and waiting:
+            if time.monotonic() - self.sync_state.get("lastTryMono", 0.0) < S.RETRY_S:
+                return
+            self.sync_state["retries"] = self.sync_state.get("retries", 0) + 1
+            self.sync_state["lastTryMono"] = time.monotonic()
+            self.sync_state["lastTry"] = now_iso()
+            self.net.add("sync", self._earth_path(), "failed",
+                         f"Retry {self.sync_state['retries']}: {self.store.scalar('SELECT COUNT(*) FROM outbox')} "
+                         f"records waiting on board")
         if self.store.scalar("SELECT COUNT(*) FROM outbox WHERE urgent=1"):
             self.sync_once(urgent_only=True, reason="urgent alert")
         # after a blackout or a cut link, a missed day-end batch is sent as soon as the link is back
         if self.sync_state.get("pendingDayEnd") and not self.blackout():
             self.sync_all("delayed day-end batch")
+        if self.sync_state.get("linkUp") is not False:
+            self.sync_state["retries"] = 0
 
     def sync_all(self, reason: str) -> dict[str, Any]:
         total = {"sent": 0, "confirmed": 0}

@@ -19,6 +19,15 @@ from fastapi import FastAPI
 from fastapi.responses import RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
+
+class NoCache(StaticFiles):
+    """Pages and scripts are always fetched fresh, so an update shows up on a normal reload."""
+
+    async def get_response(self, path, scope):  # type: ignore[no-untyped-def]
+        response = await super().get_response(path, scope)
+        response.headers["Cache-Control"] = "no-cache, must-revalidate"
+        return response
+
 from medvital.config import Settings
 from medvital.db.sqlite import SqliteObservationRepository
 from medvital.hub.routes import router as hub_router
@@ -69,9 +78,9 @@ def create_hub_app(
         ("/reports", REPO / "reports"),
     ):
         if folder.is_dir():
-            app.mount(url, StaticFiles(directory=folder, html=True), name=url.strip("/"))
+            app.mount(url, NoCache(directory=folder, html=True), name=url.strip("/"))
     if (REPO / "apps").is_dir():
-        app.mount("/apps", StaticFiles(directory=REPO / "apps", html=True), name="apps")
+        app.mount("/apps", NoCache(directory=REPO / "apps", html=True), name="apps")
 
     @app.get("/", include_in_schema=False)
     def home() -> RedirectResponse:

@@ -262,12 +262,15 @@ const cd = (() => {
   g.style.display = "none";
   return { g, t };
 })();
+let downSince = null;
 function drawCountdown() {
   const ch = status?.checker;
   const down = linkUp === false || (ch && ch.link && ch.link.up === false);
-  if (!down) { cd.g.style.display = "none"; return; }
+  if (!down) { cd.g.style.display = "none"; downSince = null; return; }
+  downSince = downSince || Date.now();
   const every = (ch?.link?.retryEveryS) || 3;
-  const last = ch?.link?.lastNasaTry ? Date.parse(ch.link.lastNasaTry) : Date.now();
+  // the last real retry (NASA's pull, or the spacecraft's resend); before the first one, from when the link went down
+  const last = ch?.link?.lastNasaTry ? Date.parse(ch.link.lastNasaTry) : downSince;
   const left = every - (((Date.now() - last) / 1000) % every);
   cd.g.style.display = "";
   cd.t.textContent = String(Math.max(1, Math.ceil(left)));
