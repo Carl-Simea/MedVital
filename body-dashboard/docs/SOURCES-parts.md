@@ -13,6 +13,7 @@ Generated from `public/parts.mjs` by `tools/gen-sources-parts.mjs`. Every fact a
 | cvRisk | primary | [NASA: Risk of Cardiovascular Adaptations (CV Risk)](https://www.nasa.gov/directorates/esdmd/hhp/risk-of-cardiovascular-adaptations-contributing-to-adverse-mission-performance-and-health-outcomes/) | heart |
 | cvRiskPage | primary | [NASA: Risk of Cardiovascular Adaptations (overview)](https://www.nasa.gov/reference/risk-of-cardiovascular-adaptations) | heart, artery |
 | cvVte | primary | [NASA: CV Risk, venous thromboembolism concern](https://www.nasa.gov/?p=222800) | vein |
+| dijk | primary | [Dijk et al. 2001: sleep and circadian rhythms on two Space Shuttle flights (polysomnography)](https://ntrs.nasa.gov/citations/20040088714) | brain |
 | dustApollo | secondary | [AGU/Phys.org 2018: Apollo 17 "lunar hay fever" and lunar-dust toxicity](https://phys.org/news/2018-05-lunar-pose-health-future-astronauts.html) | lung, airway |
 | dustER | primary | [NASA Evidence Report: Risk of Adverse Health Effects of Celestial Dust Exposure (2015)](https://ntrs.nasa.gov/api/citations/20150016031/downloads/20150016031.pdf) | lung |
 | dustUts | secondary | [UTS 2025: lunar dust less harmful to human lung cells than feared](https://www.eurekalert.org/news-releases/1087743) | lung |
@@ -71,6 +72,190 @@ Generated from `public/parts.mjs` by `tools/gen-sources-parts.mjs`. Every fact a
 | glucose.mgdl | Blood glucose | Finger-prick or blood test | yes |
 | mass.changePct | Body mass change vs. preflight | Mass measurement device | yes |
 | vitd.ngml | Vitamin D (25-OH) | Blood test | yes |
+| hr.now | Heart rate now | ECG shirt or wrist wearable, continuous | yes |
+| hrv.rmssdMs | Heart rate variability (RMSSD) | ECG shirt or wrist wearable | yes |
+| skin.tempC | Skin temperature | Smart shirt or wrist wearable | yes |
+| eda.uS | Skin conductance (stress arousal) | Wrist wearable | yes |
+| radiation.rateUsvH | Radiation dose rate | Personal active dosimeter | yes |
+| sleep.efficiencyPct | Sleep efficiency | Wrist actigraphy | yes |
+| cognition.scorePct | Cognition tests vs. own baseline | Computer test battery (10 tests) | yes |
+| stress.score | Stress, self-rated | Pre-sleep questionnaire | yes |
+| mood.score | Mood, self-rated | Pre-sleep questionnaire | yes |
+| motion.sickness | Motion sickness | Symptom report, 0 to 10 | yes |
+| balance.changePct | Balance test vs. preflight | Sensorimotor tests before and after flight | no |
+| wbc.k | White blood cells | Blood count | yes |
+| platelets.k | Platelets | Blood count | yes |
+| hematocrit.pct | Hematocrit | Blood count | yes |
+| ferritin.ngml | Ferritin (iron stores) | Blood test | yes |
+| sodium.mmol | Sodium | Blood chemistry | yes |
+| potassium.mmol | Potassium | Blood chemistry | yes |
+| creatinine.mgdl | Creatinine | Blood chemistry | yes |
+| calcium.mgdl | Serum calcium | Blood chemistry | yes |
+| crp.mgl | C-reactive protein (inflammation) | Blood test | yes |
+| cortisol.ugdl | Cortisol (stress hormone) | Blood or saliva sample | yes |
+| cimt.mm | Carotid wall thickness (CIMT) | Ultrasound of the carotid artery | yes |
+| sans.trtChangeUm | Retinal thickness change at the optic disc | OCT, compared with preflight | yes |
+| urine.citrateMgDay | Urinary citrate per 24 h | 24-hour urine collection | yes |
+| urine.ph | Urine pH | Urine test strip or 24-hour collection | yes |
+| kidney.stone | Kidney stone on ultrasound | Ultrasound of the kidneys | yes |
+| sleep.inBedH | Time in bed | Wearable or sleep log | yes |
+| sleep.latencyMin | Sleep latency | EEG or wearable | yes |
+| sleep.wasoMin | Wake after sleep onset | EEG or wearable | yes |
+| sleep.awakenings | Awakenings longer than 5 min | EEG or wearable | yes |
+| sleep.n1Pct | Stage N1 share | EEG sleep staging | yes |
+| sleep.n2Pct | Stage N2 share | EEG sleep staging | yes |
+| sleep.n3Pct | Deep sleep N3 share | EEG sleep staging | yes |
+| sleep.remPct | REM sleep share | EEG sleep staging | yes |
+| sleep.remLatencyMin | REM latency | EEG sleep staging | yes |
+| sleep.cycles | Sleep cycles | EEG sleep staging | yes |
+| sleep.onsetClock | Sleep onset clock time | Wearable, hours after midnight GMT (ISS time) | yes |
+| sleep.lightLux | Light before bedtime | Light sensor of the wrist actigraph | yes |
+| rbc.M | Red blood cells | Complete blood count | yes |
+| retic.pct | Reticulocytes | Complete blood count | yes |
+| neut.k | Neutrophils | Complete blood count | yes |
+| lymph.k | Lymphocytes | Complete blood count | yes |
+| mono.k | Monocytes | Complete blood count | yes |
+| eos.k | Eosinophils | Complete blood count | yes |
+| baso.k | Basophils | Complete blood count | yes |
+| mcv.fl | Mean cell volume | Complete blood count | yes |
+| mpv.fl | Mean platelet volume | Complete blood count | yes |
+| pdw.pct | Platelet distribution width | Complete blood count | yes |
+| co2.mmol | Bicarbonate | Blood test | yes |
+| chloride.mmol | Chloride | Blood test | yes |
+| bun.mgdl | Urea nitrogen | Blood test | yes |
+| uricacid.mgdl | Uric acid | Blood test | yes |
+| magnesium.mgdl | Magnesium | Blood test | yes |
+| phosphate.mgdl | Phosphate | Blood test | yes |
+| ica.mmol | Ionized calcium | Blood test | yes |
+| protein.gdl | Total protein | Blood test | yes |
+| albumin.gdl | Albumin | Blood test | yes |
+| alt.ul | ALT | Blood test | yes |
+| ast.ul | AST | Blood test | yes |
+| alp.ul | Alkaline phosphatase | Blood test | yes |
+| ggt.ul | GGT | Blood test | yes |
+| bili.mgdl | Total bilirubin | Blood test | yes |
+| ldh.ul | Lactate dehydrogenase | Blood test | yes |
+| chol.mgdl | Total cholesterol | Blood test | yes |
+| ldl.mgdl | LDL cholesterol | Blood test | yes |
+| hdl.mgdl | HDL cholesterol | Blood test | yes |
+| nonhdl.mgdl | Non-HDL cholesterol | Blood test | yes |
+| trig.mgdl | Triglycerides | Blood test | yes |
+| hba1c.pct | HbA1c | Blood test | yes |
+| iron.ugdl | Serum iron | Blood test | yes |
+| tibc.ugdl | Total iron binding capacity | Blood test | yes |
+| tsat.pct | Transferrin saturation | Blood test | yes |
+| transferrin.mgdl | Transferrin | Blood test | yes |
+| stfr.mgl | Soluble transferrin receptor | Blood test | yes |
+| tsh.miul | TSH | Blood test | yes |
+| ft4.ngdl | Free T4 | Blood test | yes |
+| testosterone.ngdl | Testosterone | Blood test | yes |
+| igf1.ngml | IGF-1 | Blood test | yes |
+| leptin.ngml | Leptin | Blood test | yes |
+| pth.pgml | Intact parathyroid hormone | Blood test | yes |
+| bsap.ugl | Bone-specific alkaline phosphatase | Blood test | yes |
+| p1np.ugl | P1NP bone formation marker | Blood test | yes |
+| osteocalcin.ngml | Osteocalcin | Blood test | yes |
+| ucoc.ngml | Undercarboxylated osteocalcin | Blood test | yes |
+| vitd125.pgml | 1,25-dihydroxyvitamin D | Blood test | yes |
+| sclerostin.pmol | Sclerostin | Blood test | yes |
+| opg.pmol | Osteoprotegerin | Blood test | yes |
+| rankl.pmol | RANKL | Blood test | yes |
+| ntx.nmolbce | Urinary NTX bone resorption | Urine sample | yes |
+| il6.pgml | Interleukin-6 | Blood test | yes |
+| tnf.pgml | TNF-alpha | Blood test | yes |
+| tcell.pct | T-cell function vs. baseline | Stimulated cytokine profile, compared with preflight | yes |
+| ige.kul | Total IgE, allergy profile | Blood test | yes |
+| folate.ngml | Serum folate | Blood test | yes |
+| b12.pgml | Vitamin B12 | Blood test | yes |
+| vite.mgl | Vitamin E alpha-tocopherol | Blood test | yes |
+| vitk.ngml | Vitamin K1 | Blood test | yes |
+| homocysteine.umol | Homocysteine | Blood test | yes |
+| ohdg.ngmg | 8-OHdG oxidative DNA damage | Urine sample | yes |
+| pgf2a.ngmg | Prostaglandin F2-alpha | Urine sample | yes |
+| urine.sodiumMmol | Urinary sodium | 24-hour urine collection | yes |
+| urine.potassiumMmol | Urinary potassium | 24-hour urine collection | yes |
+| urine.creatG | Urinary creatinine | 24-hour urine collection | yes |
+| urine.magnesiumMg | Urinary magnesium | 24-hour urine collection | yes |
+| urine.phosphorusMg | Urinary phosphorus | 24-hour urine collection | yes |
+| urine.uricMg | Urinary uric acid | 24-hour urine collection | yes |
+| urine.oxalateMg | Urinary oxalate | 24-hour urine collection | yes |
+| urine.sulfateMmol | Urinary sulfate | 24-hour urine collection | yes |
+| ss.caox | Supersaturation calcium oxalate | 24-hour urine collection | yes |
+| ss.cap | Supersaturation brushite | 24-hour urine collection | yes |
+| ss.naurate | Supersaturation sodium urate | 24-hour urine collection | yes |
+| ss.struvite | Supersaturation struvite | 24-hour urine collection | yes |
+| ss.uric | Supersaturation uric acid | 24-hour urine collection | yes |
+| sv.ml | Stroke volume | Heart ultrasound | yes |
+| co.lmin | Cardiac output | Heart ultrasound or finger cuff | yes |
+| ivc.mm | Inferior vena cava diameter | Ultrasound | yes |
+| pwv.ms | Pulse wave velocity | Arterial stiffness measurement | yes |
+| fmd.pct | Flow-mediated dilation | Brachial artery ultrasound | yes |
+| qtc.ms | QTc interval | Resting 12-lead ECG | yes |
+| abp.meanSys | 24-h mean systolic pressure | 24-hour ambulatory blood pressure | yes |
+| fev1.pctPred | FEV1 | Spirometry | yes |
+| fvc.pctPred | FVC | Spirometry | yes |
+| fev1fvc.pct | FEV1/FVC ratio | Spirometry | yes |
+| dlco.pctPred | Diffusing capacity DLCO | Gas transfer test | yes |
+| plasmaVol.changePct | Plasma volume change | Carbon monoxide rebreathing, vs. preflight | yes |
+| tbw.L | Total body water | Deuterium dilution | yes |
+| ecf.L | Extracellular fluid | Bromide dilution | yes |
+| tissue.foreheadMm | Forehead tissue thickness | Ultrasound | yes |
+| tissue.tibiaMm | Shin tissue thickness | Ultrasound | yes |
+| va.logmar | Visual acuity logMAR | Eye chart, near and far | yes |
+| iop.mmhg | Intraocular pressure | Tonometry | yes |
+| onsd.mm | Optic nerve sheath diameter | Ultrasound; NASA gives no normal value, so only the trend counts | yes |
+| choroid.um | Choroid thickness change | OCT, compared with preflight | yes |
+| rnfl.um | Retinal nerve fibre layer change | OCT, compared with preflight | yes |
+| contrast.logcs | Contrast sensitivity | Contrast chart | yes |
+| vf.md | Visual field mean defect | Threshold perimetry | yes |
+| bmd.femNeckPct | Femoral neck BMD change | DXA, before and after flight (every 3 years in the annual exams) | no |
+| muscle.volCalfPct | Calf muscle volume change | MRI, compared with preflight | no |
+| muscle.volThighPct | Thigh muscle volume change | MRI, compared with preflight | no |
+| bone.tibiaStrengthPct | Tibia strength change, HR-pQCT | High-resolution CT, before and after flight | no |
+| sts.sec | Sit-to-stand, time to stable stance | Field test: seated to standing, then 10 s still | yes |
+| tandem.pct | Tandem walk eyes closed, correct steps | Field test | yes |
+| prone.sec | Prone-to-stand time | Field test: from lying face down to standing, then 3 min still | yes |
+| finemotor.pct | Fine motor test vs. baseline | Tablet: tracking, pointing, tracing, pinch-rotate | yes |
+| cog.mpt | Motor praxis | Compared with own preflight baseline | yes |
+| cog.volt | Visual object learning | Compared with own preflight baseline | yes |
+| cog.f2b | Fractal 2-back working memory | Compared with own preflight baseline | yes |
+| cog.am | Abstract matching | Compared with own preflight baseline | yes |
+| cog.lot | Line orientation | Compared with own preflight baseline | yes |
+| cog.ert | Emotion recognition | Compared with own preflight baseline | yes |
+| cog.mrt | Matrix reasoning | Compared with own preflight baseline | yes |
+| cog.dsst | Digit symbol substitution | Compared with own preflight baseline | yes |
+| cog.bart | Balloon analog risk | Compared with own preflight baseline | yes |
+| cog.pvt | Psychomotor vigilance | Compared with own preflight baseline | yes |
+| team.cohesion | Team cohesion | Monthly questionnaire | yes |
+| team.performance | Team performance | Monthly questionnaire | yes |
+| habitability | Habitability rating | Monthly questionnaire | yes |
+| workload.score | Workload | Self-report | yes |
+| activity.countsK | Daytime activity counts | Wrist actigraphy | yes |
+| dose.missionMsv | Mission dose, crew dosimeter | Personal active dosimeter | yes |
+| ex.aredMin | Resistive device ARED | Exercise log | yes |
+| ex.cevisMin | Cycle ergometer CEVIS | Exercise log | yes |
+| ex.t2Min | Treadmill T2 | Exercise log | yes |
+| ex.squatKg | ARED squat load | Exercise log | yes |
+| ex.vo2peak | Absolute VO2peak | Cycle ergometer test | yes |
+| ex.wattPeak | Peak power, cycle test | Cycle ergometer test | yes |
+| ex.hrPeak | Exercise peak heart rate | Cycle ergometer test | yes |
+| ex.rpe | Perceived exertion Borg | Borg scale at the end of the test | yes |
+| ex.z2Min | Time in moderate heart rate zone | Wearable during exercise | yes |
+| ex.z4Min | Time in hard heart rate zone | Wearable during exercise | yes |
+| nut.kcal | Energy intake per day | Food log | yes |
+| nut.carbPct | Carbohydrate share of energy | Food log | yes |
+| nut.fatPct | Fat share of energy | Food log | yes |
+| nut.proteinPct | Protein share of energy | Food log | yes |
+| nut.fiberG | Fibre | Food log | yes |
+| nut.omega3G | Omega-3 fatty acids | Food log | yes |
+| nut.sodiumMg | Sodium intake | Food log | yes |
+| nut.potassiumMg | Potassium intake | Food log | yes |
+| nut.calciumMg | Calcium intake | Food log | yes |
+| nut.vitdIU | Vitamin D intake | Food log and supplement | yes |
+| nut.ironMg | Iron intake | Food log | yes |
+| nut.folateUg | Folate intake | Food log | yes |
+| nut.vitkUg | Vitamin K intake | Food log | yes |
+| nut.caffeineMg | Caffeine | Food log | yes |
 
 ## Parts without a verified spaceflight fact (shown as "Gap" in the app)
 

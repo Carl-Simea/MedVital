@@ -9,9 +9,11 @@
    Parts with no verified spaceflight fact say so (`gap`) instead of showing invented text. */
 import { SOURCES as BASE_SOURCES } from './knowledge.mjs';
 import { evalHeartRate } from './engine.mjs';
+import { CATALOG, PANEL_SRC, refRange, farRange } from './panels.mjs';
 
 export const SRC = Object.freeze({
   ...BASE_SOURCES,
+  ...PANEL_SRC,
   renalE057:   { kind: 'primary',   title: 'NASA HRP: Renal Stone Risk During Spaceflight (E057), 2007', url: 'https://ntrs.nasa.gov/citations/20070008213' },
   renalKcit:   { kind: 'primary',   title: 'Whitson et al.: Potassium citrate to reduce renal stone risk in spaceflight (NASA, 2009)', url: 'https://ntrs.nasa.gov/api/citations/20090019087/downloads/20090019087.pdf' },
   renalFluid:  { kind: 'primary',   title: 'Renal stone risk assessment in astronauts (NASA Glenn / PMC)', url: 'https://pmc.ncbi.nlm.nih.gov/articles/8799707' },
@@ -49,7 +51,7 @@ export const BASIS = Object.freeze({
 });
 
 /* ---------- Indicators: what NASA measures, and whether it can be measured in flight ---------- */
-export const INDICATORS = Object.freeze({
+const BASE_INDICATORS = {
   'hr.rest':               { label: 'Resting heart rate', unit: 'bpm', how: 'Pulse or wearable at rest', flight: true },
   'orthostatic.presyncope':{ label: 'Dizziness on standing', unit: '', how: 'Symptom report, stand test', flight: true, type: 'bool' },
   'jugular.flow':          { label: 'Jugular vein flow', unit: '', how: 'Ultrasound of the internal jugular vein', flight: true, type: 'text' },
@@ -110,6 +112,11 @@ export const INDICATORS = Object.freeze({
   'urine.citrateMgDay':    { label: 'Urinary citrate per 24 h', unit: 'mg', how: '24-hour urine collection', flight: true },
   'urine.ph':              { label: 'Urine pH', unit: '', how: 'Urine test strip or 24-hour collection', flight: true },
   'kidney.stone':          { label: 'Kidney stone on ultrasound', unit: '', how: 'Ultrasound of the kidneys', flight: true, type: 'bool' }
+};
+/* The detailed catalogue (panels.mjs): lab panels, exams, sleep stages, exercise and nutrition detail. */
+export const INDICATORS = Object.freeze({
+  ...BASE_INDICATORS,
+  ...Object.fromEntries(CATALOG.map(x => [x.key, { label: x.label, unit: x.unit, how: x.how, flight: x.flight !== false, panel: x.panel, msrc: x.msrc || null, ...(x.ref ? {} : { rate: false }) }]))
 });
 export const WHY = Object.freeze({
   'hr.rest': 'A resting heart rate that drifts above the personal baseline is an early sign of cardiovascular strain or dehydration.',
@@ -272,6 +279,8 @@ export const PARTS = Object.freeze({
     helps: [], gap: null }
 });
 
+for (const x of CATALOG) for (const g of x.groups) if (PARTS[g] && !PARTS[g].ind.includes(x.key)) PARTS[g].ind.push(x.key);
+PARTS.brain.facts.push(f('Polysomnography on two Shuttle flights showed more wakefulness and less slow-wave sleep in the final third of the night, and markedly more REM sleep after landing.', 'dijk'));
 export const GROUP_IDS = Object.freeze(Object.keys(PARTS));
 /** Groups where the left/right side is meaningful and clickable. */
 export const PAIRED = Object.freeze(['shoulder', 'arm', 'hand', 'femur', 'shin', 'foot', 'lung', 'kidney', 'eye', 'mUpperArm', 'mForearm', 'mThigh', 'mShin', 'tendon']);
@@ -475,14 +484,14 @@ rule('trt', ['eye'], M => {
        : r(0, `Retinal thickness change ${v} µm, below the 20 µm early-sign level.`, 'verified', 'sansConsensus', 'sans.trtChangeUm');
 });
 /** Two-sided reference range: [low, high] is usual; beyond [farLow, farHigh] is rated one level higher. */
-function band(id, groups, key, name, unit, range, far, farLevel = 2) {
+function band(id, groups, key, name, unit, range, far, farLevel = 2, basis = 'convention', src = null) {
   rule(id, groups, M => {
     const v = M[key]; if (!num(v)) return null;
     const [lo, hi] = typeof range === 'function' ? range(M) : range, [flo, fhi] = far ? (typeof far === 'function' ? far(M) : far) : [-Infinity, Infinity];
     const t = `${name} ${v}${unit ? ' ' + unit : ''}`;
-    if (v < flo || v > fhi) return r(farLevel, `${t} is far outside the usual ${lo}–${hi}. ${farLevel >= 3 ? 'Contact the flight surgeon now.' : 'Repeat the test and tell the flight surgeon.'}`, 'convention', null, key);
-    if (v < lo || v > hi) return r(1, `${t} is ${v < lo ? 'below' : 'above'} the usual ${lo}–${hi}.`, 'convention', null, key);
-    return r(0, `${t}.`, 'convention', null, key);
+    if (v < flo || v > fhi) return r(farLevel, `${t} is far outside the usual ${lo} to ${hi}. ${farLevel >= 3 ? 'Contact the flight surgeon now.' : 'Repeat the test and tell the flight surgeon.'}`, basis, src, key);
+    if (v < lo || v > hi) return r(1, `${t} is ${v < lo ? 'below' : 'above'} the usual ${lo} to ${hi}.`, basis, src, key);
+    return r(0, `${t}.`, basis, src, key);
   });
 }
 band('wbc', ['spleen'], 'wbc.k', 'White blood cells', 'k/µL', [4, 11], [2, 20]);
@@ -494,6 +503,23 @@ band('potassium', ['kidney', 'heart'], 'potassium.mmol', 'Potassium', 'mmol/L', 
 band('creatinine', ['kidney'], 'creatinine.mgdl', 'Creatinine', 'mg/dL', M => (M.sex === 'm' ? [0.7, 1.3] : [0.6, 1.1]), [0.3, 2]);
 band('calcium', ['body'], 'calcium.mgdl', 'Serum calcium', 'mg/dL', [8.6, 10.2], [7.5, 12]);
 band('crp', ['body'], 'crp.mgl', 'C-reactive protein', 'mg/L', [0, 10], [0, 50]);
+// Catalogue entries with a usual range (panels.mjs) → one two-sided range rule each
+for (const x of CATALOG) if (x.ref && x.ref !== 'custom')
+  band('cat:' + x.key, x.groups, x.key, x.label, x.unit, M => refRange(x, M), x.far ? M => farRange(x, M) : null, 2, x.basis, x.tsrc || null);
+// Sleep quality, adults: National Sleep Foundation consensus (Ohayon et al. 2017)
+const nsf = (key, fn) => rule('nsf:' + key, ['brain'], M => { const v = M[key]; return num(v) ? fn(v) : null; });
+nsf('sleep.latencyMin', v => v <= 30 ? r(0, `Fell asleep in ${v} min: 30 min or less counts as good sleep quality.`, 'verified', 'nsf', 'sleep.latencyMin')
+  : r(1, `Fell asleep in ${v} min: ${v >= 45 ? '45 min or more indicates poor sleep quality' : 'above the 30 min of good sleep quality'}.`, 'verified', 'nsf', 'sleep.latencyMin'));
+nsf('sleep.wasoMin', v => v <= 20 ? r(0, `Awake ${v} min after falling asleep: 20 min or less counts as good.`, 'verified', 'nsf', 'sleep.wasoMin')
+  : r(1, `Awake ${v} min after falling asleep: ${v >= 41 ? '41 min or more indicates poor sleep quality' : 'above the 20 min of good sleep quality'}.`, 'verified', 'nsf', 'sleep.wasoMin'));
+nsf('sleep.awakenings', v => v <= 1 ? r(0, `${v} awakening${v === 1 ? '' : 's'} longer than 5 min: one or fewer counts as good.`, 'verified', 'nsf', 'sleep.awakenings')
+  : r(1, `${v} awakenings longer than 5 min: ${v >= 4 ? '4 or more indicate poor sleep quality' : 'more than the one of good sleep quality'}.`, 'verified', 'nsf', 'sleep.awakenings'));
+nsf('sleep.n1Pct', v => v <= 10 ? r(0, `Light stage N1 ${v} % of sleep${v > 5 ? ' (good quality is 5 % or less)' : ''}.`, 'verified', 'nsf', 'sleep.n1Pct')
+  : r(1, `Light stage N1 is ${v} % of sleep: well above the 5 % or less of good sleep quality, a sign of fragmented sleep.`, 'verified', 'nsf', 'sleep.n1Pct'));
+nsf('sleep.n3Pct', v => v >= 16 ? r(0, `Deep sleep N3 ${v} % of sleep (good quality in adults: 16 to 20 %).`, 'verified', 'nsf', 'sleep.n3Pct')
+  : r(1, `Deep sleep N3 is only ${v} % of sleep: below the 16 to 20 % of good sleep quality in adults. On Shuttle flights slow-wave sleep fell late in the night.`, 'verified', 'nsf', 'sleep.n3Pct'));
+nsf('sleep.remPct', v => v >= 21 ? r(0, `REM sleep ${v} % of sleep (good quality in adults: 21 to 30 %).${v > 30 ? ' Above 30 % the consensus is uncertain.' : ''}`, 'verified', 'nsf', 'sleep.remPct')
+  : r(1, `REM sleep is only ${v} % of sleep: below the 21 to 30 % of good sleep quality in adults.`, 'verified', 'nsf', 'sleep.remPct'));
 rule('stoneRisk', ['kidney'], M => {
   const c = M['urine.citrateMgDay'], ph = M['urine.ph'], st = M['kidney.stone'];
   if (!num(c) && !num(ph) && typeof st !== 'boolean') return null;

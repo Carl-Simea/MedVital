@@ -2,7 +2,9 @@
    Three scenarios cover every input the app knows: one with everything in range, one with a few borderline and raised values,
    and one with several critical findings. The UI marks loaded test data as "Test data". Pure data, no DOM. */
 
-export const SCENARIOS = Object.freeze({
+import { CATALOG } from './panels.mjs';
+
+const SCN = {
   nominal: {
     label: 'In range', note: 'Mission month 2 · everything on target',
     body: { heightCm: 181, massKg: 79, sex: 'm' },
@@ -69,7 +71,10 @@ export const SCENARIOS = Object.freeze({
     environment: ['Solar particle event in progress', 'Cabin CO₂ above the limit', 'Shelter advised'],
     predictions: ['Hip bone loss is more than twice the mean (model)', 'Dehydration and stone risk rising']
   }
-});
+};
+// Detailed catalogue values (lab panels, sleep stages, exercise and nutrition detail) come from panels.mjs: demo = [nominal, mixed, critical]
+['nominal', 'mixed', 'critical'].forEach((id, i) => { for (const x of CATALOG) SCN[id].data[x.key] = x.demo[i]; });
+export const SCENARIOS = Object.freeze(SCN);
 export const SCENARIO_IDS = Object.freeze(Object.keys(SCENARIOS));
 
 /** Report labels the reader (intake.mjs) understands. Used to write a scenario as a plain-text report. */
@@ -93,7 +98,8 @@ const LINES = [
   ['crp.mgl', 'C-reactive protein', 'mg/L'], ['cortisol.ugdl', 'Cortisol', 'µg/dL'], ['cimt.mm', 'Carotid intima-media thickness', 'mm'],
   ['sans.trtChangeUm', 'Peripapillary retinal thickness change', 'µm'], ['urine.citrateMgDay', 'Urinary citrate', 'mg/day'], ['urine.ph', 'Urine pH', ''], ['kidney.stone', 'Kidney stone on ultrasound', ''],
   ['mass.changePct', 'Body mass change', '%'], ['exercise.minPerWeek', 'Exercise time per week', 'min'], ['exercise.resistiveDays', 'Resistance training days', ''],
-  ['nutrition.energyPct', 'Energy intake', '%'], ['nutrition.proteinGkg', 'Protein intake', 'g/kg'], ['nutrition.fluidL', 'Fluid intake', 'L']
+  ['nutrition.energyPct', 'Energy intake', '%'], ['nutrition.proteinGkg', 'Protein intake', 'g/kg'], ['nutrition.fluidL', 'Fluid intake', 'L'],
+  ...CATALOG.map(x => [x.key, x.label, x.unit])
 ];
 /** A scenario written as the kind of text report a crew member could paste into the app. */
 export function reportText(id) {

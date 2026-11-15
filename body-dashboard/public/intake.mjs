@@ -1,3 +1,4 @@
+import { CATALOG } from './panels.mjs';
 /* intake.mjs — reads health values out of pasted text, CSV, TSV or JSON (lab reports, medical summaries, device exports).
    Pure function, no DOM, no network. It only takes a value when a known label sits next to a number, converts common units,
    and rejects anything outside a plausible range. Nothing is guessed: unknown lines are reported as unread. */
@@ -15,7 +16,12 @@ const conv = {
   height: v => (v < 3 ? Math.round(v * 100) : v),
   hours: (v, u) => (/min/.test(u) ? Math.round(v / 60 * 10) / 10 : v)
 };
+const esc = t => t.toLowerCase().replace(/[.*+?^${}()|[\]\\/]/g, '\\$&');
+/* Catalogue labels (panels.mjs) are matched first, longest label first, so "REM sleep latency" is not read as "REM sleep" and
+   "Urinary sodium" not as "Sodium". A label never matches inside a longer word ("non-HDL" is not "HDL"). */
+const CAT_NUMERIC = CATALOG.slice().sort((a, b) => b.label.length - a.label.length).map(x => [x.key, new RegExp(`(?<![\\w-])${esc(x.label)}`)]);
 const NUMERIC = [
+  ...CAT_NUMERIC,
   ['hrv.rmssdMs',           /heart rate variability|\bhrv\b|rmssd/],
   ['hr.now',                /(?:current|live)\s*heart rate|heart rate\s*(?:now|live)/],
   ['skin.tempC',            /skin temp(?:erature)?/],
@@ -75,6 +81,7 @@ const NUMERIC = [
   ['mission.month',         /mission month|month of (?:the )?mission|flight month/]
 ];
 export const RANGES = Object.freeze({
+  ...Object.fromEntries(CATALOG.map(x => [x.key, x.plaus])),
   'hr.rest': [20, 220], 'spo2.pct': [50, 100], 'resp.rate': [4, 60], 'temp.c': [30, 43], 'glucose.mgdl': [20, 600], 'hemoglobin.gdl': [3, 20],
   'sleep.hours': [0, 16], 'sleep.quality': [1, 5], 'pvt.lapses': [0, 100], 'pvt.meanRtMs': [100, 2000], 'back.pain': [0, 10],
   'urine.volumeL': [0, 8], 'urine.calciumMgDay': [0, 1000], 'mass.changePct': [-40, 40], 'vitd.ngml': [1, 200],

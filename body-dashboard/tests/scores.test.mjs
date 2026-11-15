@@ -16,7 +16,7 @@ test('no data gives no score, not a made-up one', () => {
 test('scores stay within 1..100 and missing inputs lower coverage, not the score', () => {
   const full = scoreAll({ ...SAMPLE, ...SCORE_SAMPLE });
   for (const id of DOMAIN_IDS) { assert.ok(full[id].score >= 1 && full[id].score <= 100, id); assert.equal(full[id].coverage.have, full[id].coverage.total, id); }
-  const part = scoreDomain('sleep', { 'sleep.hours': 8 }); assert.equal(part.score, 100); assert.deepEqual(part.coverage, { have: 1, total: 3 });
+  const part = scoreDomain('sleep', { 'sleep.hours': 8 }); assert.equal(part.score, 100); assert.deepEqual(part.coverage, { have: 1, total: 8 });
   assert.equal(scoreDomain('sleep', { 'sleep.hours': 2, 'pvt.lapses': 40, 'sleep.quality': 1 }).score, 1);
 });
 test('anchors: 6 h sleep = 50, ISS-average strength loss = 50, protein in range = 100, fluid target depends on sex', () => {

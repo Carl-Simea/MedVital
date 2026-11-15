@@ -37,7 +37,7 @@ function ensureDom() {
     <div class="field" id="hlMarsF" hidden><label>One-way light time <span id="hlMarsV"></span></label><input id="hlMars" type="range" min="182" max="1337" value="750"></div>
     <div class="field"><label>Resting heart rate (bpm), entered by hand</label><input id="hlHr" type="number" inputmode="numeric" min="20" max="220" placeholder="e.g. 68"></div>
     <div class="field"><label>Mission month (for the bone model)</label><input id="hlMon" type="number" inputmode="decimal" min="0" max="48" step="0.5" placeholder="e.g. 4"></div>
-    <div class="two"><button class="plain" id="hlPvt">Reaction test, 5 trials</button><button class="primary" id="hlDone">Done</button></div>
+    <div class="two"><button class="plain" id="hlPvt">Reaction test</button><button class="primary" id="hlDone">Done</button></div>
     <button class="plain" id="hlReset" style="height:40px;font-size:14px;color:var(--muted)">Clear baseline</button>
   </div>
 </div>

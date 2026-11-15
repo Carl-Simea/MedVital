@@ -26,9 +26,12 @@
     </div>
     <nav class="overview-nav" aria-label="Health overview"><button data-view="overview" aria-pressed="true">Overview</button><button data-view="sleep" aria-pressed="false">Sleep</button><button data-view="exercise" aria-pressed="false">Exercise</button><button data-view="nutrition" aria-pressed="false">Nutrition</button></nav>
     <div class="view-intro" id="viewIntro"><span>YOUR HEALTH AT A GLANCE</span><h2>Daily overview</h2></div>
-    <div class="scores row" id="scores"></div>
-    <div class="tiles" id="tiles"></div>
-    <article class="card" id="partCard" hidden></article>
+    <div class="lscroll" id="lscroll">
+      <div class="scores row" id="scores"></div>
+      <div class="tiles" id="tiles"></div>
+      <div class="detail" id="detail"></div>
+      <article class="card" id="partCard" hidden></article>
+    </div>
   </section>
 
   <!-- Center: rotatable body with layer switches -->

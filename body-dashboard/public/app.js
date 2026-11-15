@@ -5,9 +5,10 @@ import { DOMAIN_IDS, SCORE_KEYS, SCORE_SRC, SCORE_INPUTS, scoreAll, scoreColor, 
 import { extract, READABLE } from './intake.mjs';
 import { SCENARIOS, SCENARIO_IDS, reportText } from './testdata.mjs';
 import { createLive, ACTIVITIES, ACTIVITY_IDS } from './live.mjs';
+import { renderDetail } from './detail.mjs';
 const ALL_SRC = { ...SRC, ...SCORE_SRC };
 
-const BUILD = 'v3.10 · 15 Nov 2026';
+const BUILD = 'v3.11 · 15 Nov 2026';
 const errLog = [];
 const logErr = m => { errLog.push(new Date().toISOString().slice(11, 19) + ' ' + String(m).slice(0, 200)); if (errLog.length > 20) errLog.shift(); };
 addEventListener('error', e => logErr(e.message + ' @' + (e.filename || '').split('/').pop() + ':' + e.lineno));
@@ -55,7 +56,7 @@ function recompute(light) {
   }
   for (const g in manual) if (parts[g] && LEVEL[manual[g]] > parts[g].level) { parts[g].level = LEVEL[manual[g]]; parts[g].status = manual[g]; parts[g].statusLabel = LEVEL_LABEL[parts[g].level]; }
   if (lobby) lobby.setStatus(bodyColors(parts));
-  renderAttention(); renderTiles(); buildCallouts();
+  renderAttention(); renderTiles(); buildCallouts(); drawDetail();
   if (!light) { renderScores(); if (state.sel) renderCard(); }
   else if (state.sel) {                                             // live tick: redraw the card only when its content changed, and keep its place
     const st = parts[state.sel.group], sig = JSON.stringify([st.level, st.warnings.map(w => w.text), st.notes.map(n => n.text), st.indicators.map(i => i.value)]), card = $('partCard');
@@ -63,6 +64,7 @@ function recompute(light) {
   }
   if (typeof assistantStatus === 'function') assistantStatus();
 }
+function drawDetail() { renderDetail($('detail'), activeView, currentInput(), parts, g => selectPart(g)); }
 const keyLevel = key => {
   let lv = -1;
   for (const id in parts) for (const x of [...parts[id].warnings, ...parts[id].notes]) if (x.key === key) lv = Math.max(lv, x.level);
@@ -220,7 +222,7 @@ function setView(view) {
   document.querySelector('.left').dataset.view = activeView;
   deselect();
   if (viewGroups[activeView]) state.vital = viewGroups[activeView][0];
-  renderTiles(); renderScores(); renderPast();
+  renderTiles(); renderScores(); renderPast(); drawDetail(); $('lscroll').scrollTop = 0;
 }
 document.querySelectorAll('[data-view]').forEach(button => button.addEventListener('click', () => setView(button.dataset.view)));
 
@@ -337,9 +339,9 @@ function srcLink(key) {
 }
 function el(tag, cls, text) { const e = document.createElement(tag); if (cls) e.className = cls; if (text !== undefined) e.textContent = text; return e; }
 function renderCard() {
-  const sel = state.sel, card = $('partCard'); if (!sel) { card.hidden = true; $('tiles').hidden = false; renderScores(); return; }
+  const sel = state.sel, card = $('partCard'); if (!sel) { card.hidden = true; $('tiles').hidden = false; $('detail').hidden = false; renderScores(); return; }
   const def = PARTS[sel.group], st = parts[sel.group];
-  card.hidden = false; $('tiles').hidden = true; $('scores').hidden = true; card.innerHTML = '';
+  card.hidden = false; $('tiles').hidden = true; $('detail').hidden = true; $('scores').hidden = true; $('lscroll').scrollTop = 0; card.innerHTML = '';
   const top = el('div', 'top'); const back = el('button', 'back', '‹'); back.setAttribute('aria-label', 'Back'); back.onclick = () => deselect();
   const pill = el('span', 'st ' + st.status); pill.append(el('i'), document.createTextNode(st.statusLabel));
   top.append(back, el('h2', '', selName(sel)), pill); card.append(top);
