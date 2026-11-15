@@ -425,6 +425,17 @@ export async function createLobby(canvas, { paired = [], onPick = () => {}, onHo
     stats,
     snapshot() { try { renderer.render(scene, camera); const c = document.createElement('canvas'); c.width = canvas.width; c.height = canvas.height; const x = c.getContext('2d'); x.fillStyle = '#0b1a30'; x.fillRect(0, 0, c.width, c.height); x.drawImage(canvas, 0, 0); return c.toDataURL('image/jpeg', .8); } catch (e) { return ''; } },
     pickAt: pick,
+    /** Screen position (px, canvas coordinates) of a group's centre; for paired groups the side nearer to the camera. */
+    anchor(group) {
+      let best = null;
+      const cand = Object.values(info).filter(i => i.group === group && i.pid < PART0);
+      for (const i of (cand.length ? cand : Object.values(info).filter(i => i.group === group))) {
+        const w = worldC(i), d = camera.position.distanceTo(w); if (!best || d < best.d) best = { w, d };
+      }
+      if (!best) return null;
+      const v = best.w.clone().project(camera);
+      return { x: (v.x * .5 + .5) * canvas.clientWidth, y: (-v.y * .5 + .5) * canvas.clientHeight, d: best.d, front: v.z < 1 };
+    },
     camera: cam
   };
 }

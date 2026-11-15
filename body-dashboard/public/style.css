@@ -456,3 +456,22 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--brand-teal);out
 .bodypop{width:250px}
 @media (prefers-reduced-motion:reduce){.actpill.live i{animation:none}}
 .tm.plainrow i{display:none}
+
+/* v3.9 — warning markers with lines */
+.callSvg{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:4;overflow:visible}
+.callBox{position:absolute;inset:0;pointer-events:none;z-index:5}
+.cl{fill:none;stroke-width:1.4;stroke-linejoin:round;stroke-linecap:round;opacity:.9}
+.cd{stroke:#0b1a30;stroke-width:1.5}
+.cl.watch{stroke:#f5c542}.cd.watch{fill:#f5c542}
+.cl.warn{stroke:#ff9f0a}.cd.warn{fill:#ff9f0a}
+.cl.alert{stroke:#ff453a}.cd.alert{fill:#ff453a}
+.call{position:absolute;left:0;top:0;pointer-events:auto;display:flex;align-items:center;gap:7px;height:30px;padding:0 12px 0 8px;border-radius:999px;border:1px solid rgba(255,255,255,.14);background:rgba(11,17,26,.78);-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);color:var(--ink,#eaf3f4);font-size:12.5px;font-weight:600;white-space:nowrap;cursor:pointer}
+.call:hover{border-color:rgba(255,255,255,.35)}
+.call svg{width:17px;height:17px;flex:none;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}
+.call svg path:first-child{stroke:none}
+.call svg path:last-child{stroke:#10161e;fill:none}
+.call.watch svg path:first-child{fill:#f5c542}
+.call.warn svg path:first-child{fill:#ff9f0a}
+.call.alert svg path:first-child{fill:#ff453a}
+.call.alert{border-color:rgba(255,69,58,.5)}
+#bWarn[aria-pressed="false"]{opacity:.45}

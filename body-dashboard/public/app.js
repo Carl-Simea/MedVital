@@ -7,7 +7,7 @@ import { SCENARIOS, SCENARIO_IDS, reportText } from './testdata.mjs';
 import { createLive, ACTIVITIES, ACTIVITY_IDS } from './live.mjs';
 const ALL_SRC = { ...SRC, ...SCORE_SRC };
 
-const BUILD = 'v3.8 · 14 Nov 2026';
+const BUILD = 'v3.9 · 15 Nov 2026';
 const errLog = [];
 const logErr = m => { errLog.push(new Date().toISOString().slice(11, 19) + ' ' + String(m).slice(0, 200)); if (errLog.length > 20) errLog.shift(); };
 addEventListener('error', e => logErr(e.message + ' @' + (e.filename || '').split('/').pop() + ':' + e.lineno));
@@ -55,7 +55,7 @@ function recompute(light) {
   }
   for (const g in manual) if (parts[g] && LEVEL[manual[g]] > parts[g].level) { parts[g].level = LEVEL[manual[g]]; parts[g].status = manual[g]; parts[g].statusLabel = LEVEL_LABEL[parts[g].level]; }
   if (lobby) lobby.setStatus(bodyColors(parts));
-  renderAttention(); renderTiles();
+  renderAttention(); renderTiles(); buildCallouts();
   if (!light) { renderScores(); if (state.sel) renderCard(); }
   else if (state.sel) {                                             // live tick: redraw the card only when its content changed, and keep its place
     const st = parts[state.sel.group], sig = JSON.stringify([st.level, st.warnings.map(w => w.text), st.notes.map(n => n.text), st.indicators.map(i => i.value)]), card = $('partCard');
@@ -69,6 +69,79 @@ const keyLevel = key => {
   return lv;
 };
 const levelToUi = lv => (lv < 0 ? null : LEVEL_NAME[lv]);
+
+
+/* ---------- Warning markers: lines from the affected body part to a short label ---------- */
+const CALL_NAME = {
+  'hr.rest': 'Resting pulse', 'bp.sys': 'Blood pressure', 'bp.dia': 'Blood pressure', 'spo2.pct': 'Blood oxygen', 'resp.rate': 'Breathing', 'temp.c': 'Temperature',
+  'orthostatic.presyncope': 'Dizzy on standing', 'jugular.flow': 'Jugular flow', 'bmd.hipPct': 'Hip bone loss', 'bmd.lumbarPct': 'Spine bone loss', 'bmd.wholeBodyPct': 'Bone loss',
+  'back.pain': 'Back pain', 'strength.changePct': 'Strength loss', 'aerobic.changePct': 'Fitness loss', 'sans.hyperopicShiftD': 'Vision shift', 'sans.discEdema': 'Optic disc swelling',
+  'sans.choroidalFolds': 'Choroidal folds', 'sans.trtChangeUm': 'Retina thicker', 'sleep.hours': 'Sleep', 'sleep.efficiencyPct': 'Sleep efficiency', 'pvt.lapses': 'Slow reactions',
+  'hemoglobin.gdl': 'Hemoglobin', 'hematocrit.pct': 'Hematocrit', 'urine.volumeL': 'Urine volume', 'urine.calciumMgDay': 'Urine calcium', 'urine.citrateMgDay': 'Urine citrate', 'urine.ph': 'Urine pH',
+  'kidney.stone': 'Kidney stone', 'radiation.careerMsv': 'Radiation dose', 'radiation.eventMsv': 'Radiation event', 'radiation.rateUsvH': 'Dose rate', 'virus.shedding': 'Virus shedding',
+  'zoster.symptoms': 'Shingles signs', 'glucose.mgdl': 'Blood glucose', 'mass.changePct': 'Weight change', 'vitd.ngml': 'Vitamin D', 'hrv.rmssdMs': 'HRV', 'skin.tempC': 'Skin temp',
+  'cognition.scorePct': 'Cognition', 'stress.score': 'Stress', 'mood.score': 'Mood', 'motion.sickness': 'Motion sickness', 'balance.changePct': 'Balance', 'wbc.k': 'White cells',
+  'platelets.k': 'Platelets', 'ferritin.ngml': 'Iron stores', 'sodium.mmol': 'Sodium', 'potassium.mmol': 'Potassium', 'creatinine.mgdl': 'Creatinine', 'calcium.mgdl': 'Calcium',
+  'crp.mgl': 'Inflammation', 'cortisol.ugdl': 'Cortisol', 'cimt.mm': 'Artery wall'
+};
+const CALL_ANCHOR = { body: 'ribs' };                      // whole-body findings point at the chest
+let callOn = true, callSig = '', callItems = [];
+function callTitle(w, In) {
+  const k = w.key, ind = k && INDICATORS[k];
+  if (!ind) return String(w.text || 'Check').split(/[.,;(]/)[0].slice(0, 26);
+  const name = CALL_NAME[k] || ind.label, v = In[k];
+  if (ind.type === 'bool' || ind.type === 'text' || !num(v)) return name;
+  if (k === 'bp.sys' && num(In['bp.dia'])) return `${name} ${v}/${In['bp.dia']}`;
+  return `${name} ${v > 0 && /Pct$|Um$/.test(k) ? '+' : ''}${Math.round(v * 10) / 10}${ind.unit && ind.unit.length <= 6 ? (ind.unit === '%' ? '' : ' ') + ind.unit : ''}`;
+}
+function buildCallouts() {
+  const In = currentInput(), items = [];
+  for (const g in parts) {
+    const st = parts[g]; if (!st || st.level < 1) continue;
+    const ws = st.warnings.filter(w => w.level >= 1).sort((a, b) => b.level - a.level); if (!ws.length) continue;
+    items.push({ group: g, anchorGroup: CALL_ANCHOR[g] || g, level: st.level, title: callTitle(ws[0], In), more: ws.length - 1 });
+  }
+  items.sort((a, b) => b.level - a.level);
+  const seen = new Set(); for (let i = 0; i < items.length; i++) { const t = items[i].title; if (seen.has(t)) items.splice(i--, 1); else seen.add(t); }   // one marker per finding (e.g. pelvis and femur share the hip finding)
+  const sig = JSON.stringify(items.map(i => [i.group, i.level, i.title, i.more]));
+  if (sig === callSig) return; callSig = sig; callItems = items;
+  const box = $('callBox'), svg = $('callSvg'); box.innerHTML = ''; svg.innerHTML = '';
+  for (const it of items) {
+    const b = document.createElement('button'); b.type = 'button'; b.className = 'call ' + LEVEL_NAME[it.level];
+    b.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 22 20.5H2z"/><path d="M12 9.5v5.2M12 17.4v.2"/></svg><span></span>';
+    b.lastChild.textContent = it.title + (it.more ? ` +${it.more}` : ''); b.title = `${PARTS[it.group].label}: ${LEVEL_LABEL[it.level]}`;
+    b.onclick = () => selectPart(it.group);
+    const ln = document.createElementNS('http://www.w3.org/2000/svg', 'polyline'); ln.setAttribute('class', 'cl ' + LEVEL_NAME[it.level]);
+    const dot = document.createElementNS('http://www.w3.org/2000/svg', 'circle'); dot.setAttribute('r', 4); dot.setAttribute('class', 'cd ' + LEVEL_NAME[it.level]);
+    svg.append(ln, dot); it.el = b; it.ln = ln; it.dot = dot; box.append(b);
+  }
+}
+function layoutCallouts() {
+  requestAnimationFrame(layoutCallouts);
+  const box = $('callBox'), svg = $('callSvg'); if (!lobby || !box) return;
+  const show = callOn && !state.sel && callItems.length > 0; box.style.display = svg.style.display = show ? '' : 'none';
+  if (!show) return;
+  const W = box.clientWidth, H = box.clientHeight; if (!W) return;
+  const L = [], R = [], mid = lobby.anchor('ribs'), cx = mid ? mid.x : W / 2;
+  for (const it of callItems) {
+    const p = lobby.anchor(it.anchorGroup); it.p = p; it.vis = !!(p && p.front);
+    it.el.style.display = it.vis ? '' : 'none'; it.ln.style.display = it.dot.style.display = it.vis ? '' : 'none';
+    if (it.vis) { const dx = p.x - cx; (Math.abs(dx) < 14 ? (L.length <= R.length ? L : R) : dx < 0 ? L : R).push(it); }
+  }
+  for (const [side, arr] of [['L', L], ['R', R]]) {
+    arr.sort((a, b) => a.p.y - b.p.y); let prev = 52;
+    for (const it of arr) {
+      const w = it.el.offsetWidth, h = it.el.offsetHeight;
+      const y = Math.min(H - 20 - h / 2, Math.max(prev + h / 2 + 6, it.p.y)); prev = y + h / 2;
+      const x = side === 'L' ? 10 : W - 10 - w;
+      it.el.style.transform = `translate(${x}px,${y - h / 2}px)`;
+      const ex = side === 'L' ? x + w : x, kx = ex + (side === 'L' ? 16 : -16);
+      it.ln.setAttribute('points', `${it.p.x},${it.p.y} ${kx},${y} ${ex},${y}`);
+      it.dot.setAttribute('cx', it.p.x); it.dot.setAttribute('cy', it.p.y);
+    }
+  }
+}
+$('bWarn').onclick = () => { callOn = !callOn; $('bWarn').setAttribute('aria-pressed', String(callOn)); };
 
 /* ---------- Tiles (left, no part selected) ---------- */
 const num = v => typeof v === 'number' && Number.isFinite(v);
@@ -639,7 +712,7 @@ try {
   lobby = await createLobby($('gl'), { paired: PAIRED, onPick, onHover });
   lobby.setLook(state.look); lobby.setLayer(state.layer); lobby.setOpacity(+$('rOp').value / 100); setBody(storedBody() || {}, false, true); renderActivity();
   $('camMsg').classList.add('hide'); setSub(BUILD); setDot('ok');
-  recompute();
+  recompute(); layoutCallouts();
   setTimeout(() => $('hint').classList.add('gone'), 9000);
   { const m = /^#sample(?:=(\w+))?$/.exec(location.hash); if (m) loadSample(m[1] || 'mixed'); }
 } catch (e) {

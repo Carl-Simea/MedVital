@@ -44,6 +44,8 @@
       <div class="cam" id="cam">
         <canvas id="gl" aria-label="3D body. Drag to rotate, scroll to zoom, click a part to select it."></canvas>
         <div class="tip glass" id="tip" hidden></div>
+        <svg class="callSvg" id="callSvg" aria-hidden="true"></svg>
+        <div class="callBox" id="callBox"></div>
         <div class="bodypop glass" id="bodyPop" hidden>
           <div class="bprow"><label>Biological sex</label></div>
           <div class="seg small" id="segSex"><button type="button" data-sex="f">Female</button><button type="button" data-sex="m">Male</button></div>
@@ -59,6 +61,7 @@
           <button class="tool glass" id="bBody" aria-label="Whole body" title="Whole body"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="5" r="2.4"/><path d="M12 8v7M7 10.5h10M12 15l-3 6M12 15l3 6"/></svg></button>
           <button class="tool glass" id="bRotL" aria-label="Rotate left" title="Rotate left">‹</button>
           <button class="tool glass" id="bRotR" aria-label="Rotate right" title="Rotate right">›</button>
+          <button class="tool glass" id="bWarn" aria-label="Warning markers" aria-pressed="true" title="Warning markers on/off"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3.5 21.5 20h-19z"/><path d="M12 10v4.5M12 17.4v.1"/></svg></button>
           <button class="tool glass" id="bReset" aria-label="Reset view" title="Reset view"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M20 11a8 8 0 0 0-14.3-4.9L4 8"/><path d="M4 4v4h4"/></svg></button>
         </div>
         <div class="hint glass" id="hint">Drag to rotate · click a bone or muscle</div>

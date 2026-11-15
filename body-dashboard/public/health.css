@@ -3,7 +3,9 @@
 .pvt{position:fixed;inset:0;z-index:30;background:#000;color:#fff;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;padding:24px;text-align:center;touch-action:manipulation;user-select:none;-webkit-user-select:none}
 .pvtX{position:absolute;top:calc(14px + env(safe-area-inset-top));right:16px;width:40px;height:40px;border-radius:50%;background:rgba(255,255,255,.14);color:#fff;font-size:18px}
 .pvtMsg{color:#b9b9c0;font-size:16px;max-width:420px;min-height:44px}
-.pvtNum{font-size:min(26vw,160px);font-weight:700;font-variant-numeric:tabular-nums;color:#ff4d5e;min-height:1.1em;letter-spacing:-.02em}
+.pvtNum{font-size:min(9vw,44px);font-weight:700;font-variant-numeric:tabular-nums;color:#ff4d5e;min-height:1.1em;letter-spacing:-.02em}
+.pvtBall{width:min(38vw,170px);aspect-ratio:1;border-radius:50%;background:radial-gradient(circle at 35% 30%,#ff8a95,#ff3b4d 60%,#b3162a);box-shadow:0 0 60px rgba(255,59,77,.45)}
+.pvtBall[hidden]{display:none}
 .pvtBar{width:min(70vw,360px);height:4px;border-radius:2px;background:rgba(255,255,255,.18);overflow:hidden}
 .pvtBar i{display:block;height:100%;width:0;background:#fff}
 .pvtClose{flex:none;width:min(70vw,260px)}
