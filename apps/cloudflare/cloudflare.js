@@ -178,7 +178,8 @@ async function pollStatus() {
 function drawLink(link, s) {
   const st = $("linkState"), btn = $("linkBtn");
   if (!link.reachable) {
-    linkUp = null; st.textContent = link.nasaUrl ? "NASA receiver unreachable" : "No NASA receiver configured";
+    linkUp = null;
+    st.textContent = link.via === "cloudflare" ? "Cloudflare Worker unreachable" : link.nasaUrl ? "NASA receiver unreachable" : "No NASA receiver configured";
     st.className = "link-state down"; btn.disabled = true; btn.textContent = "…";
     setNode("link", { sub: "no answer", cls: "bad" }); setNode("nasa", { cls: "bad" }); edgeEls["link>nasa"].classList.add("down");
     return;
@@ -188,7 +189,8 @@ function drawLink(link, s) {
   st.textContent = link.blackout ? "Link to Earth: blackout" : `Link to Earth: ${link.up ? "UP" : "DOWN"}`;
   st.className = "link-state " + (down ? "down" : "up");
   btn.disabled = false; btn.textContent = link.up ? "Cut the link" : "Restore the link"; btn.className = "link-btn " + (link.up ? "cut" : "restore");
-  setNode("link", { sub: down ? (link.blackout ? "blackout" : "DOWN") : "up", cls: down ? "bad" : "" });
+  const via = link.via === "cloudflare" ? "Cloudflare · " : "";
+  setNode("link", { sub: via + (down ? (link.blackout ? "blackout" : "DOWN") : "up"), cls: down ? "bad" : "" });
   setNode("nasa", { cls: "", count: `${s.tables.synced} confirmed` });
   edgeEls["link>nasa"].classList.toggle("down", down);
 }
@@ -258,7 +260,7 @@ async function renderPanel() {
     if (id === "link" || id === "nasa") {
       const v = await api("/hub/verify");
       p.replaceChildren(...head, el("p", "sub", "The link to Earth. During a blackout or while the link is cut, nothing is lost: records wait in the outbox and go out when the link is back."),
-        kv([["NASA receiver", status.nasaUrl || "not set"], ["Link", linkUp === null ? "unreachable" : linkUp ? "up" : "down"], ["Blackout now", status.clock.blackout || "no"], ["NASA has", v.nasaTotal ?? "–"]]),
+        kv([["Link runs on", status.via === "cloudflare" ? `Cloudflare Worker + D1 (${status.cloudflareUrl})` : "direct to the NASA receiver"], ["NASA receiver", status.via === "cloudflare" ? "pulls from the Worker" : status.nasaUrl || "not set"], ["Link", linkUp === null ? "unreachable" : linkUp ? "up" : "down"], ["Blackout now", status.clock.blackout || "no"], ["NASA has", v.nasaTotal ?? "–"]]),
         el("h3", "", "Nothing lost? (per astronaut)"),
         table(v.rows.map((r) => ({ Astronaut: r.name, Sent: r.wearableSent, Stored: r.hubBursts, "For Earth": r.recordsCreated, Waiting: r.outboxPending, "NASA has": r.atNasa ?? "–", Check: r.ok ? "Nothing lost" : r.atNasa === null || r.atNasa === undefined ? "NASA unreachable" : "Waiting" })),
           ["Astronaut", "Sent", "Stored", "For Earth", "Waiting", "NASA has", "Check"]),

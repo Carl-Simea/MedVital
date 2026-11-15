@@ -1,7 +1,9 @@
 """The two AIs from the team plan, with safe fallbacks so the demo never depends on them.
 
-* Workers AI (Cloudflare): words alerts and daily summaries in plain language. Used when
-  ``CLOUDFLARE_ACCOUNT_ID`` and ``CLOUDFLARE_API_TOKEN`` are set; otherwise the template text stays.
+* Workers AI (Cloudflare): words alerts and daily summaries in plain language. Used through the
+  MedVital Worker when ``MEDVITAL_CLOUDFLARE_URL`` and ``MEDVITAL_CLOUDFLARE_KEY`` are set (preferred:
+  no API token on the laptop), or the REST API with ``CLOUDFLARE_ACCOUNT_ID`` and
+  ``CLOUDFLARE_API_TOKEN``; otherwise the template text stays.
 * Onboard agent (local, second AI): answers the astronaut's questions, double-checks the daily
   summaries. Uses a local Ollama model when ``MEDVITAL_OLLAMA_MODEL`` is set (e.g. ``gemma3``);
   otherwise it answers with rules from the astronaut's own data.
@@ -35,13 +37,30 @@ def _post(url: str, body: dict[str, Any], headers: dict[str, str], timeout: floa
         return json.loads(resp.read().decode())
 
 
+def _worker() -> tuple[str, str] | None:
+    """The MedVital Worker (cloudflare/) runs Workers AI through its AI binding: no API token needed here."""
+    url = os.environ.get("MEDVITAL_CLOUDFLARE_URL", "").rstrip("/")
+    key = os.environ.get("MEDVITAL_CLOUDFLARE_KEY", "")
+    return (url, key) if url and key else None
+
+
 def workers_ai_enabled() -> bool:
-    return bool(os.environ.get("CLOUDFLARE_ACCOUNT_ID") and os.environ.get("CLOUDFLARE_API_TOKEN"))
+    return bool(
+        _worker() or (os.environ.get("CLOUDFLARE_ACCOUNT_ID") and os.environ.get("CLOUDFLARE_API_TOKEN"))
+    )
 
 
 def workers_ai(prompt: str, timeout: float = 8.0) -> str | None:
     if not workers_ai_enabled():
         return None
+    worker = _worker()
+    if worker:
+        try:
+            out = _post(worker[0] + "/ai", {"prompt": prompt}, {"x-medvital-key": worker[1]}, timeout)
+            text = out.get("text")
+            return text.strip() if isinstance(text, str) and text.strip() else None
+        except Exception:  # noqa: BLE001 - e.g. no Workers AI in `wrangler dev --local`: keep the template
+            return None
     url = (
         f"https://api.cloudflare.com/client/v4/accounts/{os.environ['CLOUDFLARE_ACCOUNT_ID']}"
         f"/ai/run/{WORKERS_AI_MODEL}"

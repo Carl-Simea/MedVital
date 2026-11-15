@@ -114,3 +114,35 @@ def test_osdr_studies_behind_each_risk(nasa):
     if d["topics"]:  # data/nasa/osdr_studies.json present
         heart = next(t for t in d["topics"] if t["key"] == "heart")
         assert heart["studies"] and heart["studies"][0]["accession"].startswith("OSD-")
+
+
+def test_pulls_from_the_cloudflare_worker_with_a_cursor(nasa, monkeypatch):
+    """Cloudflare mode: records come from the Worker's D1; the cursor moves only after they are saved."""
+    _, app_module = nasa
+    d1 = [reading(f"cf{i}", "astro-2" if i % 2 else "astro-1") for i in range(1, 8)]
+    asked = []
+
+    def fake_worker(method, path, body=None, timeout=10):
+        after = int(path.split("after=")[1].split("&")[0])
+        asked.append(after)
+        page = [{"seq": i + 1, "record": r} for i, r in enumerate(d1) if i + 1 > after][:5]
+        return 200, {"records": page, "next": page[-1]["seq"] if page else after, "more": len(page) == 5}
+
+    monkeypatch.setattr(app_module, "worker", fake_worker)
+    assert app_module.pull_once() == 7
+    assert asked == [0, 5]
+    assert app_module.meta("cloudflare_cursor") == "7"
+    assert app_module.pull_once() == 0 and asked[-1] == 7  # nothing new, nothing pulled twice
+
+    d1.append(reading("cf1"))  # a retry stored in D1 again: NASA still has it once
+    assert app_module.pull_once() == 1
+    client, _ = nasa
+    assert client.get("/stats").get_json()["total"] == 7
+
+
+def test_unreachable_worker_does_not_move_the_cursor(nasa, monkeypatch):
+    _, app_module = nasa
+    monkeypatch.setattr(app_module, "worker", lambda *a, **k: (401, {"error": "wrong key"}))
+    assert app_module.pull_once() == 0
+    assert app_module.meta("cloudflare_cursor") is None
+    assert app_module.pull_state["lastError"] == "Worker refused the key (401)"

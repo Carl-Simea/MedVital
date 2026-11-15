@@ -78,6 +78,8 @@ def status(request: Request) -> dict[str, Any]:
         "tables": hub.store.counts(),
         "donki": hub.donki_state,
         "nasaUrl": hub.nasa_url,
+        "via": hub.via,
+        "cloudflareUrl": hub.cf_url,
         "solarEvent": hub.solar_active(),
         "clock": hub.clock_view(),
         "rad": M.rad_summary(),

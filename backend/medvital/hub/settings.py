@@ -23,6 +23,11 @@ REPORTS = REPO / "reports"
 # One real minute is one mission day (demo setting). Every wearable sends one burst per real second,
 # so one burst covers 24 mission minutes and a mission day has 60 bursts.
 DAY_SECONDS = float(os.environ.get("MEDVITAL_DAY_SECONDS", "60"))
+
+# ---- Cloudflare link to Earth (cloudflare/ Worker + D1 + Workers AI). Both unset = local mode.
+# The key is a secret: environment / Codespaces secret / gitignored .env only, never in the repo.
+CLOUDFLARE_URL = os.environ.get("MEDVITAL_CLOUDFLARE_URL", "")
+CLOUDFLARE_KEY = os.environ.get("MEDVITAL_CLOUDFLARE_KEY", "")
 BURST_SECONDS = 1.0
 MISSION_MINUTES_PER_BURST = 24 * 60 * BURST_SECONDS / DAY_SECONDS
 BURSTS_PER_MISSION_DAY = round(DAY_SECONDS / BURST_SECONDS)

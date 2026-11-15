@@ -76,15 +76,36 @@ The four astronauts and their reports (`reports/`) are fictional. MedVital is no
 diagnosis. Re-download the NASA data with `python tools/fetch_nasa_data.py`; rebuild the sample reports with
 `python tools/make_reports.py`.
 
-### Cloudflare and AI
+### Cloudflare: the link to Earth
 
-Nothing in this repository holds a Cloudflare account, token or key: the Cloudflare side is simulated locally, so a
-public repo exposes nothing. Optional, on your own machine only:
+`cloudflare/` is a Worker with a D1 database and Workers AI. The spacecraft sends its day-end batch and urgent
+alerts to it, D1 keeps every record, and the NASA receiver pulls them down. The link switch lives in the Worker,
+and Workers AI words alerts and summaries through the Worker, so no API token sits on any laptop. Every request
+needs the header `x-medvital-key`, checked against the Worker secret `MEDVITAL_KEY`. Nothing in this repository
+holds a Cloudflare account id, token or key, so the public repo exposes nothing.
+
+Try it on one laptop (needs Node.js; the D1 is local and Workers AI is off):
 
 ```sh
-export CLOUDFLARE_ACCOUNT_ID=...  CLOUDFLARE_API_TOKEN=...   # Workers AI words alerts and summaries
-export MEDVITAL_OLLAMA_MODEL=gemma3                          # a local model answers the astronauts' questions
+python start.py --fresh --worker-local
 ```
+
+Deploy it to your account once:
+
+1. Cloudflare dashboard, Workers & Pages, Create, Import a repository: pick this repo, set the root directory to
+   `cloudflare`, deploy. Wrangler creates the `medvital` D1 database itself (or run `npx wrangler deploy` in
+   `cloudflare/`).
+2. Worker, Settings, Variables and Secrets: add the secret `MEDVITAL_KEY` (a long random string).
+3. On the laptops, put the Worker's URL and the key in `.env` at the repo root (gitignored) or in Codespaces
+   secrets, then run `python start.py --fresh`:
+
+```sh
+MEDVITAL_CLOUDFLARE_URL=https://medvital-link.<your-subdomain>.workers.dev
+MEDVITAL_CLOUDFLARE_KEY=<the same key>
+```
+
+Without these two variables the hub sends straight to the NASA receiver, as before. A local model can also
+answer the astronauts' questions: `MEDVITAL_OLLAMA_MODEL=gemma3`.
 
 Rules always fire first; AI only explains, and the onboard agent rejects any AI wording that changes a number.
 
@@ -107,7 +128,7 @@ nasa/                 NASA receiver (Flask + SQLite) and the flight surgeon's sc
 data/nasa/            downloaded RAD, DONKI and OSDR data
 reports/              four sample pre-flight reports (.txt + .pdf)
 tools/                fetch_nasa_data.py, make_reports.py
-spacecraft-sync/      the outbox sync written for a real Cloudflare Worker (same logic as the hub's Python port)
+cloudflare/           the link to Earth: Worker + D1 + Workers AI, locked with a secret key
 frontend/             earlier React live view (optional, not started)
 docs/                 decisions (D-033, D-034), data dictionary, NASA sources, architecture
 ```

@@ -1,0 +1,17 @@
+// MedVital link to Earth: Worker + D1 + Workers AI.
+// Deploy: connect this GitHub repo in the Cloudflare dashboard (root directory: cloudflare), or run
+// `npx wrangler deploy` here. No database id is needed: wrangler creates the "medvital" D1 database on the
+// first deploy, and the Worker creates its tables on first use.
+// The secret key is NOT here: add MEDVITAL_KEY as a secret (dashboard: Settings > Variables and Secrets,
+// or `npx wrangler secret put MEDVITAL_KEY`).
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "medvital-link",
+  "main": "src/index.js",
+  "compatibility_date": "2026-11-01",
+  "observability": { "enabled": true },
+  "d1_databases": [
+    { "binding": "DB", "database_name": "medvital", "migrations_dir": "migrations" }
+  ],
+  "ai": { "binding": "AI" }
+}

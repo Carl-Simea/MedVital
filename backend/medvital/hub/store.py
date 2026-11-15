@@ -4,8 +4,8 @@ Tables: astronauts (+ pre-flight baseline and report), bursts, tests (onboard me
 lab results), alerts, summaries, events (mission schedule and real space weather), space_weather
 (demo replays), rejected, outbox (+ urgent flag), records, synced, agent_log, meta.
 
-The outbox keeps the schema ``spacecraft-sync/sync.js`` reads on a real Cloudflare Worker
-(``id, body, created_at``); ``urgent`` is an extra column that sync.js ignores.
+The outbox (``id, body, created_at, urgent``) is drained to Earth: the Cloudflare Worker (``cloudflare/``) or
+the NASA receiver directly.
 """
 
 from __future__ import annotations

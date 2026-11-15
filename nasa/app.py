@@ -13,12 +13,21 @@ Endpoints
   GET  /api/mission          crew overview, mission clock, upcoming events, recent alerts and batches
   GET  /api/astronaut/<id>   one astronaut: pre-flight report, pre-flight vs. now, charts, alerts, summaries
   GET  /reports/<file>       the pre-flight reports NASA keeps on Earth (repo folder reports/)
+
+Cloudflare mode (MEDVITAL_CLOUDFLARE_URL and MEDVITAL_CLOUDFLARE_KEY set): the spacecraft sends to the
+MedVital Worker (cloudflare/), which keeps every record in D1. This receiver pulls new records from the
+Worker every second (GET /pull with a saved cursor) into the same mission.db, and /link switches the
+Worker's link. /batch still works, so a spacecraft without Cloudflare can always send here directly.
 """
 
 import json
 import logging
 import os
 import sqlite3
+import threading
+import time
+import urllib.error
+import urllib.request
 from datetime import datetime, timezone
 
 from flask import Flask, jsonify, request, send_from_directory
@@ -34,6 +43,11 @@ PORT = int(os.environ.get("MEDVITAL_NASA_PORT", "5000"))
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 # delete this file (or run start.py --fresh) to start a clean mission
 DB_PATH = os.environ.get("MEDVITAL_NASA_DB", os.path.join(BASE_DIR, "mission.db"))
+
+# The Cloudflare link (optional). The key comes from the environment only, never from the repo.
+CLOUDFLARE_URL = os.environ.get("MEDVITAL_CLOUDFLARE_URL", "").rstrip("/")
+CLOUDFLARE_KEY = os.environ.get("MEDVITAL_CLOUDFLARE_KEY", "")
+VIA_CLOUDFLARE = bool(CLOUDFLARE_URL and CLOUDFLARE_KEY)
 
 app = Flask(__name__)
 
@@ -79,6 +93,7 @@ def init_db():
             )
             db.execute("CREATE INDEX IF NOT EXISTS records_by_astronaut ON records (astronaut_id, type)")
             db.execute("CREATE INDEX IF NOT EXISTS records_by_type ON records (type)")
+            db.execute("CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT NOT NULL)")
     finally:
         db.close()
 
@@ -99,6 +114,13 @@ def receive_batch():
         log('batch refused: the body was not {"records": [...]} (400)')
         return jsonify({"error": 'expected JSON like {"records": [...]}'}), 400
 
+    saved, new_count = save_records(payload["records"])
+    log(f"batch: {len(payload['records'])} received, {len(saved)} confirmed, {new_count} new")
+    return jsonify({"saved": saved})
+
+
+def save_records(raws):
+    """Save records (from /batch or pulled from the Worker). Returns (ids NASA now has, how many were new)."""
     saved = []     # ids NASA has after this request (new ones AND ones it already had)
     new_count = 0  # how many of them were new
     received_at = datetime.now(timezone.utc).isoformat(timespec="milliseconds")
@@ -106,7 +128,7 @@ def receive_batch():
     db = open_db()
     try:
         with db:  # one transaction: everything is committed together, or nothing is
-            for raw in payload["records"]:
+            for raw in raws:
                 record = fmt.parse_record(raw)
                 if record is None:
                     continue  # no usable id: we cannot save it, so we do not confirm it
@@ -132,10 +154,78 @@ def receive_batch():
                     saved.append(record["id"])
     finally:
         db.close()
-
     # We only get here after the commit, so every id in "saved" really is on disk.
-    log(f"batch: {len(payload['records'])} received, {len(saved)} confirmed, {new_count} new")
-    return jsonify({"saved": saved})
+    return saved, new_count
+
+
+# ---------------------------------------------------------------------------
+# Cloudflare mode: pull what the spacecraft sent to the Worker
+# ---------------------------------------------------------------------------
+def worker(method, path, body=None, timeout=10):
+    """Call the MedVital Worker with the secret key. Returns (status, json) or (None, None)."""
+    data = json.dumps(body).encode() if body is not None else None
+    req = urllib.request.Request(CLOUDFLARE_URL + path, data=data, method=method,
+                                 headers={"Content-Type": "application/json", "x-medvital-key": CLOUDFLARE_KEY})
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as r:
+            return r.status, json.loads(r.read().decode() or "null")
+    except urllib.error.HTTPError as e:
+        try:
+            return e.code, json.loads(e.read().decode() or "null")
+        except ValueError:
+            return e.code, None
+    except (urllib.error.URLError, OSError, ValueError):
+        return None, None
+
+
+def meta(key, value=None):
+    db = open_db()
+    try:
+        if value is None:
+            row = db.execute("SELECT value FROM meta WHERE key = ?", (key,)).fetchone()
+            return row["value"] if row else None
+        with db:
+            db.execute("INSERT INTO meta (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+                       (key, str(value)))
+        return value
+    finally:
+        db.close()
+
+
+pull_state = {"lastPull": None, "lastError": None, "pulled": 0}
+
+
+def pull_once():
+    """Pull every record after our cursor. The cursor moves only after the records are saved here."""
+    total = 0
+    for _ in range(100):
+        after = int(meta("cloudflare_cursor") or 0)
+        status, ans = worker("GET", f"/pull?after={after}&limit=500")
+        if status != 200 or not isinstance(ans, dict):
+            pull_state["lastError"] = ("Worker refused the key (401)" if status == 401
+                                       else "Worker unreachable" if status is None else f"Worker answered HTTP {status}")
+            return total
+        records = ans.get("records") or []
+        if records:
+            _, new = save_records([r["record"] for r in records])
+            meta("cloudflare_cursor", ans["next"])
+            total += len(records)
+            if new:
+                log(f"pulled from Cloudflare: {len(records)} records, {new} new")
+        pull_state.update(lastPull=datetime.now(timezone.utc).isoformat(timespec="seconds"), lastError=None)
+        if not ans.get("more"):
+            break
+    pull_state["pulled"] += total
+    return total
+
+
+def pull_forever():
+    while True:
+        try:
+            pull_once()
+        except Exception as e:  # noqa: BLE001 - keep pulling; the cursor guarantees nothing is skipped
+            pull_state["lastError"] = str(e)
+        time.sleep(1)
 
 
 @app.get("/stats")
@@ -176,7 +266,13 @@ def stats():
 # ---------------------------------------------------------------------------
 @app.route("/link", methods=["GET", "POST"])
 def link_switch():
-    """POST {"up": true|false} sets the link. GET just reads it."""
+    """POST {"up": true|false} sets the link. GET just reads it. In Cloudflare mode the switch is the Worker's."""
+    if VIA_CLOUDFLARE:
+        body = request.get_json(force=True, silent=True) if request.method == "POST" else None
+        status, ans = worker(request.method, "/link", body)
+        if status is None:
+            return jsonify({"error": "Cloudflare Worker unreachable"}), 502
+        return jsonify(ans), status
     if request.method == "POST":
         payload = request.get_json(force=True, silent=True)
         if not isinstance(payload, dict) or not isinstance(payload.get("up"), bool):
@@ -418,9 +514,19 @@ def reports(name):
 # ---------------------------------------------------------------------------
 # Start
 # ---------------------------------------------------------------------------
+@app.get("/cloudflare")
+def cloudflare_status():
+    """Is this receiver pulling from the Cloudflare Worker, and how is that going?"""
+    return jsonify({"enabled": VIA_CLOUDFLARE, "url": CLOUDFLARE_URL or None,
+                    "cursor": int(meta("cloudflare_cursor") or 0), **pull_state})
+
+
 init_db()
 
 if __name__ == "__main__":
     log(f"NASA receiver running. Mission record screen: http://localhost:{PORT}   (Ctrl+C to stop)")
+    if VIA_CLOUDFLARE:
+        log(f"Cloudflare mode: pulling the spacecraft's records from {CLOUDFLARE_URL}")
+        threading.Thread(target=pull_forever, daemon=True, name="cloudflare-pull").start()
     log(f"Mission record database: {DB_PATH}")
     app.run(host=HOST, port=PORT)

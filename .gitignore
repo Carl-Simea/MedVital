@@ -41,3 +41,8 @@ data/raw/
 runtime/
 nasa/mission.db
 body-dashboard/feedback/
+
+# Cloudflare Worker (cloudflare/): local secrets and wrangler state
+.dev.vars
+.dev.vars.*
+.wrangler/

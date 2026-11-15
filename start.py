@@ -11,6 +11,11 @@ Three-laptop demo (same Wi-Fi):
 
 Add --tunnel to also publish the hub through a Cloudflare quick tunnel (needs `cloudflared` installed).
 
+Link to Earth on Cloudflare (cloudflare/ Worker + D1 + Workers AI):
+    python start.py --worker-local  run the Worker on this laptop with wrangler (needs Node.js), local D1
+    deployed Worker:                put MEDVITAL_CLOUDFLARE_URL and MEDVITAL_CLOUDFLARE_KEY in .env
+                                    (gitignored) or in Codespaces secrets, then python start.py
+
 The first run creates .venv/ here and installs what the backend needs (a few minutes, once).
 """
 
@@ -26,6 +31,7 @@ import subprocess
 import sys
 import threading
 import time
+import urllib.error
 import urllib.request
 import webbrowser
 from pathlib import Path
@@ -34,6 +40,7 @@ ROOT = Path(__file__).resolve().parent
 VENV = ROOT / ".venv"
 VENV_PY = VENV / ("Scripts/python.exe" if os.name == "nt" else "bin/python")
 RUNTIME = ROOT / "runtime"
+WORKER_DIR = ROOT / "cloudflare"
 
 
 def say(msg: str) -> None:
@@ -41,6 +48,56 @@ def say(msg: str) -> None:
 
 
 # ---------------------------------------------------------------------------- environment
+def load_dotenv(path: Path) -> None:
+    """KEY=value lines from the gitignored .env; real environment variables always win."""
+    if not path.exists():
+        return
+    for line in path.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, value = line.split("=", 1)
+        os.environ.setdefault(key.strip(), value.strip().strip('"').strip("'"))
+
+
+def worker_call(url: str, key: str, method: str, path: str, body: dict | None = None) -> int | None:
+    import json as _json
+    req = urllib.request.Request(url.rstrip("/") + path, method=method,
+                                 data=_json.dumps(body).encode() if body is not None else None,
+                                 headers={"Content-Type": "application/json", "x-medvital-key": key})
+    try:
+        with urllib.request.urlopen(req, timeout=10) as r:
+            return r.status
+    except urllib.error.HTTPError as e:
+        return e.code
+    except OSError:
+        return None
+
+
+def start_local_worker(procs: list, port: int) -> tuple[str, str] | None:
+    """`wrangler dev --local`: the Worker and a local D1 on this laptop. Workers AI needs the real account."""
+    npx = shutil.which("npx")
+    if not npx:
+        say("--worker-local needs Node.js (npx). Install it from https://nodejs.org or drop --worker-local.")
+        return None
+    dev_vars = WORKER_DIR / ".dev.vars"  # gitignored; a fresh random key the first time
+    if not dev_vars.exists():
+        import secrets
+        dev_vars.write_text(f"MEDVITAL_KEY={secrets.token_urlsafe(24)}\n", encoding="utf-8")
+    key = next(line.split("=", 1)[1].strip() for line in dev_vars.read_text().splitlines()
+               if line.startswith("MEDVITAL_KEY="))
+    wrangler = [npx, "--yes", "wrangler@4"]  # the Worker creates its D1 tables itself on first use
+    say("Cloudflare Worker (local): starting wrangler dev (the first run downloads wrangler)...")
+    procs.append(subprocess.Popen([*wrangler, "dev", "--local", "--port", str(port)], cwd=WORKER_DIR,
+                                  stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True))
+    pipe(procs[-1], "worker", lambda line: None)
+    url = f"http://localhost:{port}"
+    if not wait_http(url + "/health", 90):
+        say("the local Cloudflare Worker did not start; see the lines above")
+        return None
+    return url, key
+
+
 def deps_ok() -> bool:
     try:
         import fastapi  # noqa: F401
@@ -108,7 +165,8 @@ def pipe(proc: subprocess.Popen, name: str, on_line=None) -> None:
         for line in iter(proc.stdout.readline, ""):
             if on_line:
                 on_line(line)
-            if line.strip() and "GET /hub/" not in line and "POST /hub/burst" not in line:
+            quiet = ("GET /hub/", "POST /hub/burst", "[wrangler:info] GET", "[wrangler:info] POST")
+            if line.strip() and not any(q in line for q in quiet):
                 print(f"  {name} | {line.rstrip()}", flush=True)
     threading.Thread(target=run, daemon=True).start()
 
@@ -123,9 +181,13 @@ def main() -> None:
     p.add_argument("--lan", action="store_true", help="let the other laptops on this network connect")
     p.add_argument("--fresh", action="store_true", help="start a clean mission (deletes runtime/)")
     p.add_argument("--tunnel", action="store_true", help="also publish the hub with a Cloudflare quick tunnel")
+    p.add_argument("--worker-local", action="store_true",
+                   help="run the Cloudflare Worker + D1 link to Earth on this laptop (wrangler, needs Node.js)")
+    p.add_argument("--worker-port", type=int, default=8787)
     p.add_argument("--no-browser", action="store_true")
     args = p.parse_args()
 
+    load_dotenv(ROOT / ".env")
     ensure_env()
     host = "0.0.0.0" if args.lan else "127.0.0.1"
     if args.fresh and RUNTIME.exists():
@@ -137,6 +199,28 @@ def main() -> None:
     env = {**os.environ, "PYTHONUNBUFFERED": "1"}
     urls: dict[str, str] = {}
     ip = lan_ip() if args.lan else "localhost"
+
+    if args.worker_local:
+        local = start_local_worker(procs, args.worker_port)
+        if local:
+            env["MEDVITAL_CLOUDFLARE_URL"], env["MEDVITAL_CLOUDFLARE_KEY"] = local
+    cf_url, cf_key = env.get("MEDVITAL_CLOUDFLARE_URL", ""), env.get("MEDVITAL_CLOUDFLARE_KEY", "")
+    if cf_url and not cf_key:
+        say("MEDVITAL_CLOUDFLARE_URL is set but MEDVITAL_CLOUDFLARE_KEY is not: using the direct link instead")
+        env.pop("MEDVITAL_CLOUDFLARE_URL")
+        cf_url = ""
+    if cf_url:
+        status = worker_call(cf_url, cf_key, "GET", "/link")
+        if status == 200:
+            say(f"link to Earth: Cloudflare Worker {cf_url}")
+            if args.fresh and args.role in ("all", "spacecraft"):
+                # a clean mission on Earth too, or NASA would pull the last mission's records
+                worker_call(cf_url, cf_key, "POST", "/reset", {"confirm": "new mission"})
+                worker_call(cf_url, cf_key, "POST", "/link", {"up": True})
+                say("fresh mission: the Cloudflare D1 record was cleared")
+        else:
+            say(f"Cloudflare Worker {cf_url} answered {status or 'nothing'}"
+                f"{' (wrong key)' if status == 401 else ''}: the hub keeps everything in its outbox until it answers")
 
     if args.role in ("all", "nasa"):
         port = free_port(args.nasa_port, host)
@@ -191,6 +275,8 @@ def main() -> None:
         say(f"  API docs         {h}/docs")
         say("  Demo clock: 1 real minute = 1 mission day. Data goes to NASA at the end of each day.")
         pages += [f"{urls['hub']}/", f"{urls['hub']}/cloudflare/", f"{urls['hub']}/body/?astronaut=astro-1"]
+    if cf_url:
+        say(f"  Link to Earth    Cloudflare Worker + D1  {cf_url}")
     if "nasa" in urls:
         say(f"  NASA             {urls['nasa'].replace('localhost', ip)}/")
         pages.append(urls["nasa"] + "/")
@@ -217,7 +303,7 @@ def main() -> None:
         signal.signal(signal.SIGTERM, stop)
     while True:
         for proc in procs:
-            if proc.poll() is not None and proc.args[0] != shutil.which("cloudflared"):
+            if proc.poll() is not None and proc.args[0] not in (shutil.which("cloudflared"), shutil.which("npx")):
                 say(f"a process stopped (exit {proc.returncode}); shutting down")
                 stop()
         time.sleep(1)

@@ -77,12 +77,18 @@ class Hub:
         registry: ModuleRegistry,
         nasa_url: str | None = None,
         observations_path: str | Path | None = None,
+        cloudflare_url: str | None = None,
+        cloudflare_key: str | None = None,
     ) -> None:
         self.store = store
         self.obs = observations
         self.obs_path = str(observations_path) if observations_path else None
         self.registry = registry
         self.nasa_url = (nasa_url or "").rstrip("/") or None
+        # Cloudflare link to Earth (cloudflare/ Worker + D1). When set, the outbox goes to the Worker and
+        # NASA pulls from it; the key is read from the environment only, never from a file in the repo.
+        self.cf_url = (cloudflare_url if cloudflare_url is not None else S.CLOUDFLARE_URL).rstrip("/") or None
+        self.cf_key = cloudflare_key if cloudflare_key is not None else S.CLOUDFLARE_KEY
         self.net = NetworkLog()
         self._lock = threading.RLock()
         self._pending: dict[str, list[dict[str, Any]]] = {}
@@ -658,13 +664,26 @@ class Hub:
             "SELECT * FROM events WHERE kind='blackout' AND m_start<=? AND m_end>? LIMIT 1", (m, m)
         )
 
+    @property
+    def earth_url(self) -> str | None:
+        """Where the outbox goes: the Cloudflare Worker when configured, otherwise NASA directly."""
+        return self.cf_url or self.nasa_url
+
+    @property
+    def via(self) -> str:
+        return "cloudflare" if self.cf_url else "direct"
+
     def _nasa(self, method: str, path: str, body: Any = None, timeout: float = 5.0) -> tuple[int | None, Any]:
-        if not self.nasa_url:
+        """Talk to Earth. Through the Worker the batch route is /outbox and every request carries the key."""
+        base = self.earth_url
+        if not base:
             return None, None
+        headers = {"Content-Type": "application/json"}
+        if self.cf_url:
+            path = {"/batch": "/outbox"}.get(path, path)
+            headers["x-medvital-key"] = self.cf_key or ""
         data = json.dumps(body).encode() if body is not None else None
-        req = urllib.request.Request(
-            self.nasa_url + path, data=data, method=method, headers={"Content-Type": "application/json"}
-        )
+        req = urllib.request.Request(base + path, data=data, method=method, headers=headers)
         try:
             with urllib.request.urlopen(req, timeout=timeout) as r:  # noqa: S310 (operator-supplied URL)
                 return r.status, json.loads(r.read().decode() or "null")
@@ -717,11 +736,11 @@ class Hub:
         return total
 
     def sync_once(self, urgent_only: bool = False, reason: str = "") -> dict[str, Any]:
-        """Port of spacecraft-sync/sync.js: send the oldest outbox records, delete only confirmed ids."""
+        """Send the oldest outbox records to Earth (the Cloudflare Worker or NASA); delete only confirmed ids."""
         rows = self.store.outbox_batch(SYNC_BATCH, urgent_only=urgent_only)
         if not rows:
             return {"linkUp": self.sync_state["linkUp"], "sent": 0, "confirmed": 0}
-        if not self.nasa_url:
+        if not self.earth_url:
             self.sync_state.update(linkUp=None, lastError="NASA_URL not set", lastAttempt=now_iso())
             return {"linkUp": None, "sent": 0, "confirmed": 0, "problem": "NASA_URL not set"}
         bo = self.blackout()
@@ -734,12 +753,15 @@ class Hub:
         ms = round((time.perf_counter() - t0) * 1000)
         self.sync_state["lastAttempt"] = now_iso()
         if status != 200 or not isinstance(answer, dict) or not isinstance(answer.get("saved"), list):
+            who = "Cloudflare" if self.cf_url else "NASA"
             problem = (
-                "link down (NASA answered 503)"
+                f"link down ({who} answered 503)"
                 if status == 503
-                else "NASA unreachable"
+                else f"{who} unreachable"
                 if status is None
-                else f"NASA answered HTTP {status}"
+                else "Cloudflare refused the key (401)"
+                if status == 401 and self.cf_url
+                else f"{who} answered HTTP {status}"
             )
             self.sync_state.update(
                 linkUp=False,
@@ -789,6 +811,8 @@ class Hub:
         bo = self.blackout()
         return {
             "nasaUrl": self.nasa_url,
+            "via": self.via,
+            "cloudflareUrl": self.cf_url,
             "reachable": reachable,
             "up": (ans.get("up") if reachable else None),
             "blackout": bo["title"] if bo else None,
