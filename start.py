@@ -64,7 +64,8 @@ def worker_call(url: str, key: str, method: str, path: str, body: dict | None = 
     import json as _json
     req = urllib.request.Request(url.rstrip("/") + path, method=method,
                                  data=_json.dumps(body).encode() if body is not None else None,
-                                 headers={"Content-Type": "application/json", "x-medvital-key": key})
+                                 headers={"Content-Type": "application/json", "x-medvital-key": key,
+                                          "User-Agent": "MedVital/1.0 (+https://github.com/Carl-Simea/MedVital)"})
     try:
         with urllib.request.urlopen(req, timeout=10) as r:
             return r.status

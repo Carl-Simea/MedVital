@@ -754,7 +754,8 @@ class Hub(CrewActions, CheckerLink):
         base = self.earth_url
         if not base:
             return None, None
-        headers = {"Content-Type": "application/json"}
+        # a named User-Agent: Cloudflare's bot protection answers 403 to Python's default one
+        headers = {"Content-Type": "application/json", "User-Agent": "MedVital/1.0 (+https://github.com/Carl-Simea/MedVital)"}
         if self.cf_url:
             path = {"/batch": "/outbox"}.get(path, path)
             headers["x-medvital-key"] = self.cf_key or ""

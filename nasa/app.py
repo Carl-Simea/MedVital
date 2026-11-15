@@ -168,7 +168,8 @@ def worker(method, path, body=None, timeout=10):
     """Call the MedVital Worker with the secret key. Returns (status, json) or (None, None)."""
     data = json.dumps(body).encode() if body is not None else None
     req = urllib.request.Request(CLOUDFLARE_URL + path, data=data, method=method,
-                                 headers={"Content-Type": "application/json", "x-medvital-key": CLOUDFLARE_KEY})
+                                 headers={"Content-Type": "application/json", "x-medvital-key": CLOUDFLARE_KEY,
+                                          "User-Agent": "MedVital/1.0 (+https://github.com/Carl-Simea/MedVital)"})
     try:
         with urllib.request.urlopen(req, timeout=timeout) as r:
             return r.status, json.loads(r.read().decode() or "null")

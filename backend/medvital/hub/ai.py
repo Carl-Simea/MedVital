@@ -31,7 +31,7 @@ def _post(url: str, body: dict[str, Any], headers: dict[str, str], timeout: floa
         url,
         data=json.dumps(body).encode(),
         method="POST",
-        headers={"Content-Type": "application/json", **headers},
+        headers={"Content-Type": "application/json", "User-Agent": "MedVital/1.0 (+https://github.com/Carl-Simea/MedVital)", **headers},
     )
     with urllib.request.urlopen(req, timeout=timeout) as resp:  # noqa: S310 (fixed hosts)
         return json.loads(resp.read().decode())
