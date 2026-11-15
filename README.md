@@ -52,8 +52,11 @@ open the astronaut screen and really vibrate.
    and 15 s later the screen turns red, buzzes and only offers **Go back inside**. The time outside and the dose
    received show under *Spacewalks* and go to NASA. *Demo controls → Skip to 2 h before the next solar event* first
    to make the event a real NASA one.
-4. **Ask the AI.** Open the hub screen's *Onboard AI agent* box, then ask in the astronaut's *Assistant* tab: the
-   yellow dot goes astronaut → hub → agent (→ Workers AI through Cloudflare) and back.
+4. **Chat with the onboard agent** (Assistant, bottom right of the astronaut screen). "Hello" gets a greeting;
+   "my head hurts" gets the common causes in spaceflight with sources, a check of the live numbers and what to try,
+   never a diagnosis, plus **Send to flight surgeon**, which puts the chat on the NASA page right away. "I have chest
+   pain" raises an urgent alert. On the hub screen the yellow dot shows each question travelling. Best with your
+   local model: `MEDVITAL_OLLAMA_MODEL=gemma4` in `.env` (run `ollama run gemma4 "hi"` first to load it).
 5. **Cut the link.** On the hub or NASA screen. Cloudflare turns red, a 3-2-1 retry counter runs next to it, and
    every retry lands in the link log. Records wait in Cloudflare's D1. *Restore*: they rush to NASA back to back,
    and the checker says the three databases agree.

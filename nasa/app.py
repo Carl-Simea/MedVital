@@ -508,8 +508,10 @@ def api_mission():
     upcoming = sorted((e for e in events if (e.get("m_end") or e.get("m_start") or 0) > m), key=lambda e: e["m_start"])
     alerts = [{"astronaut_id": r["astronaut_id"], "mission": r["mission"], **r["data"]}
               for r in load("WHERE type = ?", (fmt.TYPE_ALERT,)) if r["data"].get("code") != "INFO"][-12:][::-1]
+    consults = [{"astronaut_id": r["astronaut_id"], "received_at": r["received_at"], **r["data"]}
+                for r in load("WHERE type = ?", (fmt.TYPE_CONSULT,))][-8:][::-1]
     return jsonify({"now": now, "crew": sorted(crew, key=lambda c: c["id"]), "upcoming": upcoming[:80],
-                    "alerts": alerts, **status_view()})
+                    "alerts": alerts, "consults": consults, **status_view()})
 
 
 def status_view():
@@ -529,7 +531,13 @@ def status_view():
         checker = {"sentence": (checker_state.get("sentence") or {}).get("text"),
                    "source": (checker_state.get("sentence") or {}).get("source"),
                    "ok": (checker_state.get("db") or {}).get("ok"), "at": checker_state.get("at")}
-    return {"link": link_view(), "linkLog": link_log_rows(), "checker": checker, "dayReport": last_summary}
+    db = open_db()
+    try:
+        c = db.execute("SELECT id FROM records WHERE type = ? ORDER BY rowid DESC LIMIT 1", (fmt.TYPE_CONSULT,)).fetchone()
+    finally:
+        db.close()
+    return {"link": link_view(), "linkLog": link_log_rows(), "checker": checker, "dayReport": last_summary,
+            "lastConsult": c["id"] if c else ""}
 
 
 @app.get("/api/status")
@@ -582,6 +590,7 @@ def api_astronaut(aid):
         "alerts": [{"mission": r["mission"], **r["data"]} for r in recs if r["type"] == fmt.TYPE_ALERT][::-1][:30],
         "summaries": [{"mission": r["mission"], **r["data"]} for r in recs if r["type"] == fmt.TYPE_SUMMARY][::-1][:20],
         "tests": tests, "upcoming": upcoming,
+        "consults": [{"received_at": r["received_at"], **r["data"]} for r in recs if r["type"] == fmt.TYPE_CONSULT][::-1][:10],
     })
 
 

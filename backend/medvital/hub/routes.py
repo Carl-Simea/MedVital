@@ -380,7 +380,17 @@ def agent(aid: str, request: Request, body: JsonBody) -> dict[str, Any]:
     q = str(body.get("question") or "").strip()
     if not q:
         raise HTTPException(422, "question is empty")
-    return hub.ask(aid, q[:500])
+    history = body.get("history") if isinstance(body.get("history"), list) else []
+    return hub.ask(aid, q[:500], history[-12:])
+
+
+@router.post("/agent/{aid}/send")
+def send_to_flight_surgeon(aid: str, request: Request, body: JsonBody) -> dict[str, Any]:
+    """"Send to flight surgeon": the chat goes to NASA right away."""
+    hub = _hub(request)
+    _astronaut(hub, aid)
+    t = body.get("transcript") if isinstance(body.get("transcript"), list) else []
+    return _act(hub.send_to_flight_surgeon, aid, t, str(body.get("note") or ""))
 
 
 @router.post("/summary/{aid}")

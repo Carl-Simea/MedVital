@@ -83,6 +83,7 @@ export function scorePvt(trials, { lapseMs = 355, falseStartMs = 100, timeoutMs 
 
 /* ---------- Bewerter ---------- */
 export function evalPvt(score, { baseline = null, confirmed = false } = {}) {
+  if (score.trials <= 10) return evalPvtQuick(score, { baseline });   // short check: no literature thresholds
   if (score.responses < 10)
     return finding('pvt', 'brain', 'measured', 1, 'Too few valid responses, repeat the test', ['pvt.invalid'], { score });
   const rules = []; let sev = 0;
@@ -98,6 +99,22 @@ export function evalPvt(score, { baseline = null, confirmed = false } = {}) {
   if (sev === 3 && !confirmed) { sev = 2; rules.push('pvt.needs-confirmation'); } // a device without latency calibration
   const text = `${score.lapses} lapses (≥${score.lapseMs} ms), mean ${Math.round(score.meanRt)} ms` + (z !== null ? `, ${z.toFixed(1)} σ vs. own baseline` : '');
   return finding('pvt', 'brain', 'measured', sev, text, rules, { score, z });
+}
+
+/** Quick check with a few trials (e.g. 5). The 11/20-lapse limits belong to the 3-min PVT and do not apply;
+    here only a convention (>=3 slow trials) and the personal baseline count. Never above 'watch' without a baseline. */
+function evalPvtQuick(score, { baseline = null } = {}) {
+  if (score.responses < 3)
+    return finding('pvt', 'brain', 'measured', 1, 'Too few valid responses, repeat the test', ['pvt.invalid'], { score });
+  const rules = []; let sev = 0;
+  if (score.lapses >= 3) { sev = 1; rules.push('pvt.quick.slow>=3'); }   // convention
+  const z = baseline ? baseline.z('pvt.invRt', score.meanInvRt) : null;
+  if (z !== null) {
+    if (z <= -2.5 && sev < 2) { sev = 2; rules.push('pvt.z<=-2.5'); }
+    else if (z <= -1.5 && sev < 1) { sev = 1; rules.push('pvt.z<=-1.5'); }
+  }
+  const text = `${score.lapses} of ${score.trials} slow (≥${score.lapseMs} ms), mean ${Math.round(score.meanRt)} ms` + (z !== null ? `, ${z.toFixed(1)} σ vs. own baseline` : '');
+  return finding('pvt', 'brain', 'measured', sev, text, rules, { score, z, quick: true });
 }
 
 export function evalHeartRate({ bpm, source = 'manual', context = 'rest' }, baseline = null) {

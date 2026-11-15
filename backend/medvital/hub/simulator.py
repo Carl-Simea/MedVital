@@ -215,6 +215,12 @@ class CrewSimulator:
                 "hemoglobin.gdl": round(b.get("hemoglobin.gdl", 14) - 0.02 * days + r.gauss(0, 0.15), 1),
                 "vitd.ngml": round(b.get("vitd.ngml", 30) - 0.1 * days + r.gauss(0, 1.0), 1),
                 "glucose.mgdl": round(b.get("glucose.mgdl", 90) + r.gauss(0, 5)),
+                # the rest of the panel the dashboard shows: test signals around the pre-flight value
+                **{
+                    k: round(b.get(k, S.DASHBOARD_TEST_SIGNALS[k]) * (1 + r.gauss(0, 0.03)), 2)
+                    for k in ("wbc.k", "platelets.k", "hematocrit.pct", "ferritin.ngml", "sodium.mmol",
+                              "potassium.mmol", "creatinine.mgdl", "calcium.mgdl", "crp.mgl", "cortisol.ugdl")
+                },
             }
         if title == "Fitness test":
             adherence = self._adherence(w, m)
@@ -230,6 +236,8 @@ class CrewSimulator:
         return {
             "urine.volumeL": round(b.get("urine.volumeL", 2.0) - 0.1 + r.gauss(0, 0.15), 2),
             "urine.calciumMgDay": round(b.get("urine.calciumMgDay", 180) + 1.5 * days + r.gauss(0, 10)),
+            "urine.ph": round(b.get("urine.ph", 6.2) + r.gauss(0, 0.15), 1),
+            "urine.citrateMgDay": round(b.get("urine.citrateMgDay", 640) + r.gauss(0, 30)),
         }
 
     def sleep_values(self, w: Wearer, ev: dict[str, Any]) -> dict[str, float]:
@@ -297,6 +305,8 @@ def preflight_values(profile: dict[str, Any]) -> dict[str, float]:
         ("nutrition.proteinGkg", 1.3),
         ("nutrition.fluidL", 2.5),
     ):
+        b.setdefault(k, v)
+    for k, v in S.DASHBOARD_TEST_SIGNALS.items():  # every dashboard value has a starting point (test signals)
         b.setdefault(k, v)
     for k in (
         "mass.changePct",

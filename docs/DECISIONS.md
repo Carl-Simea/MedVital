@@ -370,6 +370,27 @@ screen must read as a tree with one colour per kind of traffic.
   Cloudflare → NASA, checker, AI question, DONKI); red is reserved for "down".
 * D1 writes: heartbeats are one upsert per part every 3 s (about 2,400 rows an hour while running).
 
+## D-037 The new 3D dashboard, driven by the spacecraft; the onboard agent as a chatbot (2026-11-15)
+**Context.** larsslt's dashboard update (v3.11 on `main`: 55 values, body labels, activity pill, body size, test
+data with its own simulated stream) is the submitted astronaut screen. The onboard agent must chat like a chatbot.
+
+**Decision.**
+* `main` merged into the build branch; the dashboard is kept as written. Spacecraft mode adds five marked hooks in
+  `app.js` (past-data label, Assistant to the onboard agent, Data input to the spacecraft, activity pill to the
+  spacecraft) and `hub-bridge.js` switches the dashboard's own test stream off: the spacecraft is the one source.
+* Values the spacecraft did not produce (blood panel, HRV, skin conductance, skin temperature, urine pH and citrate,
+  and others) start from the dashboard's own invented "In range" set, labelled as test signals
+  (`settings.DASHBOARD_TEST_SIGNALS`), and drift in the simulated blood draws. Yes/no findings default to "not reported".
+* Activity: the spacecraft state sets the pill (asleep, resting, exercising, spacewalk); picking an activity in the
+  pill acts like the astronaut's buttons. The hub screen shows the same activity in each astronaut's box.
+* Chatbot (`hub/chat.py`): greetings, small talk, follow-ups with the last 8 turns, the astronaut's own numbers.
+  Symptoms get the causes commonly reported in spaceflight with their source, a check of the live numbers, what to
+  try, "not a diagnosis", and a **Send to flight surgeon** button. Only that button sends the chat to NASA
+  (urgent record type `consult`, shown on the NASA page). Danger signs (general emergency warning signs, a
+  convention) raise an urgent CHECK_VITALS alert at once. Order: Ollama (`MEDVITAL_OLLAMA_MODEL`, timeout
+  `MEDVITAL_OLLAMA_TIMEOUT`, default 60 s), then Workers AI (small, fast model), then the built-in replies; any
+  number a model states must appear in the astronaut's data.
+
 ## Open questions
 
 * **Q-1 Offline computation parity.** Summaries are computed server-side only, so an offline client cannot show derived values. Options: port calculations to TypeScript with shared test vectors; run the Python in Pyodide/WASM; or cache the last server summary. Decide before building the dashboard.

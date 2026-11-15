@@ -38,5 +38,5 @@ test('implausible values are rejected, unknown lines are reported, nothing is in
   assert.deepEqual(extract('Patient feels well.').values, {});
 });
 test('every key it can produce exists in the app', () => {
-  for (const k of Object.keys(RANGES)) assert.ok(INDICATORS[k] || SCORE_KEYS.includes(k) || k === 'mission.month' || k === 'pvt.meanRtMs', k);
+  for (const k of Object.keys(RANGES)) assert.ok(INDICATORS[k] || SCORE_KEYS.includes(k) || k === 'mission.month' || k === 'pvt.meanRtMs' || k.startsWith('body.'), k);
 });

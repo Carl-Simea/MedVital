@@ -14,6 +14,7 @@ from __future__ import annotations
 import os
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
+from typing import Any
 
 REPO = Path(os.environ.get("MEDVITAL_REPO_ROOT", Path(__file__).resolve().parents[3]))
 DATA = REPO / "data" / "nasa"
@@ -99,6 +100,21 @@ EVA_LOOKAHEAD_MIN = 12 * 60  # a real solar event starting within 12 mission hou
 # ---- Cloudflare checker: the hub and NASA report in this often; NASA retries a cut link this often
 HEARTBEAT_S = 3.0
 RETRY_S = 3.0
+
+# Starting levels for the values the 3D dashboard knows but the spacecraft does not otherwise produce. Test signals,
+# not reference values: copied from the dashboard's own invented "In range" set (body-dashboard/public/testdata.mjs).
+DASHBOARD_TEST_SIGNALS: dict[str, Any] = {
+    "hrv.rmssdMs": 62, "skin.tempC": 33.4, "eda.uS": 2.1, "sleep.efficiencyPct": 91, "cognition.scorePct": 101,
+    "stress.score": 2, "motion.sickness": 0, "balance.changePct": 0, "wbc.k": 6.2, "platelets.k": 245,
+    "hematocrit.pct": 44, "ferritin.ngml": 120, "sodium.mmol": 140, "potassium.mmol": 4.2, "creatinine.mgdl": 0.9,
+    "calcium.mgdl": 9.4, "crp.mgl": 1.2, "cortisol.ugdl": 12, "cimt.mm": 0.58, "sans.trtChangeUm": 0,
+    "sans.hyperopicShiftD": 0, "urine.citrateMgDay": 640, "urine.ph": 6.2,
+}
+# Yes/no and text findings the dashboard shows: nothing reported in flight unless someone enters it.
+DASHBOARD_FLAGS: dict[str, Any] = {
+    "orthostatic.presyncope": False, "jugular.flow": "normal", "kidney.stone": False, "virus.shedding": False,
+    "zoster.symptoms": False, "sans.discEdema": False, "sans.choroidalFolds": False,
+}
 
 # The bone-loss urine panel NASA's nutritional biochemistry studies use (docs/NASA_SOURCES.md, urine panel):
 # 24-hour urinary calcium plus collagen breakdown markers. Recorded as typed in; no reference ranges.

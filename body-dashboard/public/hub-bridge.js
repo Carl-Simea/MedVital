@@ -14,7 +14,9 @@ const PATTERNS = {
   INFO: { vib: [160], text: '1 short buzz' },
 };
 const TITLES = { RETURN_NOW: 'Return now', CHECK_VITALS: 'Check vitals', GO_INSIDE: 'Go back inside soon', CHECK_IN: 'Check-in', INFO: 'Info' };
-const HISTORY_VITALS = ['hr', 'spo2', 'resp', 'temp', 'bp', 'glucose', 'rt', 'sleep', 'pain', 'hgb', 'urine', 'mass', 'rad', 'hip', 'str', 'vitd'];
+const HISTORY_VITALS = ['hr', 'spo2', 'resp', 'temp', 'bp', 'glucose', 'rt', 'sleep', 'pain', 'hgb', 'urine', 'mass', 'rad', 'dose', 'hip', 'str', 'vitd'];
+// spacecraft state -> the dashboard's activity pill
+const ACTIVITY = { asleep: 'sleep', awake: 'rest', exercise: 'exercise', spacewalk: 'eva' };
 
 async function api(path, body) {
   const r = await fetch(path, body === undefined ? { cache: 'no-store' }
@@ -31,11 +33,11 @@ const hm = min => { const h = Math.floor(min / 60), m = Math.round(min % 60); re
 function furnish() {
   const css = el('style');
   css.textContent = `
-  .tile[data-vital="hr"] .td{animation:mvbeat var(--beat,1s) infinite}
-  .tile[data-vital="hr"] .tv{animation:mvthump var(--beat,1s) infinite;transform-origin:left center}
+  .tile[data-id="hr"] .td{animation:mvbeat var(--beat,1s) infinite}
+  .tile[data-id="hr"] .tv{animation:mvthump var(--beat,1s) infinite;transform-origin:left center}
   @keyframes mvbeat{0%,100%{transform:scale(1)}12%{transform:scale(1.9)}24%{transform:scale(1)}}
   @keyframes mvthump{0%,100%{transform:scale(1)}12%{transform:scale(1.04)}}
-  @media (prefers-reduced-motion: reduce){.tile[data-vital="hr"] .td,.tile[data-vital="hr"] .tv,.mv-alert.RETURN_NOW{animation:none}}
+  @media (prefers-reduced-motion: reduce){.tile[data-id="hr"] .td,.tile[data-id="hr"] .tv,.mv-alert.RETURN_NOW{animation:none}}
   .mv-clock{font-variant-numeric:tabular-nums}
   .mv-acts{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-top:8px}
   .mv-acts button{min-height:46px;border-radius:12px;background:var(--fill);color:var(--ink);font-weight:600;font-size:14px;line-height:1.15;padding:6px 8px}
@@ -82,7 +84,13 @@ function furnish() {
   .mv-demo button,.mv-demo input{padding:8px;border-radius:9px;border:1px solid rgba(127,127,127,.35);background:transparent;color:inherit;font:inherit;font-size:13px}
   .mv-demo button{cursor:pointer}.mv-demo button.on{background:#0a84ff;border-color:#0a84ff;color:#fff}
   .mv-demo .skip{display:grid;grid-template-columns:1fr 70px auto;gap:6px;margin-top:8px}
-  .mv-demo .msg{min-height:1.2em;font-size:12px;margin-top:8px;opacity:.8}`;
+  .mv-demo .msg{min-height:1.2em;font-size:12px;margin-top:8px;opacity:.8}
+  .mv-typing{display:inline-flex;gap:4px}.mv-typing i{width:7px;height:7px;border-radius:50%;background:currentColor;opacity:.4;animation:mvdot 1s infinite}
+  .mv-typing i:nth-child(2){animation-delay:.15s}.mv-typing i:nth-child(3){animation-delay:.3s}
+  @keyframes mvdot{50%{opacity:1;transform:translateY(-2px)}}
+  .mv-src{display:block;font-size:11px;opacity:.6;margin-top:4px}
+  .mv-send{margin-top:8px;padding:7px 12px;border-radius:999px;border:1px solid #ff6b6b;background:transparent;color:#ff6b6b;font-weight:600;font-size:13px;cursor:pointer}
+  .mv-send:disabled{opacity:.5;cursor:default}`;
   document.head.append(css);
 
   // Alert overlay
@@ -161,7 +169,7 @@ function furnish() {
   return { ov, dr, sleepBtn, evaBtn, evaBox, log, urine, ufields, mood };
 }
 
-let ui, worn = true, shown = null, audio = null;
+let ui, worn = true, shown = null, audio = null, lastActivity = null;
 const state = { asleep: false, outside: false, urinePanel: [] };
 const unlock = () => { try { audio = audio || new AudioContext(); audio.resume(); } catch { audio = null; } };
 document.addEventListener('pointerdown', unlock, { once: true });
@@ -284,13 +292,15 @@ async function pull(AB) {
     AB.setMeasurements(values);
     for (const v of HISTORY_VITALS) {
       const h = (d.history[v] || []).filter(x => x !== null && x !== undefined);
-      if (h.length) AB.setVital(v, v === 'hr' ? { value: d.values['hr.rest'], history: h } : { history: h });
+      if (h.length) AB.setVital(v, { history: h });
     }
     drawUpcoming(AB, d);
   }
-  const bpm = d.values['hr.rest'];
+  const bpm = d.values['hr.now'] || d.values['hr.rest'];
   if (bpm) $('tiles').style.setProperty('--beat', `${(60 / bpm).toFixed(2)}s`);
   drawButtons(d);
+  const act = d.eva ? 'eva' : ACTIVITY[d.state] || 'rest';
+  if (act !== lastActivity && AB.setActivity) { lastActivity = act; AB.setActivity(act); }
 
   const a = d.alert;
   if (a && (a.status === 'active' || a.status === 'delivered')) {
@@ -313,12 +323,62 @@ if (id) {
   // Past data: live vitals are readings (one per second = 24 mission minutes); the rest are test results.
   window.MedVitalHistoryLabel = (vid, n) => ['hr', 'spo2', 'resp', 'temp', 'rad'].includes(vid)
     ? `last ${n} readings (${Math.round(n * 24 / 60)} mission hours)` : `last ${n} results`;
-  // The Assistant tab asks the spacecraft's onboard AI agent (the hub screen draws the question's path).
-  window.MedVitalAsk = q => api(`/hub/agent/${encodeURIComponent(id)}`, { question: q });
+  // The Assistant is the spacecraft's onboard AI agent, a chatbot with memory of this conversation.
+  const history = [];
+  window.MedVitalAsk = async (q, chat) => {
+    const typing = el('span', 'mv-typing'); typing.append(el('i'), el('i'), el('i')); typing.setAttribute('aria-label', 'The assistant is typing');
+    const bubble = chat.inMsg('bot', typing);
+    try {
+      const r = await api(`/hub/agent/${encodeURIComponent(id)}`, { question: q, history });
+      history.push({ role: 'user', content: q }, { role: 'assistant', content: r.answer });
+      bubble.replaceChildren();
+      for (const [i, line] of r.answer.split('\n').entries()) { if (i) bubble.append(document.createElement('br')); bubble.append(document.createTextNode(line)); }
+      bubble.append(el('span', 'mv-src', r.source));
+      if (r.symptoms && r.symptoms.length) bubble.append(sendButton());
+      chat.chips(r.danger ? ['Send to flight surgeon'] : r.symptoms && r.symptoms.length ? ['Send to flight surgeon', 'How did I sleep?', 'What is my heart rate?'] : ['How am I doing?', 'My head hurts', 'What is my radiation dose?']);
+    } catch (e) { bubble.replaceChildren(document.createTextNode(`The spacecraft did not answer (${e.message}).`)); }
+  };
+  function sendButton() {
+    const b = el('button', 'mv-send', 'Send to flight surgeon'); b.type = 'button';
+    b.onclick = async () => {
+      b.disabled = true; b.textContent = 'Sending…';
+      try { const r = await api(`/hub/agent/${encodeURIComponent(id)}/send`, { transcript: history });
+        b.textContent = `Sent to the flight surgeon (${r.messages} messages)`; }
+      catch (e) { b.disabled = false; b.textContent = `Not sent: ${e.message}. Try again`; }
+    };
+    return b;
+  }
+  // the chip "Send to flight surgeon" sends the chat too
+  document.addEventListener('click', e => {
+    const c = e.target.closest('#achips button'); if (!c || c.textContent !== 'Send to flight surgeon') return;
+    e.stopImmediatePropagation(); e.preventDefault(); const b = sendButton(); document.getElementById('alog')?.append(b); b.click();
+  }, true);
+  // picking an activity in the pill tells the spacecraft (sleep = Sleep button, spacewalk = Leave the spacecraft)
+  window.addEventListener('medvital:activity', async e => {
+    const a = e.detail, base = `/hub/astronauts/${encodeURIComponent(id)}`;
+    try {
+      if (a === 'sleep') await api(`${base}/sleep`, { asleep: true });
+      else if (a === 'eva') await api(`${base}/eva`, { outside: true });
+      else {
+        if (state.asleep) await api(`${base}/sleep`, { asleep: false });
+        if (state.outside) await api(`${base}/eva`, { outside: false });
+        await api(`/hub/demo/${encodeURIComponent(id)}`, { action: a === 'exercise' ? 'exercise' : 'auto' });
+      }
+    } catch (err) { flash(err.message); }
+    lastActivity = a;
+  });
   // Values typed or pasted into "Data input" go to the spacecraft database (and on to NASA).
   window.addEventListener('medvital:applied', async e => {
     try { await api(`/hub/labs/${encodeURIComponent(id)}`, e.detail); }
     catch (err) { console.warn('could not save to the spacecraft', err); }
   });
-  waitForApi().then(AB => { if (!AB) return; pull(AB); setInterval(() => pull(AB), 1000); });
+  waitForApi().then(async AB => {
+    if (!AB) return;
+    if (AB.stopLive) AB.stopLive();   // the dashboard's own test stream stays off: the spacecraft is the source
+    try {   // body shape from the astronaut's profile
+      const a = await api(`/hub/astronauts/${encodeURIComponent(id)}`), p = a.profile || a;
+      if (AB.setBody && p.height_cm && p.weight_kg) AB.setBody({ sex: p.sex === 'm' ? 'm' : 'f', heightCm: p.height_cm, massKg: p.weight_kg });
+    } catch { /* keep the default body */ }
+    pull(AB); setInterval(() => pull(AB), 1000);
+  });
 }

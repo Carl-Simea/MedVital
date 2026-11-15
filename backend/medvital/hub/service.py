@@ -28,10 +28,10 @@ from pathlib import Path
 from typing import Any
 
 from medvital.core.module_spec import ModuleRegistry
-from medvital.hub import ai, donki, rules
+from medvital.hub import ai, chat, donki, rules
 from medvital.hub import mission as M
 from medvital.hub import settings as S
-from medvital.hub.actions import CrewActions
+from medvital.hub.actions import ActionError, CrewActions
 from medvital.hub.checker import CheckerLink
 from medvital.hub.simulator import CrewSimulator, preflight_values
 from medvital.hub.store import HubStore, now_iso
@@ -609,21 +609,53 @@ class Hub(CrewActions, CheckerLink):
         return {"id": sid, "missionDay": day, "text": text, "facts": facts, "wordedBy": source, "check": note}
 
     # ================================================================== agent
-    def ask(self, aid: str, question: str) -> dict[str, Any]:
-        """The onboard agent. The hub screen draws the question's path: astronaut, hub, agent and back."""
+    def ask(self, aid: str, question: str, history: list[dict[str, str]] | None = None) -> dict[str, Any]:
+        """The onboard agent as a chatbot. The hub screen draws the question's path: astronaut, hub, agent, back."""
         self.net.add("ask", [aid, "net", "hub", "agent"], "info", f"{aid} asks the onboard agent", astronaut=aid)
         label = ai.agent_label()
         if label == "Workers AI":  # the agent asks Workers AI (through Cloudflare) to word its answer
             self.net.add("ask", ["agent", "hub", "net", "cloudflare", "checker"], "info", "Agent asks Workers AI")
-        text, source = ai.answer(question, self.astronaut_view(aid))
+        out = chat.reply(question, history or [], self.astronaut_view(aid))
         if label == "Workers AI":
             self.net.add("ask", ["checker", "cloudflare", "net", "hub", "agent"], "info", "Workers AI answered")
+        if out.get("danger"):  # a danger sign: urgent alert, on the astronaut's screen and to NASA right away
+            self._raise_alert(
+                aid,
+                rules.Decision(
+                    rules.CHECK_VITALS,
+                    "danger_sign",
+                    f"You reported {out['danger']}. Contact the flight surgeon now.",
+                    {"reported": question[:300], "sign": out["danger"]},
+                ),
+                self.clock.minute(),
+            )
         self.store.run(
             "INSERT INTO agent_log (time, astronaut_id, question, answer, source) VALUES (?,?,?,?,?)",
-            (now_iso(), aid, question[:500], text[:2000], source),
+            (now_iso(), aid, question[:500], out["answer"][:2000], out["source"]),
         )
-        self.net.add("ask", ["agent", "hub", "net", aid], "ok", f"Agent answered {aid} ({source})", astronaut=aid)
-        return {"answer": text, "source": source}
+        self.net.add("ask", ["agent", "hub", "net", aid], "ok", f"Agent answered {aid} ({out['source']})", astronaut=aid)
+        return {"answer": out["answer"], "source": out["source"], "symptoms": out.get("symptoms", []),
+                "danger": out.get("danger")}
+
+    def send_to_flight_surgeon(self, aid: str, transcript: list[dict[str, str]], note: str = "") -> dict[str, Any]:
+        """The astronaut chose to share the chat: it goes to NASA right away (urgent), with their live numbers."""
+        view = self.astronaut_view(aid)
+        lines = [
+            {"who": "astronaut" if m.get("role") == "user" else "assistant", "text": str(m.get("content", ""))[:1500]}
+            for m in transcript[-30:]
+            if m.get("content")
+        ]
+        if not lines:
+            raise ActionError("There is nothing in the chat to send yet.")
+        symptoms = sorted({s for m in lines if m["who"] == "astronaut" for s in chat.find_symptoms(m["text"])})
+        data = {"kind": "consult", "transcript": lines, "symptoms": symptoms, "note": note[:500],
+                "numbers": chat.facts(view), "missionTime": M.clock_label(self.clock.minute())}
+        rid = f"consult-{aid}-{uuid.uuid4().hex[:10]}"
+        self.store.to_outbox(self._record(rid, "consult", aid, now_iso(), data), urgent=True)
+        self.net.add("consult", [aid, "net", "hub"] + self._earth_path()[1:], "alert",
+                     f"{aid} sent a chat to the flight surgeon", astronaut=aid)
+        self.sync_once(urgent_only=True)
+        return {"sent": True, "id": rid, "messages": len(lines), "symptoms": symptoms}
 
     # ================================================================== space weather
     def solar_active(self) -> dict[str, Any] | None:
@@ -958,11 +990,22 @@ class Hub(CrewActions, CheckerLink):
         valid = [b for b in bursts if b["quality"] == "valid"]
         if valid:
             last = valid[-1]
-            live = {"hr.rest": round(last["heart_rate"]), "spo2.pct": round(last["spo2"])}
+            hr = last["heart_rate"]
+            live = {"hr.rest": round(hr), "hr.now": round(hr), "spo2.pct": round(last["spo2"]),
+                    "radiation.rateUsvH": round(last["dose_rate"], 1)}
             if last.get("resp_rate"):
                 live["resp.rate"] = round(last["resp_rate"])
+            base = prof.get("baseline", {})
             if last.get("skin_temp"):
                 live["temp.c"] = round(last["skin_temp"], 1)
+                # skin follows body temperature (test signal for the dashboard's skin tile)
+                live["skin.tempC"] = round(
+                    S.DASHBOARD_TEST_SIGNALS["skin.tempC"] + last["skin_temp"] - base.get("temp.c", 36.6), 1
+                )
+            # heart rate variability falls and skin conductance rises as heart rate climbs (test signals)
+            above = max(0.0, hr - prof["resting_hr"])
+            live["hrv.rmssdMs"] = round(max(12.0, S.DASHBOARD_TEST_SIGNALS["hrv.rmssdMs"] - 0.55 * above), 1)
+            live["eda.uS"] = round(S.DASHBOARD_TEST_SIGNALS["eda.uS"] + 0.035 * above, 2)
             values.update(live)
             for k in live:
                 sources[k] = {
@@ -978,12 +1021,15 @@ class Hub(CrewActions, CheckerLink):
             f"(+ {prof.get('prior_career_msv', 0)} mSv before this mission)",
         }
         values["sex"] = prof.get("sex", "f")
+        for k, v in S.DASHBOARD_FLAGS.items():
+            values.setdefault(k, v)
         hist = {
             "hr": [round(b["heart_rate"]) if b["quality"] == "valid" else None for b in bursts],
             "spo2": [round(b["spo2"]) if b["quality"] == "valid" else None for b in bursts],
             "resp": [round(b["resp_rate"]) if b.get("resp_rate") else None for b in bursts],
             "temp": [round(b["skin_temp"], 1) if b.get("skin_temp") else None for b in bursts],
             "rad": [round(prof.get("prior_career_msv", 0) + b["total_dose"], 3) for b in bursts],
+            "dose": [round(b["dose_rate"], 1) for b in bursts],
         }
         for vid, key in (
             ("bp", "bp.sys"),

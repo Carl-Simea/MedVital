@@ -1,11 +1,13 @@
 import { createLobby } from './lobby.js';
-import { PARTS, PAIRED, SRC, BASIS, LEVEL, LEVEL_NAME, LEVEL_LABEL, INDICATORS, SAMPLE, evaluate, bodyColors, summarize } from './parts.mjs';
+import { PARTS, PAIRED, SRC, BASIS, LEVEL, LEVEL_NAME, LEVEL_LABEL, INDICATORS, evaluate, bodyColors, summarize } from './parts.mjs';
 import { answer as assistantAnswer, SUGGESTIONS } from './assistant.mjs';
-import { DOMAIN_IDS, SCORE_KEYS, SCORE_SRC, SCORE_SAMPLE, SCORE_INPUTS, scoreAll, scoreColor, scoreWord } from './scores.mjs';
+import { DOMAIN_IDS, SCORE_KEYS, SCORE_SRC, SCORE_INPUTS, scoreAll, scoreColor, scoreWord } from './scores.mjs';
 import { extract, READABLE } from './intake.mjs';
+import { SCENARIOS, SCENARIO_IDS, reportText } from './testdata.mjs';
+import { createLive, ACTIVITIES, ACTIVITY_IDS } from './live.mjs';
 const ALL_SRC = { ...SRC, ...SCORE_SRC };
 
-const BUILD = 'v3.6 · 14 Nov 2026';
+const BUILD = 'v3.9 · 15 Nov 2026';
 const errLog = [];
 const logErr = m => { errLog.push(new Date().toISOString().slice(11, 19) + ' ' + String(m).slice(0, 200)); if (errLog.length > 20) errLog.shift(); };
 addEventListener('error', e => logErr(e.message + ' @' + (e.filename || '').split('/').pop() + ':' + e.lineno));
@@ -14,6 +16,7 @@ addEventListener('unhandledrejection', e => logErr('promise: ' + (e.reason && e.
 const $ = id => document.getElementById(id);
 const state = { vital: 'hr', look: 'solid', layer: 'bone', sample: false, sel: null };
 let M = {};                                  // current measurements (keys of INDICATORS)
+const body = { heightCm: null, massKg: null, sex: null };   // profile: stretches the model, sex also sets reference ranges
 let parts = evaluate({});                    // evaluated state per anatomy group
 let lobby = null;
 
@@ -33,12 +36,13 @@ const extFindings = () => {
 };
 function currentInput() {
   const { F } = extFindings(), In = { ...M };
+  if (body.sex && In.sex === undefined) In.sex = body.sex;
   if (In['pvt.lapses'] === undefined && F.pvt && F.pvt.score && typeof F.pvt.score.lapses === 'number') In['pvt.lapses'] = F.pvt.score.lapses;
   if (In['mission.month'] === undefined && F.bone && F.bone.detail) In['mission.month'] = F.bone.detail.avg[0];
   return In;
 }
 const manual = {};                           // legacy overrides from setGroupStatus / setSystemStatus
-function recompute() {
+function recompute(light) {
   const { ext } = extFindings();
   // The engine's bone model is a reminder for weight-bearing sites only, not for every bone
   const boneExt = ext.bone ? { ...ext.bone } : null;
@@ -51,7 +55,13 @@ function recompute() {
   }
   for (const g in manual) if (parts[g] && LEVEL[manual[g]] > parts[g].level) { parts[g].level = LEVEL[manual[g]]; parts[g].status = manual[g]; parts[g].statusLabel = LEVEL_LABEL[parts[g].level]; }
   if (lobby) lobby.setStatus(bodyColors(parts));
-  renderAttention(); renderTiles(); renderScores(); if (state.sel) renderCard(); if (typeof assistantStatus === 'function') assistantStatus();
+  renderAttention(); renderTiles(); buildCallouts();
+  if (!light) { renderScores(); if (state.sel) renderCard(); }
+  else if (state.sel) {                                             // live tick: redraw the card only when its content changed, and keep its place
+    const st = parts[state.sel.group], sig = JSON.stringify([st.level, st.warnings.map(w => w.text), st.notes.map(n => n.text), st.indicators.map(i => i.value)]), card = $('partCard');
+    if (card.dataset.sig !== sig) { const y = card.scrollTop, open = !!(card.querySelector('.plist') || {}).open; renderCard(); card.dataset.sig = sig; card.scrollTop = y; const d = card.querySelector('.plist'); if (d) d.open = open; }
+  }
+  if (typeof assistantStatus === 'function') assistantStatus();
 }
 const keyLevel = key => {
   let lv = -1;
@@ -60,13 +70,89 @@ const keyLevel = key => {
 };
 const levelToUi = lv => (lv < 0 ? null : LEVEL_NAME[lv]);
 
+
+/* ---------- Warning markers: lines from the affected body part to a short label ---------- */
+const CALL_NAME = {
+  'hr.rest': 'Resting pulse', 'bp.sys': 'Blood pressure', 'bp.dia': 'Blood pressure', 'spo2.pct': 'Blood oxygen', 'resp.rate': 'Breathing', 'temp.c': 'Temperature',
+  'orthostatic.presyncope': 'Dizzy on standing', 'jugular.flow': 'Jugular flow', 'bmd.hipPct': 'Hip bone loss', 'bmd.lumbarPct': 'Spine bone loss', 'bmd.wholeBodyPct': 'Bone loss',
+  'back.pain': 'Back pain', 'strength.changePct': 'Strength loss', 'aerobic.changePct': 'Fitness loss', 'sans.hyperopicShiftD': 'Vision shift', 'sans.discEdema': 'Optic disc swelling',
+  'sans.choroidalFolds': 'Choroidal folds', 'sans.trtChangeUm': 'Retina thicker', 'sleep.hours': 'Sleep', 'sleep.efficiencyPct': 'Sleep efficiency', 'pvt.lapses': 'Slow reactions',
+  'hemoglobin.gdl': 'Hemoglobin', 'hematocrit.pct': 'Hematocrit', 'urine.volumeL': 'Urine volume', 'urine.calciumMgDay': 'Urine calcium', 'urine.citrateMgDay': 'Urine citrate', 'urine.ph': 'Urine pH',
+  'kidney.stone': 'Kidney stone', 'radiation.careerMsv': 'Radiation dose', 'radiation.eventMsv': 'Radiation event', 'radiation.rateUsvH': 'Dose rate', 'virus.shedding': 'Virus shedding',
+  'zoster.symptoms': 'Shingles signs', 'glucose.mgdl': 'Blood glucose', 'mass.changePct': 'Weight change', 'vitd.ngml': 'Vitamin D', 'hrv.rmssdMs': 'HRV', 'skin.tempC': 'Skin temp',
+  'cognition.scorePct': 'Cognition', 'stress.score': 'Stress', 'mood.score': 'Mood', 'motion.sickness': 'Motion sickness', 'balance.changePct': 'Balance', 'wbc.k': 'White cells',
+  'platelets.k': 'Platelets', 'ferritin.ngml': 'Iron stores', 'sodium.mmol': 'Sodium', 'potassium.mmol': 'Potassium', 'creatinine.mgdl': 'Creatinine', 'calcium.mgdl': 'Calcium',
+  'crp.mgl': 'Inflammation', 'cortisol.ugdl': 'Cortisol', 'cimt.mm': 'Artery wall'
+};
+const CALL_ANCHOR = { body: 'ribs' };                      // whole-body findings point at the chest
+let callOn = true, callSig = '', callItems = [];
+function callTitle(w, In) {
+  const k = w.key, ind = k && INDICATORS[k];
+  if (!ind) return String(w.text || 'Check').split(/[.,;(]/)[0].slice(0, 26);
+  const name = CALL_NAME[k] || ind.label, v = In[k];
+  if (ind.type === 'bool' || ind.type === 'text' || !num(v)) return name;
+  if (k === 'bp.sys' && num(In['bp.dia'])) return `${name} ${v}/${In['bp.dia']}`;
+  return `${name} ${v > 0 && /Pct$|Um$/.test(k) ? '+' : ''}${Math.round(v * 10) / 10}${ind.unit && ind.unit.length <= 6 ? (ind.unit === '%' ? '' : ' ') + ind.unit : ''}`;
+}
+function buildCallouts() {
+  const In = currentInput(), items = [];
+  for (const g in parts) {
+    const st = parts[g]; if (!st || st.level < 1) continue;
+    const ws = st.warnings.filter(w => w.level >= 1).sort((a, b) => b.level - a.level); if (!ws.length) continue;
+    items.push({ group: g, anchorGroup: CALL_ANCHOR[g] || g, level: st.level, title: callTitle(ws[0], In), more: ws.length - 1 });
+  }
+  items.sort((a, b) => b.level - a.level);
+  const seen = new Set(); for (let i = 0; i < items.length; i++) { const t = items[i].title; if (seen.has(t)) items.splice(i--, 1); else seen.add(t); }   // one marker per finding (e.g. pelvis and femur share the hip finding)
+  const sig = JSON.stringify(items.map(i => [i.group, i.level, i.title, i.more]));
+  if (sig === callSig) return; callSig = sig; callItems = items;
+  const box = $('callBox'), svg = $('callSvg'); box.innerHTML = ''; svg.innerHTML = '';
+  for (const it of items) {
+    const b = document.createElement('button'); b.type = 'button'; b.className = 'call ' + LEVEL_NAME[it.level];
+    b.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 22 20.5H2z"/><path d="M12 9.5v5.2M12 17.4v.2"/></svg><span></span>';
+    b.lastChild.textContent = it.title + (it.more ? ` +${it.more}` : ''); b.title = `${PARTS[it.group].label}: ${LEVEL_LABEL[it.level]}`;
+    b.onclick = () => selectPart(it.group);
+    const ln = document.createElementNS('http://www.w3.org/2000/svg', 'polyline'); ln.setAttribute('class', 'cl ' + LEVEL_NAME[it.level]);
+    const dot = document.createElementNS('http://www.w3.org/2000/svg', 'circle'); dot.setAttribute('r', 4); dot.setAttribute('class', 'cd ' + LEVEL_NAME[it.level]);
+    svg.append(ln, dot); it.el = b; it.ln = ln; it.dot = dot; box.append(b);
+  }
+}
+function layoutCallouts() {
+  requestAnimationFrame(layoutCallouts);
+  const box = $('callBox'), svg = $('callSvg'); if (!lobby || !box) return;
+  const show = callOn && !state.sel && callItems.length > 0; box.style.display = svg.style.display = show ? '' : 'none';
+  if (!show) return;
+  const W = box.clientWidth, H = box.clientHeight; if (!W) return;
+  const L = [], R = [], mid = lobby.anchor('ribs'), cx = mid ? mid.x : W / 2;
+  for (const it of callItems) {
+    const p = lobby.anchor(it.anchorGroup); it.p = p; it.vis = !!(p && p.front);
+    it.el.style.display = it.vis ? '' : 'none'; it.ln.style.display = it.dot.style.display = it.vis ? '' : 'none';
+    if (it.vis) { const dx = p.x - cx; (Math.abs(dx) < 14 ? (L.length <= R.length ? L : R) : dx < 0 ? L : R).push(it); }
+  }
+  for (const [side, arr] of [['L', L], ['R', R]]) {
+    arr.sort((a, b) => a.p.y - b.p.y); let prev = 52;
+    for (const it of arr) {
+      const w = it.el.offsetWidth, h = it.el.offsetHeight;
+      const y = Math.min(H - 20 - h / 2, Math.max(prev + h / 2 + 6, it.p.y)); prev = y + h / 2;
+      const x = side === 'L' ? 10 : W - 10 - w;
+      it.el.style.transform = `translate(${x}px,${y - h / 2}px)`;
+      const ex = side === 'L' ? x + w : x, kx = ex + (side === 'L' ? 16 : -16);
+      it.ln.setAttribute('points', `${it.p.x},${it.p.y} ${kx},${y} ${ex},${y}`);
+      it.dot.setAttribute('cx', it.p.x); it.dot.setAttribute('cy', it.p.y);
+    }
+  }
+}
+$('bWarn').onclick = () => { callOn = !callOn; $('bWarn').setAttribute('aria-pressed', String(callOn)); };
+
 /* ---------- Tiles (left, no part selected) ---------- */
 const num = v => typeof v === 'number' && Number.isFinite(v);
 const VITALS = [
-  { id: 'hr', label: 'Heart rate', unit: 'bpm', key: 'hr.rest', group: 'heart', layer: 'organ' },
+  { id: 'hr', label: 'Heart rate', unit: 'bpm', key: 'hr.rest', live: 'hr.now', group: 'heart', layer: 'organ' },
   { id: 'bp', label: 'Blood pressure', unit: 'mmHg', key: 'bp.sys', group: 'artery', layer: 'organ', val: M => (num(M['bp.sys']) && num(M['bp.dia']) ? `${M['bp.sys']}/${M['bp.dia']}` : undefined), base: M => M['bp.sys'] },
-  { id: 'spo2', label: 'Blood oxygen', unit: '%', key: 'spo2.pct', group: 'lung', layer: 'organ' },
-  { id: 'resp', label: 'Breathing', unit: '/min', key: 'resp.rate', group: 'lung', layer: 'organ' },
+  { id: 'spo2', label: 'Blood oxygen', unit: '%', key: 'spo2.pct', live: 'spo2.pct', group: 'lung', layer: 'organ' },
+  { id: 'resp', label: 'Breathing', unit: '/min', key: 'resp.rate', live: 'resp.rate', group: 'lung', layer: 'organ' },
+  { id: 'hrv', label: 'Heart rate variability', unit: 'ms', key: 'hrv.rmssdMs', live: 'hrv.rmssdMs', group: 'heart', layer: 'organ' },
+  { id: 'skin', label: 'Skin temperature', unit: '°C', key: 'skin.tempC', live: 'skin.tempC', group: 'body' },
+  { id: 'eda', label: 'Skin conductance', unit: 'µS', key: 'eda.uS', live: 'eda.uS', group: 'body' },
   { id: 'temp', label: 'Temperature', unit: '°C', key: 'temp.c', group: 'body' },
   { id: 'glucose', label: 'Blood glucose', unit: 'mg/dL', key: 'glucose.mgdl', group: 'liver', layer: 'organ' },
   { id: 'rt', label: 'Reaction time', unit: 'ms', key: 'pvt.lapses', group: 'brain', layer: 'organ', val: M => M['pvt.meanRtMs'] },
@@ -76,13 +162,14 @@ const VITALS = [
   { id: 'urine', label: 'Urine volume', unit: 'L/day', key: 'urine.volumeL', group: 'kidney', layer: 'organ' },
   { id: 'mass', label: 'Body mass', unit: '% vs. pre', key: 'mass.changePct', group: 'body' },
   { id: 'rad', label: 'Radiation', unit: 'mSv', key: 'radiation.careerMsv', group: 'body' },
+  { id: 'dose', label: 'Dose rate', unit: 'µSv/h', key: 'radiation.rateUsvH', live: 'radiation.rateUsvH', group: 'body' },
   { id: 'hip', label: 'Hip bone', unit: '% vs. pre', key: 'bmd.hipPct', group: 'femur', layer: 'bone' },
   { id: 'str', label: 'Strength', unit: '% vs. pre', key: 'strength.changePct', group: 'mThigh', layer: 'muscle' },
   { id: 'vitd', label: 'Vitamin D', unit: 'ng/mL', key: 'vitd.ngml', group: 'body' }
 ];
 const vitals = {}; const resetVitals = () => { for (const v of VITALS) vitals[v.id] = { value: null, status: null, text: 'No data', history: [] }; }; resetVitals();
 let activeView = 'overview';
-const viewGroups = {sleep:['sleep','rt'],exercise:['str','hr','hip','pain'],nutrition:['mass','glucose','vitd','hgb']};
+const viewGroups = {sleep:['sleep','rt','hrv','eda'],exercise:['str','hr','resp','hip','pain','skin'],nutrition:['mass','glucose','vitd','hgb']};
 const viewCopy = {
  overview:['YOUR HEALTH AT A GLANCE','Daily overview'],
  sleep:['REST & RECOVERY','Sleep'],
@@ -151,21 +238,22 @@ function renderScores() {
   lastScores = all;
 }
 function renderTiles() {
-  const box = $('tiles'); box.innerHTML = '';
-  for (const v of VITALS.filter(v => !viewGroups[activeView] || viewGroups[activeView].includes(v.id))) {
-    const s = vitals[v.id], b = document.createElement('button'); b.className = 'tile' + (state.vital === v.id ? ' sel' : ''); b.dataset.vital = v.id;
-    b.innerHTML = '<span class="tl"></span><span class="td"></span><span class="tv"></span><span class="ts"></span>';
-    b.querySelector('.tl').textContent = v.label; b.querySelector('.ts').textContent = s.text;
-    b.querySelector('.td').className = 'td ' + (s.status || '');
-    const tv = b.querySelector('.tv'); tv.textContent = s.value === null ? '–' : s.value;
-    if (s.value !== null) { const u = document.createElement('small'); u.textContent = v.unit; tv.appendChild(u); }
-    if (s.history.length > 2 && v.unit.length < 6) {
-      const h = s.history, mn = Math.min(...h), mx = Math.max(...h), sp = (mx - mn) || 1;
-      const pts = h.map((x, i) => `${(i / (h.length - 1) * 60).toFixed(1)},${(18 - (x - mn) / sp * 16).toFixed(1)}`).join(' ');
-      b.insertAdjacentHTML('beforeend', `<svg class="spark" viewBox="0 0 60 20" aria-hidden="true"><polyline points="${pts}"/></svg>`);
-    }
-    b.onclick = () => selectVital(v.id);
-    box.appendChild(b);
+  const box = $('tiles'), list = VITALS.filter(v => !viewGroups[activeView] || viewGroups[activeView].includes(v.id)), sig = list.map(v => v.id).join();
+  if (box.dataset.sig !== sig) {                                    // build once per view; afterwards the tiles are updated in place
+    box.innerHTML = ''; box.dataset.sig = sig;
+    for (const v of list) { const b = document.createElement('button'); b.dataset.id = v.id;
+      b.innerHTML = '<span class="tl"></span><span class="td"></span><span class="tv"><span></span><small></small></span><span class="ts"></span><svg class="spark" viewBox="0 0 60 20" aria-hidden="true"><polyline points=""/></svg>';
+      b.querySelector('.tl').textContent = v.label; b.onclick = () => selectVital(v.id); box.appendChild(b); }
+  }
+  for (const b of box.children) {
+    const v = VITALS.find(x => x.id === b.dataset.id), s = vitals[v.id], isLive = live.on && !!v.live;
+    b.className = 'tile' + (state.vital === v.id ? ' sel' : '') + (isLive ? ' live' : '');
+    b.querySelector('.ts').textContent = s.text; b.querySelector('.td').className = 'td ' + (s.status || '');
+    b.querySelector('.tv span').textContent = s.value === null ? '–' : s.value; b.querySelector('.tv small').textContent = s.value === null ? '' : v.unit;
+    const sp = b.querySelector('.spark'), h = s.history;
+    if (h.length > 2 && v.unit.length < 6) { const mn = Math.min(...h), mx = Math.max(...h), span = (mx - mn) || 1;
+      sp.firstChild.setAttribute('points', h.map((x, i) => `${(i / (h.length - 1) * 60).toFixed(1)},${(18 - (x - mn) / span * 16).toFixed(1)}`).join(' ')); sp.style.display = ''; }
+    else sp.style.display = 'none';
   }
 }
 function selectVital(id) {
@@ -176,7 +264,8 @@ function selectVital(id) {
 /* ---------- Past data + upcoming (right) ---------- */
 function renderPast() {
   const v = VITALS.find(x => x.id === state.vital), h = vitals[v.id].history;
-  $('pastSub').textContent = h.length ? `${v.label} · ${(window.MedVitalHistoryLabel && window.MedVitalHistoryLabel(v.id, h.length)) || `last ${h.length} days`}` : v.label;
+  // window.MedVitalHistoryLabel (hub-bridge.js): the spacecraft says what each history point is
+  $('pastSub').textContent = h.length ? `${v.label} · ${(window.MedVitalHistoryLabel && window.MedVitalHistoryLabel(v.id, h.length)) || (live.on && v.live ? 'live, last ' + h.length + ' s' : 'last ' + h.length + ' days')}` : v.label;
   const chart = $('chart'), stats = $('stats');
   if (!h.length) { chart.textContent = 'No history yet'; stats.innerHTML = ''; return; }
   const mn = Math.min(...h), mx = Math.max(...h), pad = (mx - mn) * 0.15 || 1, lo = mn - pad, hi = mx + pad, W = 300, H = 110;
@@ -197,8 +286,9 @@ const renderUpcoming = () => { renderList($('envList'), envItems); renderList($(
 
 /* ---------- Attention chips (centre) ---------- */
 function renderAttention() {
-  const box = $('attn'); box.innerHTML = '';
-  const { counts, attention } = summarize(parts);
+  const box = $('attn'), { counts, attention } = summarize(parts);
+  const sig = counts.nodata + '|' + attention.map(a => a.id + a.level).join(); if (box.dataset.sig === sig) return;
+  box.dataset.sig = sig; box.innerHTML = '';
   if (counts.nodata === Object.keys(parts).length) return;
   if (!attention.length) { const s = document.createElement('span'); s.textContent = 'Nothing needs attention in the data entered.'; box.appendChild(s); return; }
   for (const a of attention.slice(0, 6)) {
@@ -212,6 +302,10 @@ function renderAttention() {
 const sideName = s => (s === 'left' ? 'Left ' : s === 'right' ? 'Right ' : '');
 const SINGULAR = { lung: 'lung', kidney: 'kidney', eye: 'eye', mUpperArm: 'upper-arm muscles', mForearm: 'forearm muscles', mThigh: 'thigh muscles', mShin: 'lower-leg muscles', tendon: 'tendons', shoulder: 'shoulder girdle', arm: 'arm bones', hand: 'hand bones', femur: 'thigh bone (femur)', shin: 'lower-leg bones', foot: 'foot bones' };
 const partName = (group, side) => (PAIRED.includes(group) && side && SINGULAR[group] ? sideName(side) + SINGULAR[group] : PARTS[group].label);
+const cap = t => t.charAt(0).toUpperCase() + t.slice(1);
+/** Display name of a single bone or muscle: the BodyParts3D name, with the side in front when the name does not carry it. */
+const singleName = i => { const n = i.name.replace(/\bsecondary /, ''); return cap(/\b(left|right)\b/.test(n) || !i.named ? n : i.named + ' ' + n); };
+const selName = sel => (sel.name ? singleName(sel) : partName(sel.group, sel.side));
 function srcLink(key) {
   const s = ALL_SRC[key]; if (!s) return null;
   const a = document.createElement('a'); a.href = s.url; a.target = '_blank'; a.rel = 'noopener'; a.textContent = s.title; return a;
@@ -223,15 +317,28 @@ function renderCard() {
   card.hidden = false; $('tiles').hidden = true; $('scores').hidden = true; card.innerHTML = '';
   const top = el('div', 'top'); const back = el('button', 'back', '‹'); back.setAttribute('aria-label', 'Back'); back.onclick = () => deselect();
   const pill = el('span', 'st ' + st.status); pill.append(el('i'), document.createTextNode(st.statusLabel));
-  top.append(back, el('h2', '', partName(sel.group, sel.side)), pill); card.append(top);
-  card.append(el('p', 'does', def.does));
+  top.append(back, el('h2', '', selName(sel)), pill); card.append(top);
+  if (sel.name) {                                                  // a single bone or muscle: it is rated with its group
+    const row = el('div', 'partof'); row.append(el('span', '', (sel.layer === 'bone' ? 'Bone' : 'Muscle') + ' · part of'));
+    const g = el('button', '', partName(sel.group, sel.side)); g.type = 'button'; g.title = 'Select the whole group'; g.onclick = () => selectPart(sel.group, sel.side); row.append(g); card.append(row);
+    card.append(el('p', 'does', `${def.does} The status and the facts below apply to the whole group: the data entered is not specific to a single ${sel.layer === 'bone' ? 'bone' : 'muscle'}.`));
+  } else {
+    card.append(el('p', 'does', def.does));
+    const list = lobby && sel.group !== 'body' ? lobby.partsOf(sel.group, PAIRED.includes(sel.group) ? sel.side : null) : [];
+    if (list.length > 1) {
+      const d = el('details', 'plist'); d.append(el('summary', '', `${list.length} single ${list[0].layer === 'bone' ? 'bones and joints' : 'muscles'} in this group`));
+      const box = el('div', 'pchips'); for (const i of list.sort((a, b) => b.center.y - a.center.y)) { const b = el('button', '', singleName(i)); b.type = 'button'; b.onclick = () => lobby.select(i.pid, true); box.append(b); }
+      d.append(box); card.append(d);
+    }
+  }
   if (st.warnings.length) {
     card.append(el('h3', '', 'Warnings'));
     for (const w of st.warnings) {
       const li = el('div', 'warnli lv' + w.level, w.text); const m = el('span', 'meta', BASIS[w.basis] || ''); if (w.src) { m.append(document.createTextNode(' · ')); const a = srcLink(w.src); if (a) m.append(a); } li.append(m); card.append(li);
     }
   } else if (st.level === LEVEL.nodata) {
-    card.append(el('div', 'gap', def.ind.length ? 'No data for this part yet. It is rated from: ' + def.ind.map(k => INDICATORS[k].label.toLowerCase()).join(', ') + '.' : 'No indicator is connected to this part, so it cannot be rated.'));
+    const rated = def.ind.filter(k => INDICATORS[k].rate !== false);
+    card.append(el('div', 'gap', rated.length ? 'No rated data for this part yet. It is rated from: ' + rated.map(k => INDICATORS[k].label.toLowerCase()).join(', ') + '.' : 'No indicator is connected to this part, so it cannot be rated.'));
   } else card.append(el('div', 'gap', 'No warning in the data entered.'));
   if (st.level >= 2) card.append(el('div', 'gap', st.level >= 3 ? 'Contact the flight surgeon now.' : 'Re-measure, then tell the flight surgeon at the next contact.'));
   if (st.notes.length) { card.append(el('h3', '', 'In range')); const ul = el('ul'); for (const n of st.notes) { const li = el('li', '', n.text); ul.append(li); } card.append(ul); }
@@ -240,7 +347,7 @@ function renderCard() {
     const g = el('div', 'ind');
     for (const i of st.indicators) {
       const v = i.value === null ? '–' : typeof i.value === 'boolean' ? (i.value ? 'yes' : 'no') : `${i.value}${i.unit ? ' ' + i.unit : ''}`;
-      g.append(el('span', '', i.label), el('b', '', v), el('small', '', i.how + (i.flight ? ' · measurable in flight' : ' · not measurable in flight') + (i.why ? '. Why: ' + i.why : '')));
+      g.append(el('span', '', i.label), el('b', '', v), el('small', '', i.how + (i.flight ? ' · measurable in flight' : ' · not measurable in flight') + (i.rate === false ? ' · tracked, not rated: it is read against the personal baseline' : '') + (i.why ? '. Why: ' + i.why : '')));
     }
     card.append(g);
   }
@@ -263,15 +370,17 @@ function selectPart(group, side) {
 function deselect() { state.sel = null; if (lobby) lobby.select(-1); renderCard(); }
 function onPick(i) {
   if (!i) { state.sel = null; renderCard(); return; }
-  state.sel = { group: i.group, side: PAIRED.includes(i.group) ? i.side : null, pid: i.pid }; $('hint').classList.add('gone'); renderCard();
+  state.sel = { group: i.group, side: PAIRED.includes(i.group) ? i.side : null, pid: i.pid };
+  if (i.name) Object.assign(state.sel, { name: i.name, named: i.named, layer: i.layer });
+  $('hint').classList.add('gone'); renderCard();
 }
 const tip = $('tip');
 function onHover(i, x, y) {
   if (!i) { tip.hidden = true; return; }
   const r = $('cam').getBoundingClientRect(), st = parts[i.group];
   tip.hidden = false; tip.style.left = (x - r.left) + 'px'; tip.style.top = (y - r.top) + 'px';
-  tip.textContent = partName(i.group, i.side);
-  const s = document.createElement('small'); s.textContent = st.statusLabel; tip.append(s);
+  tip.textContent = i.name ? singleName(i) : partName(i.group, i.side);
+  const s = document.createElement('small'); s.textContent = (i.name ? PARTS[i.group].label + ' · ' : '') + st.statusLabel; tip.append(s);
 }
 
 /* ---------- Layer and look ---------- */
@@ -290,32 +399,128 @@ function sampleSeries(seed, base, spread, n) { let s = seed; const out = []; for
 const TXT = lv => (lv < 0 ? 'No data' : LEVEL_LABEL[lv]);
 function syncTiles(withHistory) {
   for (const d of VITALS) {
-    const value = d.val ? d.val(M) : M[d.key]; if (value === undefined || value === null) continue;
-    const lv = keyLevel(d.key), s = vitals[d.id], base = d.base ? d.base(M) : value;
+    const key = d.live && num(M[d.live]) ? d.live : d.key;
+    const value = d.val ? d.val(M) : M[key]; if (value === undefined || value === null) continue;
+    const lv = keyLevel(key), s = vitals[d.id], base = d.base ? d.base(M) : value, rated = !INDICATORS[key] || INDICATORS[key].rate !== false;
     s.value = value; s.status = levelToUi(lv);
-    s.text = d.id === 'rt' && num(M['pvt.lapses']) ? `${M['pvt.lapses']} lapses · ${TXT(lv)}` : TXT(lv);
+    s.text = d.id === 'rt' && num(M['pvt.lapses']) ? `${M['pvt.lapses']} lapses · ${TXT(lv)}` : !rated ? 'Not rated' : TXT(lv);
     if (withHistory && num(Number(base))) s.history = sampleSeries(d.id.length * 7 + d.unit.length, Number(base), Math.max(Math.abs(Number(base)) * 0.04, 0.6), 14).map(v => (d.id === 'pain' ? Math.max(0, Math.min(10, Math.round(v))) : v));
   }
   renderTiles(); renderPast();
 }
 function setMeasurements(obj, opts = {}) {
+  if (obj['body.heightCm'] !== undefined || obj['body.massKg'] !== undefined || obj.sex) setBody({ heightCm: obj['body.heightCm'], massKg: obj['body.massKg'], sex: obj.sex }, false, true);
   for (const k in obj) {
-    if (k === 'mission.month' || k === 'sex' || k === 'pvt.confirmed' || k === 'pvt.meanRtMs' || INDICATORS[k] || SCORE_KEYS.includes(k)) M[k] = obj[k];
+    if (k === 'mission.month' || k === 'sex' || k === 'activity' || k === 'pvt.confirmed' || k === 'pvt.meanRtMs' || INDICATORS[k] || SCORE_KEYS.includes(k)) M[k] = obj[k];
   }
   recompute(); syncTiles(!!opts.history); return true;
 }
-function loadSample() {
-  M = {}; state.sample = true; setMeasurements({ ...SAMPLE, ...SCORE_SAMPLE }, { history: true });
-  envItems = [{ text: 'Radiation background nominal', note: 'Sample' }, { text: 'Cabin CO₂ within limits', note: 'Sample' }, { text: 'Space weather quiet', note: 'Sample' }];
-  predItems = [{ text: 'Hip and lumbar bone density on track for month 4 (model)', note: 'Sample' }, { text: 'Watch urine volume: stone risk', note: 'Sample' }];
-  renderUpcoming(); $('sampleChip').hidden = false; $('sampleBtn').textContent = 'Clear sample data';
+/** Loads one of the invented test scenarios (testdata.mjs): 'nominal', 'mixed' or 'critical'. */
+function loadSample(id = 'mixed') {
+  const sc = SCENARIOS[id] || SCENARIOS.mixed; id = SCENARIOS[id] ? id : 'mixed';
+  stopLive(); M = {}; resetVitals(); state.sample = id; setBody(sc.body, false, true); setMeasurements(sc.data, { history: true });
+  envItems = sc.environment.map(text => ({ text, note: 'Test data' })); predItems = sc.predictions.map(text => ({ text, note: 'Test data' }));
+  renderUpcoming(); $('sampleChip').hidden = false; $('sampleChip').textContent = 'Test data · ' + sc.label; $('sampleBtn').textContent = 'Test data · ' + sc.label;
   if (lobby) lobby.setHeartRate(M['hr.rest']);
+  startLive();
+  return true;
 }
 function clearSample() {
-  M = {}; state.sample = false; resetVitals(); envItems = []; predItems = [];
-  $('sampleChip').hidden = true; $('sampleBtn').textContent = 'Load sample data';
-  recompute(); renderTiles(); renderPast(); renderUpcoming();
+  stopLive(); M = {}; state.sample = false; resetVitals(); envItems = []; predItems = []; setBody(storedBody(), false, true);
+  $('sampleChip').hidden = true; $('sampleBtn').textContent = 'Test data';
+  recompute(); renderTiles(); renderPast(); renderUpcoming(); renderActivity();
 }
+/* Test-data menu above the button */
+function testMenu(open) {
+  const m = $('testMenu'); m.hidden = !open; $('sampleBtn').setAttribute('aria-expanded', String(open)); if (!open) return;
+  m.innerHTML = '';
+  for (const id of SCENARIO_IDS) { const sc = SCENARIOS[id], b = el('button', 'tm ' + id + (state.sample === id ? ' on' : '')); b.type = 'button'; b.setAttribute('role', 'menuitem');
+    b.append(el('i'), el('b', '', sc.label), el('small', '', sc.note)); b.onclick = () => { testMenu(false); loadSample(id); }; m.append(b); }
+  const rp = el('button', 'tm plainrow'); rp.type = 'button'; rp.append(el('b', '', 'Paste as a report'), el('small', '', 'Puts the borderline data into the message box as text'));
+  rp.onclick = () => { testMenu(false); const t = $('chatIn'); t.value = reportText('mixed'); fitIn(); t.focus(); }; m.append(rp);
+  if (state.sample) { const c = el('button', 'tm plainrow'); c.type = 'button'; c.append(el('b', '', 'Clear test data')); c.onclick = () => { testMenu(false); clearSample(); }; m.append(c); }
+}
+addEventListener('pointerdown', e => { if (!$('testMenu').hidden && !e.target.closest('#testMenu,#sampleBtn')) testMenu(false); if (!$('bodyPop').hidden && !e.target.closest('#bodyPop,#bodyBtn')) $('bodyPop').hidden = true; if (!$('actMenu').hidden && !e.target.closest('#actMenu,#actBtn')) actMenu(false); });
+
+/* ---------- Body size: height and mass stretch the model (approximate, the anatomy is not re-shaped) ---------- */
+// The BodyParts3D skeleton spans 164 cm from sole to skull top; with scalp and heel pad that is taken as a stature of 166 cm.
+// Breadth follows the body-mass index relative to 22.5 kg/m², damped, because a frame does not widen as fast as mass grows.
+const REF_BODY = { heightCm: 166, massKg: 62 }, BODY_MAX = { heightCm: [150, 205], massKg: [45, 130] };
+function storedBody() { try { const b = JSON.parse(localStorage.getItem('medvital.body') || 'null'); return b && typeof b === 'object' ? b : null; } catch (e) { return null; } }
+function bodyScale(h, m) {
+  const sy = h / REF_BODY.heightCm, bmi = m / (h / 100) ** 2, f = Math.max(.9, Math.min(1.22, Math.pow(bmi / 22.5, .4)));
+  return { sx: sy * f, sy, bmi };
+}
+/** setBody({heightCm, massKg, sex}) changes what is given; setBody(null) clears everything. `quiet` skips the re-rating (the caller does it). */
+function setBody(b, save, quiet) {
+  const cl = (v, r) => Math.max(r[0], Math.min(r[1], Math.round(v)));
+  if (!b) { body.heightCm = body.massKg = body.sex = null; }
+  else { if (num(b.heightCm)) body.heightCm = cl(b.heightCm, BODY_MAX.heightCm); if (num(b.massKg)) body.massKg = cl(b.massKg, BODY_MAX.massKg); if (b.sex === 'f' || b.sex === 'm') body.sex = b.sex; else if (b.sex === null) body.sex = null; }
+  const h = body.heightCm || REF_BODY.heightCm, m = body.massKg || REF_BODY.massKg, sc = bodyScale(h, m), sized = body.heightCm || body.massKg;
+  if (lobby) { lobby.setBody(sc.sx, sc.sy); lobby.setFemale(body.sex === 'f'); }
+  if (body.sex) M.sex = body.sex; else delete M.sex;
+  $('rH').value = h; $('rW').value = m; $('vH').textContent = h + ' cm'; $('vW').textContent = `${m} kg · BMI ${sc.bmi.toFixed(1)}`;
+  document.querySelectorAll('#segSex button').forEach(x => x.classList.toggle('on', x.dataset.sex === body.sex));
+  $('bodyBtn').textContent = [body.sex ? (body.sex === 'f' ? 'Female' : 'Male') : '', sized ? `${h} cm · ${m} kg` : ''].filter(Boolean).join(' · ') || 'Body';
+  if (save) { try { sized || body.sex ? localStorage.setItem('medvital.body', JSON.stringify(body)) : localStorage.removeItem('medvital.body'); } catch (e) {} }
+  if (!quiet) { recompute(); syncTiles(false); }
+  return { ...body, ...sc };
+}
+$('bodyBtn').onclick = () => { actMenu(false); $('bodyPop').hidden = !$('bodyPop').hidden; };
+$('rH').oninput = () => setBody({ heightCm: +$('rH').value, massKg: +$('rW').value }, true, true);
+$('rW').oninput = $('rH').oninput;
+document.querySelectorAll('#segSex button').forEach(x => x.onclick = () => setBody({ sex: body.sex === x.dataset.sex ? null : x.dataset.sex }, true));
+$('bodyReset').onclick = () => setBody(null, true);
+
+/* ---------- Current activity and the live test stream (live.mjs) ----------
+   The activity (resting, sleeping, working, exercising, spacewalk) is part of the rating: heart and breathing rate are only
+   rated at rest. With test data loaded, a simulated wearable stream updates the continuous values once per second and
+   follows a compressed day; the activity can also be set by hand. Nothing in the stream is measured. */
+const live = { on: false, sim: null, t: 0, mode: 'auto', timer: null, lastActive: -1e9 };
+const RECOVERY_S = 30;                       // after exercise the heart and breathing rate need time to settle and are not rated
+function renderActivity() {
+  const a = M.activity, btn = $('actBtn');
+  btn.className = 'actpill' + (a ? ' a-' + a : '') + (live.on ? ' live' : '');
+  $('actTxt').textContent = a ? (M.recovering ? 'Recovering' : ACTIVITIES[a].label) + (live.on ? ' · live' : '') : 'Activity';
+}
+function setActivity(a) {
+  if (a === 'auto') live.mode = 'auto';
+  else if (ACTIVITIES[a]) { live.mode = a; M.activity = a; }
+  else { live.mode = 'auto'; delete M.activity; }
+  if (live.on) liveTick(); else { recompute(); syncTiles(false); }
+  renderActivity(); return M.activity || null;
+}
+function liveTick() {
+  const a = live.mode === 'auto' ? live.sim.activityAt(live.t) : live.mode, v = live.sim.step(1, a); live.t++;
+  Object.assign(M, v); M.activity = a;
+  if (a === 'exercise' || a === 'eva') live.lastActive = live.t; M.recovering = live.t - live.lastActive <= RECOVERY_S && live.t !== live.lastActive;
+  for (const d of VITALS) if (d.live && num(v[d.live])) { const s = vitals[d.id]; s.history = [...s.history.slice(-59), v[d.live]]; }
+  recompute(true); syncTiles(false); renderActivity();
+  if (lobby) { lobby.setHeartRate(v['hr.now']); lobby.setBreathRate(v['resp.rate']); }
+}
+function startLive() {
+  stopLive(true); live.sim = createLive({ base: { ...M }, seed: 7 }); live.on = true; live.t = 0; live.mode = 'auto'; live.lastActive = -1e9;
+  for (const d of VITALS) if (d.live) vitals[d.id].history = [];
+  live.timer = setInterval(liveTick, 1000); liveTick(); return true;
+}
+function stopLive(quiet) {
+  clearInterval(live.timer); live.timer = null; const was = live.on; live.on = false; delete M.recovering;
+  if (was && !quiet) { renderTiles(); renderActivity(); }
+  if (lobby) lobby.setBreathRate(13.3);
+  return was;
+}
+function actMenu(open) {
+  const m = $('actMenu'); m.hidden = !open; if (!open) return; $('bodyPop').hidden = true; m.innerHTML = '';
+  const row = (cls, title, note, fn, on) => { const b = el('button', 'tm ' + cls + (on ? ' on' : '')); b.type = 'button'; b.setAttribute('role', 'menuitem'); b.append(el('i'), el('b', '', title)); if (note) b.append(el('small', '', note)); b.onclick = () => { actMenu(false); fn(); }; m.append(b); };
+  if (live.on) row('auto', 'Follow the test stream', 'A compressed day: rest, work, exercise, sleep', () => setActivity('auto'), live.mode === 'auto');
+  // picking an activity by hand also tells the spacecraft (hub-bridge.js listens for medvital:activity)
+  for (const id of ACTIVITY_IDS) row('a-' + id, ACTIVITIES[id].label, ACTIVITIES[id].note, () => { setActivity(id); window.dispatchEvent(new CustomEvent('medvital:activity', { detail: id })); }, live.mode === id || (!live.on && M.activity === id));
+  if (live.on) row('plainrow', 'Stop the live test stream', '', () => { stopLive(); });
+  else if (state.sample) row('plainrow', 'Start the live test stream', 'Simulated wearable values, once per second', () => startLive());
+  else row('plainrow', 'Clear the activity', '', () => setActivity(null));
+}
+$('actBtn').onclick = () => actMenu($('actMenu').hidden);
+
 /** Tile values from health.mjs and other callers. */
 function setVital(id, d) {
   const v = VITALS.find(x => x.id === id); if (!v) return false;
@@ -333,7 +538,7 @@ function setSystemStatus(id, status) { const g = SYSTEM_GROUPS[id]; if (!g) retu
 document.querySelectorAll('#seg button').forEach(b => b.onclick = () => setLayer(b.dataset.layer));
 document.querySelectorAll('#segLook button').forEach(b => b.onclick = () => setLook(b.dataset.look));
 document.querySelectorAll('#segRot button').forEach(b => b.onclick = () => { document.querySelectorAll('#segRot button').forEach(x => x.classList.toggle('on', x === b)); if (lobby) lobby.setAutoRotate(b.dataset.rot === '1'); });
-$('sampleBtn').onclick = () => (state.sample ? clearSample() : loadSample());
+$('sampleBtn').onclick = () => testMenu($('testMenu').hidden);
 $('bBody').onclick = () => selectPart('body');
 $('bReset').onclick = () => { deselect(); if (lobby) lobby.resetView(); };
 const openSheet = o => { $('ov').hidden = !o; }; $('setBtn').onclick = () => openSheet(true); $('setDone').onclick = () => openSheet(false);
@@ -343,7 +548,7 @@ addEventListener('keydown', e => {
   if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
   const m = { '1': 'bone', '2': 'organ', '3': 'muscle', '4': 'all' }[e.key]; if (m) setLayer(m);
   if (e.key === 'x') setLook(state.look === 'xray' ? 'solid' : 'xray');
-  if (e.key === 'Escape') deselect();
+  if (e.key === 'Escape') { deselect(); testMenu(false); actMenu(false); $('bodyPop').hidden = true; }
   if (e.key === 'r') { deselect(); if (lobby) lobby.resetView(); }
 });
 
@@ -362,7 +567,7 @@ function feedbackState() {
   const L = lobby; const c = L ? L.camera : {};
   return { build: BUILD, t: new Date().toISOString(), ua: navigator.userAgent, viewport: `${innerWidth}x${innerHeight}@${devicePixelRatio}`, url: location.href,
     layer: state.layer, look: state.look, selected: state.sel, camera: L ? { yaw: +c.yaw.toFixed(2), pitch: +c.pitch.toFixed(2), dist: Math.round(c.dist) } : null,
-    pointer: L ? L.stats : null, errors: errLog, measurements: M, counts: summarize(parts).counts, sample: state.sample,
+    pointer: L ? L.stats : null, errors: errLog, measurements: M, body: { ...body }, live: live.on ? live.mode : false, counts: summarize(parts).counts, sample: state.sample,
     health: Object.keys((window.AstroHealth && window.AstroHealth.findings) || {}) };
 }
 function openFeedback(o) { $('fbOv').hidden = !o; if (o) { $('fbT').value = ''; $('fbMsg').textContent = ''; setTimeout(() => $('fbT').focus(), 50); } }
@@ -385,27 +590,36 @@ $('fbForm').onsubmit = async e => {
   btn.disabled = false;
 };
 
-/* ---------- Assistant (rule-based, reads the crew member's own data) ---------- */
-const asst = { greeted: false, rec: null };
+/* ---------- Assistant and data input in one conversation (right) ----------
+   A question goes to the rule-based assistant; a pasted report or a dropped file goes to the reader (intake.mjs), which
+   shows what it found and changes nothing until "Apply" is pressed. */
+const asst = { rec: null };
 const log = $('alog');
-function say(who, text) {
-  const d = el('div', 'msg ' + who); for (const [i, line] of String(text).split('\n').entries()) { if (i) d.append(document.createElement('br')); d.append(document.createTextNode(line)); }
-  log.append(d); log.scrollTop = log.scrollHeight;
+const START_CHIPS = ['How am I doing?', 'What needs attention?', 'Sleep score', 'Load test data'];
+function hello() {
+  log.innerHTML = ''; const h = el('div', 'hello');
+  h.append(el('b', '', 'How can I help?'), el('span', '', 'Ask about your health data, or paste a medical report, lab results or a device export. I show what I found before anything changes.'));
+  log.append(h); chips(START_CHIPS);
 }
+function push(who, node) {
+  const h = log.querySelector('.hello'); if (h) h.remove();
+  const d = el('div', 'msg ' + who); d.append(node); log.append(d); log.scrollTop = log.scrollHeight; return d;
+}
+function say(who, text) {
+  const f = document.createDocumentFragment(); for (const [i, line] of String(text).split('\n').entries()) { if (i) f.append(document.createElement('br')); f.append(document.createTextNode(line)); }
+  push(who, f);
+}
+const inMsg = (who, node) => push(who, typeof node === 'string' ? document.createTextNode(node) : node);
 function chips(list) { const c = $('achips'); c.innerHTML = ''; for (const t of list || []) { const b = el('button', '', t); b.type = 'button'; b.onclick = () => ask(t); c.append(b); } }
 function assistantStatus() {
   const { counts, attention } = summarize(parts), total = Object.keys(parts).length;
   $('asSub').textContent = counts.nodata === total ? 'No data yet' : attention.length ? `${attention.length} need attention` : 'All in range';
-  $('asBtn').classList.toggle('dotted', attention.some(a => a.level >= 2));
 }
 function ask(q) {
-  q = String(q || '').trim(); if (!q) return; showDock('assistant'); say('me', q); $('asIn').value = '';
-  // Hub mode: the spacecraft's onboard AI agent answers (hub-bridge.js sets this hook); local answer if it fails
-  if (window.MedVitalAsk && !/\bscores?\b/i.test(q)) {
-    window.MedVitalAsk(q).then(a => { say('bot', `${a.answer}\n(${a.source})`); chips(SUGGESTIONS.slice(0, 3)); })
-      .catch(() => { const r = assistantAnswer(q, { parts, M: currentInput() }); say('bot', r.text); chips(r.chips || SUGGESTIONS.slice(0, 3)); });
-    return;
-  }
+  q = String(q || '').trim(); if (!q) return; say('me', q);
+  if (/^load test data$/i.test(q)) { loadSample('mixed'); say('bot', 'Loaded the "Borderline" test data: invented values for mission month 4 with a few findings to watch. The button under the body switches between the three test sets.'); chips(['What needs attention?', 'How am I doing?', 'Exercise score']); return; }
+  // Spacecraft mode (hub-bridge.js): the onboard AI agent answers everything except scores
+  if (window.MedVitalAsk && !/\bscores?\b/i.test(q)) { window.MedVitalAsk(q, { say, inMsg, chips, el }); return; }
   if (/\bscores?\b/i.test(q)) {
     const all = scoreAll(currentInput()), want = DOMAIN_IDS.filter(id => q.toLowerCase().includes(id)), ids = want.length ? want : DOMAIN_IDS;
     const lines = ids.map(id => { const sc = all[id]; if (sc.score === null) return `${sc.label}: no data yet.`;
@@ -423,24 +637,12 @@ function ask(q) {
   say('bot', r.text); chips(r.chips || SUGGESTIONS.slice(0, 3));
   if (r.focus && PARTS[r.focus]) selectPart(r.focus);
 }
-/* ---------- Right dock: data input and assistant ---------- */
-function showDock(tab) {
-  document.querySelectorAll('[data-dock]').forEach(b => b.setAttribute('aria-selected', String(b.dataset.dock === tab)));
-  $('inPane').hidden = tab !== 'input'; $('asPane').hidden = tab !== 'assistant';
-  if (tab === 'assistant') {
-    if (!asst.greeted) { asst.greeted = true; say('bot', 'I read your own health data and explain it with sources. Type, or tap the microphone.'); const r = assistantAnswer('how am i doing', { parts, M: currentInput() }); say('bot', r.text); chips(r.chips); }
-    setTimeout(() => $('asIn').focus(), 30);
-  } else setTimeout(() => $('inText').focus(), 30);
-}
-document.querySelectorAll('[data-dock]').forEach(b => b.onclick = () => showDock(b.dataset.dock));
-$('asBtn').onclick = () => showDock('assistant');
+/** Kept for callers of the old two-tab dock: both tabs are one conversation now. */
+function showDock() { setTimeout(() => $('chatIn').focus(), 30); }
 
-const KEY_LABEL = { 'mission.month': ['Mission month', ''], 'pvt.meanRtMs': ['Mean reaction time', 'ms'] };
+const KEY_LABEL = { sex: ['Biological sex', ''], 'mission.month': ['Mission month', ''], 'pvt.meanRtMs': ['Mean reaction time', 'ms'], 'body.heightCm': ['Height', 'cm'], 'body.massKg': ['Body mass', 'kg'] };
 const keyInfo = k => KEY_LABEL[k] || (INDICATORS[k] ? [INDICATORS[k].label, INDICATORS[k].unit] : SCORE_INPUTS[k] ? [SCORE_INPUTS[k].label, SCORE_INPUTS[k].unit] : [k, '']);
-const fmtVal = (k, v) => (typeof v === 'boolean' ? (v ? 'yes' : 'no') : `${v}${keyInfo(k)[1] ? ' ' + keyInfo(k)[1] : ''}`);
-const inLog = $('inLog');
-function inMsg(who, node) { const d = el('div', 'msg ' + who); if (typeof node === 'string') d.textContent = node; else d.append(node); inLog.append(d); inLog.scrollTop = inLog.scrollHeight; return d; }
-inMsg('bot', 'Paste a medical report, lab results or a device export (text, CSV or JSON), or drop the file here. I show what I found before anything changes.');
+const fmtVal = (k, v) => (k === 'sex' ? (v === 'f' ? 'female' : 'male') : typeof v === 'boolean' ? (v ? 'yes' : 'no') : `${v}${keyInfo(k)[1] ? ' ' + keyInfo(k)[1] : ''}`);
 function readSource(text, name) {
   const me = el('div'); if (name) me.append(el('b', 'file', name)); const prev = text.trim().replace(/\s+/g, ' '); if (!name || prev) me.append(el('span', 'prev', prev.length > 140 ? prev.slice(0, 140) + ' …' : prev));
   inMsg('me', me);
@@ -463,8 +665,10 @@ function readSource(text, name) {
     const set = {}; list.querySelectorAll('input:checked').forEach(c => { set[c.dataset.key] = r.values[c.dataset.key]; });
     const n = Object.keys(set).length; if (!n) return;
     setMeasurements(set); if (set['hr.rest'] && lobby) lobby.setHeartRate(set['hr.rest']);
-    window.dispatchEvent(new CustomEvent('medvital:applied', { detail: set }));   // hub-bridge.js saves it to the spacecraft
+    window.dispatchEvent(new CustomEvent('medvital:applied', { detail: set }));   // spacecraft mode saves it on board
+    if (set['body.heightCm'] !== undefined || set['body.massKg'] !== undefined || set.sex) setBody({}, true, true);
     list.querySelectorAll('input').forEach(c => { c.disabled = true; }); act.replaceWith(el('p', 'done', `Applied ${n} value${n > 1 ? 's' : ''} · ${new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}`));
+    chips(['What needs attention?', 'How am I doing?', 'Sleep score']);
   };
   no.onclick = () => { list.querySelectorAll('input').forEach(c => { c.disabled = true; c.checked = false; }); act.replaceWith(el('p', 'done', 'Discarded')); };
   act.append(no, ok); box.append(act); inMsg('bot', box);
@@ -477,38 +681,45 @@ async function readFiles(files) {
     } else inMsg('bot', `${f.name}: PDFs and images cannot be read yet. Open the file, copy its text and paste it here.`);
   }
 }
-$('inForm').onsubmit = e => { e.preventDefault(); const t = $('inText').value; if (!t.trim()) return; $('inText').value = ''; fitIn(); readSource(t); };
-const fitIn = () => { const t = $('inText'); t.style.height = 'auto'; t.style.height = Math.min(t.scrollHeight, 140) + 'px'; };
-$('inText').oninput = fitIn;
-$('inText').onkeydown = e => { e.stopPropagation(); if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); $('inForm').requestSubmit(); } };
-$('inFile').onchange = e => { readFiles([...e.target.files]); e.target.value = ''; };
+/** A message is a report when the reader finds values in it and it is not phrased as a question or a one-line statement. */
+const QUESTION = /\?\s*$|^(what|how|why|is|are|am|should|can|could|do|does|which|when|where|show|tell|explain|help)\b/i;
+function route(text) {
+  const t = text.trim(); if (!t) return;
+  const n = QUESTION.test(t) ? 0 : extract(t, '').found.length;
+  if (n >= 2 || (n === 1 && (t.length > 60 || /\n/.test(t)))) readSource(t); else ask(t);
+}
+const fitIn = () => { const t = $('chatIn'); t.style.height = 'auto'; t.style.height = Math.min(t.scrollHeight, 150) + 'px'; $('chatSend').disabled = !t.value.trim(); };
+$('chatForm').onsubmit = e => { e.preventDefault(); const t = $('chatIn').value; if (!t.trim()) return; $('chatIn').value = ''; fitIn(); route(t); };
+$('chatIn').oninput = fitIn;
+$('chatIn').onkeydown = e => { e.stopPropagation(); if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) { e.preventDefault(); $('chatForm').requestSubmit(); } };
+$('chatFile').onchange = e => { readFiles([...e.target.files]); e.target.value = ''; };
 { const dock = $('dock'), drop = $('drop'); let depth = 0;
-  dock.addEventListener('dragenter', e => { if (![...e.dataTransfer.types].includes('Files')) return; e.preventDefault(); depth++; drop.hidden = false; showDock('input'); });
+  dock.addEventListener('dragenter', e => { if (![...e.dataTransfer.types].includes('Files')) return; e.preventDefault(); depth++; drop.hidden = false; });
   dock.addEventListener('dragover', e => { if ([...e.dataTransfer.types].includes('Files')) e.preventDefault(); });
   dock.addEventListener('dragleave', () => { if (--depth <= 0) { depth = 0; drop.hidden = true; } });
   dock.addEventListener('drop', e => { e.preventDefault(); depth = 0; drop.hidden = true; readFiles([...e.dataTransfer.files]); }); }
-$('asForm').onsubmit = e => { e.preventDefault(); ask($('asIn').value); };
 const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-if (!SR) $('asMic').hidden = true;
-$('asMic').onclick = () => {
+if (!SR) $('chatMic').hidden = true;
+$('chatMic').onclick = () => {
   if (asst.rec) { asst.rec.stop(); return; }
   const r = new SR(); asst.rec = r; r.lang = 'en-US'; r.interimResults = false; r.maxAlternatives = 1;
-  $('asMic').classList.add('rec');
-  r.onresult = e => { const t = e.results[0][0].transcript; $('asIn').value = t; ask(t); };
+  $('chatMic').classList.add('rec');
+  r.onresult = e => { ask(e.results[0][0].transcript); };
   r.onerror = e => { say('bot', e.error === 'not-allowed' ? 'Microphone access was denied. Allow it in the browser settings.' : 'Voice input failed (' + e.error + '). Browsers send speech to an online service, so it needs an internet connection.'); };
-  r.onend = () => { asst.rec = null; $('asMic').classList.remove('rec'); };
-  try { r.start(); } catch (e) { asst.rec = null; $('asMic').classList.remove('rec'); }
+  r.onend = () => { asst.rec = null; $('chatMic').classList.remove('rec'); };
+  try { r.start(); } catch (e) { asst.rec = null; $('chatMic').classList.remove('rec'); }
 };
+hello();
 
 /* ---------- Start ---------- */
 renderTiles(); renderPast(); renderUpcoming(); renderAttention();
 try {
   lobby = await createLobby($('gl'), { paired: PAIRED, onPick, onHover });
-  lobby.setLook(state.look); lobby.setLayer(state.layer); lobby.setOpacity(+$('rOp').value / 100);
+  lobby.setLook(state.look); lobby.setLayer(state.layer); lobby.setOpacity(+$('rOp').value / 100); setBody(storedBody() || {}, false, true); renderActivity();
   $('camMsg').classList.add('hide'); setSub(BUILD); setDot('ok');
-  recompute();
+  recompute(); layoutCallouts();
   setTimeout(() => $('hint').classList.add('gone'), 9000);
-  if (location.hash === '#sample') loadSample();
+  { const m = /^#sample(?:=(\w+))?$/.exec(location.hash); if (m) loadSample(m[1] || 'mixed'); }
 } catch (e) {
   console.error(e); setDot('bad'); setSub('Error'); $('camTxt').textContent = 'Anatomy or 3D could not be loaded. Serve the page from a local server (see README) and use a browser with WebGL.';
 }
@@ -527,7 +738,12 @@ window.AstroBody = {
   select: selectPart, deselect,
   /** Evaluated state for every part: {status, level, warnings, notes, indicators} */
   getParts: () => parts,
-  loadSample, clearSample,
+  /** loadSample('nominal' | 'mixed' | 'critical') loads invented test data; AstroBody.scenarios lists them. */
+  loadSample, clearSample, scenarios: SCENARIO_IDS,
+  /** setBody({sex: 'f', heightCm: 178, massKg: 74}): sex 'f' | 'm', 150 to 205 cm, 45 to 130 kg; setBody(null) resets it. */
+  setBody,
+  /** setActivity('rest' | 'sleep' | 'work' | 'exercise' | 'eva' | 'auto' | null); startLive() and stopLive() control the simulated wearable stream. */
+  setActivity, startLive, stopLive, activities: ACTIVITY_IDS,
   /** Sleep / Exercise / Nutrition scores: {sleep:{score,coverage,items}, ...}. Inputs: AstroBody.scoreInputs */
   getScores: () => scoreAll(currentInput()), scoreInputs: SCORE_KEYS, setView,
   _state: state, _lobby: () => lobby

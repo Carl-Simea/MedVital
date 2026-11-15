@@ -46,7 +46,10 @@ test('evalPvt: absolute thresholds 11/20 lapses at 355 ms, confirmation needed f
 });
 
 test('evalPvt: too few responses → watch, baseline z triggers watch/warn', () => {
-  assert.equal(evalPvt(scorePvt(trialsWith(5, 250), { lapseMs: 355 })).severity, 1);
+  assert.equal(evalPvt(scorePvt(trialsWith(5, 250), { lapseMs: 355 })).severity, 0);       // quick check, normal
+  assert.equal(evalPvt(scorePvt(trialsWith(5, 250, 3), { lapseMs: 355 })).severity, 1);    // 3 of 5 slow → watch
+  assert.ok(evalPvt(scorePvt(trialsWith(2, 250), { lapseMs: 355 })).rules.includes('pvt.invalid'));
+  assert.equal(evalPvt(scorePvt(trialsWith(5, 600, 5), { lapseMs: 355 })).severity, 1);   // never alert without a baseline
   const b = new Baseline();
   for (const v of [4.4, 4.5, 4.6, 4.5, 4.4]) b.add('pvt.invRt', v);
   const mk = rt => scorePvt(trialsWith(60, rt, 0), { lapseMs: 355 });
@@ -147,4 +150,15 @@ test('knowledge: bone figures match the model', () => {
   const txt = KNOWLEDGE.skeleton.facts.map(f => f.text).join(' ');
   assert.match(txt, /1–1\.5 %/); assert.match(txt, /hip about 1\.5 %/); assert.match(txt, /lumbar spine about 1 %/);
   const m = evalBoneModel(1).detail; assert.equal(m.hip, 1.5); assert.equal(m.lumbar, 1);
+});
+
+test('PvtSession with trialCount: ends after 5 trials, regardless of time', () => {
+  const s = new PvtSession({ trialCount: 5, delayMinMs: 2500, delayMaxMs: 6500, feedbackMs: 1200, rand: () => 0.5 }).start(0);
+  let t = 0, n = 0;
+  while (!s.done && n++ < 2000) {
+    t += 100; const ev = s.tick(t);
+    if (ev === 'stimulus') { t += 300; assert.equal(s.press(t), 'response'); }
+  }
+  assert.ok(s.done); assert.equal(s.trials.length, 5); assert.equal(s.progress(t), 1);
+  assert.ok(s.trials.every(x => x.rt === 300));
 });

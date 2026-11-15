@@ -190,6 +190,16 @@ What the form does **not** carry: reference ranges or "normal" labels. No NASA s
 read, so values are stored as typed (`origin: entered`) and compared only with the astronaut's own earlier results.
 The simulator does not invent NTX/PYD/DPD/CTX values; those tiles stay empty until someone enters a result.
 
+## 9. Common causes the onboard agent names for symptoms (2026-11-15)
+
+The chatbot never diagnoses. For a symptom it names causes commonly reported in spaceflight and cites:
+Law J et al. 2014, J Occup Environ Med (CO₂ levels and headaches on the ISS); Vein AA et al. 2009, Cephalalgia
+(space headache); Heer M & Paloski WH 2006, Autonomic Neuroscience (space motion sickness); Kerstman EL et al. 2012,
+Aviat Space Environ Med (space adaptation back pain); Barger LK et al. 2014, Lancet Neurology (sleep deficiency in
+astronauts); Mader TH et al. 2011, Ophthalmology (optic disc oedema after long-duration flight); NASA HRP evidence
+on spaceflight associated neuro-ocular syndrome (headward fluid shift). Cited from the literature as known; the
+full texts were not re-read in this pass. The danger-sign list is a general emergency convention, not a NASA list.
+
 ## Rules for adding a source
 1. Record exact URL/DOI/accession, retrieval date, licence and any access agreement.
 2. Confirm redistribution rights before committing files; prefer a download script + checksum.

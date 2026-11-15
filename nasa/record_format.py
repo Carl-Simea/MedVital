@@ -36,6 +36,7 @@ TYPE_LAB = "lab"   # onboard test results typed in by the astronaut
 TYPE_TEST = "test"           # scheduled onboard tests (simulated in the demo)
 TYPE_PROFILE = "profile"     # the astronaut's pre-flight baseline and report
 TYPE_EVENT = "event"         # mission schedule, real space weather, blackouts, follow-ups
+TYPE_CONSULT = "consult"     # a chat the astronaut chose to send to the flight surgeon
 
 # ---------------------------------------------------------------------------
 # 2. Field names inside "data"

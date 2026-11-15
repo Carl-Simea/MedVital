@@ -290,7 +290,8 @@ async function pollStatus() {
       const n = nodeEls[d.astronautId]; if (!n) continue;
       n.led.setAttribute("class", "led " + (d.connected ? "on" : "offl"));
       const outside = s.evas && s.evas[d.astronautId];
-      setNode(d.astronautId, { sub: d.connected ? (outside ? "outside" : d.state || "connected") : d.worn ? "no signal" : "taken off",
+      const ACT = { asleep: "Sleeping", awake: "Resting", exercise: "Exercising", spacewalk: "Spacewalk" };
+      setNode(d.astronautId, { sub: d.connected ? (outside ? "Spacewalk · outside" : ACT[d.state] || d.state || "connected") : d.worn ? "no signal" : "taken off",
         count: "", cls: d.connected ? (outside ? "outside" : "") : "off" });
       edgeEls["hub>" + d.astronautId]?.classList.toggle("off", !d.connected);
     }
