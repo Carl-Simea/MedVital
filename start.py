@@ -185,12 +185,12 @@ def main() -> None:
     say("MedVital is running. Ctrl+C stops everything.")
     if "hub" in urls:
         h = urls["hub"].replace("localhost", ip)
-        say(f"  Astronaut 1      {h}/astronaut/?id=astro-1")
-        say(f"  Astronaut 2      {h}/astronaut/?id=astro-2")
+        say(f"  Start page       {h}/")
+        say(f"  Astronauts       {h}/astronaut/        (log in or sign up)")
         say(f"  Spacecraft hub   {h}/cloudflare/")
-        say(f"  3D body          {h}/body/?astronaut=astro-1")
         say(f"  API docs         {h}/docs")
-        pages += [f"{urls['hub']}/cloudflare/", f"{urls['hub']}/astronaut/?id=astro-1", f"{urls['hub']}/astronaut/?id=astro-2"]
+        say("  Demo clock: 1 real minute = 1 mission day. Data goes to NASA at the end of each day.")
+        pages += [f"{urls['hub']}/", f"{urls['hub']}/cloudflare/", f"{urls['hub']}/body/?astronaut=astro-1"]
     if "nasa" in urls:
         say(f"  NASA             {urls['nasa'].replace('localhost', ip)}/")
         pages.append(urls["nasa"] + "/")

@@ -3,60 +3,39 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>MedVital · mission apps</title>
+<title>MedVital</title>
 <link rel="icon" href="/body/icon-180.png">
 <link rel="stylesheet" href="/apps/shared/base.css">
 <style>
-  body { background: var(--habitat); min-height: 100vh; }
-  main { max-width: 1040px; margin: 0 auto; padding: 56px 24px 48px; }
-  h1 { font-size: clamp(36px, 6vw, 64px); font-weight: 600; letter-spacing: -0.02em; margin: 0; line-height: 1; }
-  .lede { max-width: 60ch; color: var(--ink-soft); font-size: 18px; line-height: 1.5; margin: 14px 0 40px; }
-  .apps { display: grid; gap: 18px; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); }
-  .app { display: block; text-decoration: none; color: inherit; background: var(--panel); border: 1px solid var(--rule);
-         border-top: 6px solid var(--c); border-radius: 4px; padding: 22px 22px 20px; }
-  .app:hover { border-color: var(--c); }
-  .app h2 { margin: 0 0 6px; font-size: 26px; font-weight: 600; }
-  .app p { margin: 0 0 14px; color: var(--ink-soft); line-height: 1.45; }
-  .app .who { font-size: 15px; color: var(--c); font-weight: 600; }
-  .crew { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 4px; }
-  .crew a { padding: 8px 14px; border-radius: 3px; background: var(--c); color: #fff; text-decoration: none; font-weight: 600; }
-  .flow { margin-top: 44px; color: var(--ink-soft); line-height: 1.6; max-width: 70ch; }
-  .flow strong { color: var(--ink); font-weight: 600; }
-  code { font-size: 14px; background: #fff; border: 1px solid var(--rule); padding: 1px 6px; border-radius: 3px; }
+  body { background: #0e1116; color: #eef2f7; min-height: 100vh; display: grid; place-items: center; }
+  main { max-width: 1040px; width: 100%; padding: 48px 24px; }
+  h1 { font-size: clamp(44px, 7vw, 76px); font-weight: 600; letter-spacing: -0.025em; margin: 0; line-height: 1; }
+  .clock { margin: 12px 0 40px; color: #9aa7b8; font-size: 18px; min-height: 1.4em; }
+  .roles { display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); }
+  .role { display: block; padding: 26px 24px; border-radius: 14px; text-decoration: none; color: inherit; background: #171b22;
+          border: 1px solid #262c36; border-left: 6px solid var(--c); }
+  .role:hover, .role:focus-visible { background: #1d222b; }
+  .role h2 { margin: 0 0 8px; font-size: 30px; font-weight: 600; }
+  .role p { margin: 0; color: #9aa7b8; line-height: 1.5; }
 </style>
 </head>
 <body>
 <main>
   <h1>MedVital</h1>
-  <p class="lede">Astronaut health monitoring for the NASA Space Apps Challenge 2026. Three screens, one mission: the crew wears it, the spacecraft watches it, NASA keeps the record.</p>
-
-  <div class="apps">
-    <section class="app" style="--c: #d6336c">
-      <h2>Astronaut</h2>
-      <p>The wearable and the MedVital station. Open one tab per astronaut; each tab sends a burst every 5 seconds and buzzes when the spacecraft sends an alert back.</p>
-      <div class="crew" id="crew"><a href="/astronaut/?id=astro-1">Astronaut 1</a><a href="/astronaut/?id=astro-2">Astronaut 2</a></div>
-    </section>
-    <a class="app" style="--c: #e06a10" href="/cloudflare/">
-      <h2>Spacecraft hub</h2>
-      <p>The Cloudflare side: every burst moving through the private network, the database, the AI, space weather and the link to Earth.</p>
-      <span class="who">Open the hub</span>
-    </a>
-    <a class="app" style="--c: #1f6fd0" id="nasaLink" href="http://localhost:5000/">
-      <h2>NASA</h2>
-      <p>The flight surgeon's mission record. Receives everything the spacecraft syncs and confirms what it saved.</p>
-      <span class="who">Open the mission record</span>
-    </a>
+  <p class="clock" id="clock"></p>
+  <div class="roles">
+    <a class="role" style="--c: #ff5a8a" href="/astronaut/"><h2>Astronaut</h2><p>Log in as a crew member, or sign up with your pre-flight report. Your body, live, in 3D.</p></a>
+    <a class="role" style="--c: #f38020" href="/cloudflare/"><h2>Spacecraft hub</h2><p>The private network: which wearables are connected, data moving every second, and the daily send to NASA.</p></a>
+    <a class="role" style="--c: #4c8dff" id="nasa" href="http://localhost:5000/"><h2>NASA</h2><p>The flight surgeon's mission record: every astronaut, their pre-flight report, live vs. baseline, upcoming events.</p></a>
   </div>
-
-  <p class="flow"><strong>Demo:</strong> start the Astronaut tabs, switch an astronaut to spacewalk, then press <em>Replay solar event</em> on the hub. The spacewalker's wearable buzzes RETURN_NOW within one burst. Cut the link to Earth on the NASA screen, keep going, restore it, and check the Verify tab: the counts on both sides match.</p>
 </main>
 <script type="module">
   import { api } from "/apps/shared/hub.js";
-  api("/hub/status").then((s) => { if (s.nasaUrl) document.getElementById("nasaLink").href = s.nasaUrl.replace("127.0.0.1", location.hostname) + "/"; }).catch(() => {});
-  api("/hub/crew").then((crew) => {
-    const box = document.getElementById("crew"); box.replaceChildren();
-    for (const a of crew) { const l = document.createElement("a"); l.href = `/astronaut/?id=${encodeURIComponent(a.id)}`; l.target = "_blank"; l.textContent = `${a.name} · ${a.role}`; box.append(l); }
+  api("/hub/status").then((s) => {
+    if (s.nasaUrl) document.getElementById("nasa").href = s.nasaUrl.replace(/127\.0\.0\.1|localhost/, location.hostname) + "/";
   }).catch(() => {});
+  const tick = () => api("/hub/clock").then((c) => { document.getElementById("clock").textContent = `Mission day ${c.day} · ${c.time} · ${c.phaseLabel}`; }).catch(() => {});
+  tick(); setInterval(tick, 1000);
 </script>
 </body>
 </html>

@@ -1,0 +1,41 @@
+MEDVITAL PRE-FLIGHT MEDICAL REPORT
+SIMULATED: fictional astronaut for the NASA Space Apps 2026 demo. Not a real person, not medical data.
+
+Astronaut ID: astro-4
+Name: Jean-Luc Pierre
+Role: Mission specialist
+Age: 41 years
+Sex: male
+Height: 176 cm
+Weight: 78 kg
+Exam: 30 days before launch (L-30)
+
+Vital signs
+Resting heart rate: 72 bpm
+Blood pressure: 126/82 mmHg
+SpO2: 97 %
+Respiratory rate: 15 /min
+Body temperature: 36.8 °C
+
+Laboratory
+Blood glucose: 95 mg/dL
+Hemoglobin: 14.9 g/dL
+Vitamin D: 26 ng/mL
+24-hour urine volume: 1.9 L
+Urinary calcium: 205 mg/day
+
+Cognition and sleep
+Mean reaction time: 270 ms
+PVT lapses: 2
+Sleep duration: 6.8 hours
+
+Musculoskeletal
+Back pain score: 1 /10
+Hip bone density change: 0 % (reference DXA scan)
+Strength change: 0 % (reference test)
+
+Radiation
+Career radiation dose: 68 mSv
+
+These pre-flight values are this astronaut's baseline. MedVital compares every in-flight
+reading with them, not with population averages.

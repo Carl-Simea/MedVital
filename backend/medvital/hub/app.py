@@ -47,6 +47,7 @@ def create_hub_app(
         observations,
         app.state.registry,
         nasa_url=nasa_url if nasa_url is not None else os.environ.get("MEDVITAL_NASA_URL"),
+        observations_path=data / "observations.db",
     )
     app.state.hub = hub
     app.include_router(hub_router)
@@ -65,6 +66,7 @@ def create_hub_app(
         ("/cloudflare", REPO / "apps" / "cloudflare"),
         ("/shared", REPO / "apps" / "shared"),
         ("/body", REPO / "body-dashboard" / "public"),
+        ("/reports", REPO / "reports"),
     ):
         if folder.is_dir():
             app.mount(url, StaticFiles(directory=folder, html=True), name=url.strip("/"))

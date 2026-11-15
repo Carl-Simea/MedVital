@@ -8,377 +8,334 @@
 <script src="/vendor/chart.umd.js"></script>
 <style>
   :root {
-    --page: #f3f4f6;
-    --panel: #ffffff;
-    --ink: #111418;
-    --ink-soft: #4b5563;
-    --line: #dfe3e8;
-    --up: #0a7d33;          /* link up */
-    --down: #c62828;        /* link down */
-    --return-now: #c62828;  /* RETURN_NOW   = red    */
-    --check-vitals: #e07000;/* CHECK_VITALS = orange */
-    --info: #1f6fd0;        /* INFO         = blue   */
-    --heart: #2a78d6;       /* chart lines */
-    --oxygen: #1baf7a;
-    --dose: #6250d6;
+    --font: "Bahnschrift", "DIN Alternate", "Segoe UI", system-ui, sans-serif;
+    --page: #eef1f5; --panel: #ffffff; --ink: #142033; --ink-soft: #566173; --line: #d8dee6;
+    --navy: #17325c; --navy-soft: #e5ecf6;
+    --up: #0a7d33; --down: #c62828;
+    --return-now: #c62828; --check-vitals: #d86a00; --info: #1f6fd0;
+    --heart: #d6336c; --oxygen: #12917f; --dose: #6250d6;
   }
   * { box-sizing: border-box; }
-  body {
-    margin: 0;
-    background: var(--page);
-    color: var(--ink);
-    font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
-    font-size: 16px;
-    line-height: 1.4;
-  }
+  [hidden] { display: none !important; }
+  body { margin: 0; background: var(--page); color: var(--ink); font-family: var(--font); font-size: 16px; line-height: 1.4;
+         font-variant-numeric: tabular-nums; }
+  button { font: inherit; cursor: pointer; }
+  button:focus-visible, a:focus-visible { outline: 3px solid var(--info); outline-offset: 2px; }
 
-  /* ---------- top bar ---------- */
-  .topbar {
-    position: sticky; top: 0; z-index: 10;
-    background: var(--panel);
-    border-bottom: 1px solid var(--line);
-    padding: 14px 24px;
-    display: flex; flex-wrap: wrap; align-items: center; gap: 16px 32px;
-  }
-  .title h1 { margin: 0; font-size: 22px; }
-  .title p { margin: 2px 0 0; color: var(--ink-soft); font-size: 15px; }
+  .topbar { position: sticky; top: 0; z-index: 10; background: var(--navy); color: #fff; padding: 12px 22px;
+            display: flex; flex-wrap: wrap; align-items: center; gap: 12px 28px; }
+  .topbar h1 { margin: 0; font-size: 22px; font-weight: 600; }
+  .topbar p { margin: 0; opacity: .75; font-size: 14px; }
+  .clock { font-size: 22px; font-weight: 600; }
+  .clock small { display: block; font-size: 13px; font-weight: 400; opacity: .75; }
+  .link { display: flex; align-items: center; gap: 12px; margin-left: auto; }
+  .link-status { font-weight: 700; }
+  .link-status.up { color: #8be3a9; } .link-status.down { color: #ffb3b3; }
+  .link-button { padding: 10px 18px; border: 0; border-radius: 4px; color: #fff; font-weight: 700; }
+  .link-button.cut { background: var(--down); } .link-button.restore { background: var(--up); }
+  .count b { font-size: 22px; display: block; line-height: 1; } .count span { font-size: 13px; opacity: .75; }
 
-  .link { display: flex; align-items: center; gap: 14px; }
-  .link-status { font-size: 20px; font-weight: 700; }
-  .link-status.up { color: var(--up); }
-  .link-status.down { color: var(--down); }
-  .link-button {
-    font: inherit; font-size: 20px; font-weight: 700;
-    padding: 14px 28px; min-width: 210px;
-    border: 0; border-radius: 10px; color: #fff; cursor: pointer;
-  }
-  .link-button.cut { background: var(--down); }       /* link is up: the button cuts it */
-  .link-button.restore { background: var(--up); }     /* link is down: the button restores it */
-  .link-button:focus-visible { outline: 3px solid var(--ink); outline-offset: 3px; }
-  .link-button:disabled { opacity: 0.5; cursor: default; }
+  .layout { display: grid; grid-template-columns: 250px 1fr; min-height: calc(100vh - 64px); }
+  nav.crew { background: var(--panel); border-right: 1px solid var(--line); padding: 14px 10px; }
+  nav.crew button { display: block; width: 100%; text-align: left; background: none; border: 0; border-radius: 4px;
+                    padding: 10px 12px; margin-bottom: 4px; color: var(--ink); }
+  nav.crew button[aria-current="true"] { background: var(--navy-soft); }
+  nav.crew button b { display: block; font-weight: 600; }
+  nav.crew button span { font-size: 13px; color: var(--ink-soft); }
+  nav.crew .sep { height: 1px; background: var(--line); margin: 8px 4px 12px; }
+  .dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; background: var(--up); margin-right: 6px; }
+  .dot.alert { background: var(--return-now); }
 
-  .counts { display: flex; flex-wrap: wrap; gap: 8px 28px; margin-left: auto; }
-  .count .number { font-size: 26px; font-weight: 700; display: block; }
-  .count .label { color: var(--ink-soft); font-size: 14px; }
-  .count.total .number { font-size: 34px; }
+  main { padding: 20px 24px 48px; min-width: 0; }
+  h2 { font-size: 26px; font-weight: 600; margin: 0 0 4px; }
+  h3 { font-size: 17px; font-weight: 600; margin: 0 0 10px; color: var(--ink-soft); }
+  .lede { color: var(--ink-soft); margin: 0 0 18px; }
+  .notice { padding: 12px 14px; background: #fff4e5; border: 1px solid #f0c98a; border-radius: 6px; margin-bottom: 16px; }
+  .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 16px 18px; margin-bottom: 16px; }
+  .grid2 { display: grid; grid-template-columns: 1.4fr 1fr; gap: 16px; }
+  .cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 14px; margin-bottom: 16px; }
+  .card { background: var(--panel); border: 1px solid var(--line); border-top: 4px solid var(--navy); border-radius: 6px;
+          padding: 14px 16px; cursor: pointer; text-align: left; color: inherit; }
+  .card.alerting { border-top-color: var(--return-now); }
+  .card h4 { margin: 0; font-size: 19px; font-weight: 600; } .card .role { color: var(--ink-soft); font-size: 14px; }
+  .nums { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin: 10px 0 6px; }
+  .nums b { display: block; font-size: 22px; font-weight: 600; } .nums span { font-size: 12px; color: var(--ink-soft); }
+  .card canvas { width: 100%; height: 40px; display: block; }
 
-  .notice {
-    margin: 16px 24px 0; padding: 12px 16px; border-radius: 8px;
-    background: #fff4e5; border: 1px solid #f0c98a;
-  }
-  .hidden { display: none; }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
+  .chips button { border: 1px solid var(--line); background: #fff; border-radius: 999px; padding: 4px 12px; font-size: 14px; }
+  .chips button[aria-pressed="true"] { background: var(--navy); color: #fff; border-color: var(--navy); }
+  .timeline { list-style: none; margin: 0; padding: 0; max-height: 460px; overflow-y: auto; }
+  .timeline li { display: grid; grid-template-columns: 112px 1fr; gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--line); }
+  .timeline time { font-weight: 600; } .timeline .who { color: var(--ink-soft); font-size: 13px; }
+  .timeline .detail { color: var(--ink-soft); font-size: 14px; }
+  .timeline .src { font-size: 12px; color: var(--ink-soft); }
+  .tag { display: inline-block; font-size: 12px; padding: 1px 7px; border-radius: 3px; margin-right: 6px; background: var(--navy-soft); }
+  .tag.space_weather { background: #ece6ff; } .tag.blackout { background: #ffe1e1; } .tag.followup { background: #fff0d9; }
+  .tag.eva { background: #dff3ee; } .tag.test { background: #e6f0ff; }
+  a { color: var(--info); }
 
-  /* ---------- one panel per astronaut ---------- */
-  .astronauts {
-    padding: 20px 24px 40px;
-    display: grid; gap: 20px;
-    grid-template-columns: repeat(auto-fit, minmax(480px, 1fr));
-  }
-  .astronaut { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 20px; }
-  .astronaut-head { display: flex; justify-content: space-between; align-items: flex-end; gap: 16px; }
-  .astronaut-head h2 { margin: 0; font-size: 24px; }
-  .dose { text-align: right; }
-  .dose .number { font-size: 32px; font-weight: 700; }
-  .dose .label { display: block; color: var(--ink-soft); font-size: 14px; }
-  .astronaut h3 { margin: 22px 0 8px; font-size: 17px; }
-  .chart-box { position: relative; height: 380px; }
+  .list { list-style: none; margin: 0; padding: 0; max-height: 320px; overflow-y: auto; }
+  .list li { padding: 9px 12px; margin-bottom: 6px; border-radius: 6px; background: #f6f8fa; border-left: 6px solid var(--line); }
+  .list .when { color: var(--ink-soft); font-size: 13px; margin-left: 8px; }
+  .alert .code { font-weight: 700; }
+  .alert.RETURN_NOW { border-left-color: var(--return-now); background: #fdecec; } .alert.RETURN_NOW .code { color: var(--return-now); }
+  .alert.CHECK_VITALS { border-left-color: var(--check-vitals); background: #fff1e0; } .alert.CHECK_VITALS .code { color: #a85400; }
+  .alert.INFO { border-left-color: var(--info); background: #e9f2fd; } .alert.INFO .code { color: var(--info); }
   .empty { color: var(--ink-soft); margin: 0; }
 
-  .list { list-style: none; margin: 0; padding: 0; max-height: 300px; overflow-y: auto; }
-  .list li { padding: 10px 12px; margin-bottom: 6px; border-radius: 6px; background: #f7f8fa; border-left: 8px solid var(--line); }
-  .list .when { color: var(--ink-soft); font-size: 14px; }
-  .alert .code { font-weight: 700; margin-right: 10px; }
-  .alert.RETURN_NOW { border-left-color: var(--return-now); background: #fdecec; }
-  .alert.RETURN_NOW .code { color: var(--return-now); }
-  .alert.CHECK_VITALS { border-left-color: var(--check-vitals); background: #fff1e0; }
-  .alert.CHECK_VITALS .code { color: #a85400; }
-  .alert.INFO { border-left-color: var(--info); background: #e9f2fd; }
-  .alert.INFO .code { color: var(--info); }
+  .head { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-end; gap: 12px; margin-bottom: 16px; }
+  .facts { color: var(--ink-soft); }
+  .btn { padding: 9px 14px; border: 1px solid var(--navy); border-radius: 4px; background: #fff; color: var(--navy); font-weight: 600;
+         text-decoration: none; display: inline-block; }
+  table { width: 100%; border-collapse: collapse; font-size: 15px; }
+  th, td { text-align: left; padding: 7px 8px; border-bottom: 1px solid var(--line); }
+  th { color: var(--ink-soft); font-weight: 500; font-size: 13px; }
+  td.num { text-align: right; } td.up { color: #a85400; } td.down { color: var(--info); }
+  td .origin { font-size: 12px; color: var(--ink-soft); }
+  .chart-box { position: relative; height: 340px; }
+  pre.report { white-space: pre-wrap; font: 14px/1.5 ui-monospace, Consolas, monospace; background: #f6f8fa; padding: 14px;
+               border-radius: 6px; max-height: 420px; overflow: auto; }
 
-  @media (max-width: 560px) {
-    .astronauts { grid-template-columns: 1fr; padding: 16px 12px 32px; }
-    .counts { margin-left: 0; }
-  }
+  @media (max-width: 900px) { .layout { grid-template-columns: 1fr; } nav.crew { border-right: 0; border-bottom: 1px solid var(--line); }
+    .grid2 { grid-template-columns: 1fr; } }
 </style>
 </head>
 <body>
-
 <header class="topbar">
-  <div class="title">
-    <h1>MedVital mission record</h1>
-    <p>NASA flight surgeon's view</p>
-  </div>
-
+  <div><h1>MedVital mission record</h1><p>NASA flight surgeon</p></div>
+  <div class="clock" id="clock">Waiting for the spacecraft…<small></small></div>
   <div class="link">
-    <span id="link-status" class="link-status">Link to spacecraft: …</span>
+    <span id="link-status" class="link-status">Link: …</span>
     <button id="link-button" class="link-button" disabled>…</button>
   </div>
-
-  <div id="counts" class="counts"></div>
+  <div class="count"><b id="total">0</b><span>records received</span></div>
 </header>
 
-<p id="notice" class="notice hidden"></p>
-
-<main id="astronauts" class="astronauts"></main>
+<div class="layout">
+  <nav class="crew" id="nav" aria-label="Crew"></nav>
+  <main id="main"></main>
+</div>
 
 <script>
-// ---------------------------------------------------------------------------
-// MedVital mission record screen.
-// Every few seconds it asks the NASA receiver for /link, /stats and /records
-// and redraws. Plain JavaScript, no build step.
-// ---------------------------------------------------------------------------
+// MedVital mission record: NASA's view. Everything here arrived over the link to Earth.
 const REFRESH_MS = 3000;
+let view = "overview", linkUp = null, filter = "all", busy = false, chart = null, reportOpen = false, osdr = null;
+fetch("/api/osdr").then((r) => r.json()).then((d) => { osdr = d; }).catch(() => {});
+const $ = (id) => document.getElementById(id);
 
-let linkUp = null;        // last known link state
-let busy = false;         // true while a refresh is running
-const panels = {};        // astronaut id -> the panel we built for that astronaut
-
-// ---------- small helpers ----------
-function el(tag, className, text) {
-  const node = document.createElement(tag);
-  if (className) node.className = className;
-  if (text !== undefined) node.textContent = text;   // textContent: record text can never inject HTML
-  return node;
+function el(tag, cls, text) {
+  const n = document.createElement(tag);
+  if (cls) n.className = cls;
+  if (text !== undefined && text !== null) n.textContent = text;   // textContent: record text can never inject HTML
+  return n;
 }
-
-function formatWhen(t) {
-  return new Date(t).toLocaleString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit", second: "2-digit" });
-}
-
-function formatClock(t) {
-  return new Date(t).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
-}
-
-async function getJson(path) {
-  const response = await fetch(path, { cache: "no-store" });
-  if (!response.ok) throw new Error(path + " answered " + response.status);
-  return response.json();
-}
-
-function showNotice(text) {
-  const notice = document.getElementById("notice");
-  notice.textContent = text || "";
-  notice.classList.toggle("hidden", !text);
-}
+async function getJson(path) { const r = await fetch(path, { cache: "no-store" }); if (!r.ok) throw new Error(path + " " + r.status); return r.json(); }
+const mlabel = (m) => { if (m === null || m === undefined) return ""; const d = Math.floor(m / 1440) + 1, h = (m % 1440) / 60;
+  return `Day ${d} ${String(Math.floor(h)).padStart(2, "0")}:${String(Math.floor((h % 1) * 60)).padStart(2, "0")}`; };
+const kindLabel = { space_weather: "Space weather", blackout: "Link blackout", followup: "Follow-up", eva: "Spacewalk",
+                    test: "Onboard test", landing: "Landing", exercise: "Exercise", sleep: "Sleep" };
 
 // ---------- top bar ----------
 function drawLink(up) {
   linkUp = up;
-  const status = document.getElementById("link-status");
-  const button = document.getElementById("link-button");
-  status.textContent = up ? "Link to spacecraft: UP" : "Link to spacecraft: DOWN";
-  status.className = "link-status " + (up ? "up" : "down");
-  button.textContent = up ? "Cut the link" : "Restore the link";
-  button.className = "link-button " + (up ? "cut" : "restore");
-  button.disabled = false;
+  $("link-status").textContent = up ? "Link to spacecraft: UP" : "Link to spacecraft: DOWN";
+  $("link-status").className = "link-status " + (up ? "up" : "down");
+  $("link-button").textContent = up ? "Cut the link" : "Restore the link";
+  $("link-button").className = "link-button " + (up ? "cut" : "restore");
+  $("link-button").disabled = false;
 }
-
-// The big toggle: POST /link with the opposite of the current state.
-document.getElementById("link-button").addEventListener("click", async () => {
+$("link-button").onclick = async () => {
   if (linkUp === null) return;
-  const button = document.getElementById("link-button");
-  button.disabled = true;
-  try {
-    const response = await fetch("/link", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ up: !linkUp }),
-    });
-    drawLink((await response.json()).up);
-  } catch (error) {
-    showNotice("Could not change the link. Is the NASA receiver (python start.py) still running?");
-    button.disabled = false;
+  $("link-button").disabled = true;
+  const r = await fetch("/link", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ up: !linkUp }) });
+  drawLink((await r.json()).up);
+};
+
+function drawClock(now) {
+  if (!now || now.day === undefined) return;
+  $("clock").replaceChildren(document.createTextNode(`Mission day ${now.day}, ${now.time}`), el("small", "", `${now.phaseLabel} · as of the last record received`));
+}
+
+// ---------- crew menu ----------
+function drawNav(crew) {
+  const nav = $("nav");
+  const items = [["overview", "Mission overview", `${crew.length} astronauts`, false]]
+    .concat(crew.map((c) => [c.id, c.name, `${c.role} · ${c.state || "no data"}`, !!(c.lastAlert && c.lastAlert.code !== "INFO" && c.alerts)]));
+  nav.replaceChildren(...items.map(([id, name, sub, alert], i) => {
+    const b = el("button"); b.setAttribute("aria-current", String(view === id));
+    const t = el("b"); if (i) t.append(el("span", "dot" + (alert ? " alert" : ""))); t.append(document.createTextNode(name));
+    b.append(t, el("span", "", sub)); b.onclick = () => { view = id; reportOpen = false; if (chart) { chart.destroy(); chart = null; } refresh(); };
+    const frag = document.createDocumentFragment(); frag.append(b); if (!i) frag.append(el("div", "sep")); return frag;
+  }));
+}
+
+// ---------- overview ----------
+function spark(canvas, values, color) {
+  const w = canvas.clientWidth, h = canvas.clientHeight; if (!w) return;
+  canvas.width = w * devicePixelRatio; canvas.height = h * devicePixelRatio;
+  const g = canvas.getContext("2d"); g.scale(devicePixelRatio, devicePixelRatio);
+  const v = values.filter((x) => typeof x === "number"); if (v.length < 2) return;
+  const lo = Math.min(...v) - 2, hi = Math.max(...v) + 2;
+  g.strokeStyle = color; g.lineWidth = 2; g.beginPath();
+  v.forEach((x, i) => { const px = (i / (v.length - 1)) * w, py = h - ((x - lo) / (hi - lo)) * h; i ? g.lineTo(px, py) : g.moveTo(px, py); });
+  g.stroke();
+}
+
+function timeline(events, withWho) {
+  const ul = el("ul", "timeline");
+  const shown = events.filter((e) => filter === "all" || e.kind === filter || (filter === "plan" && ["test", "eva", "landing"].includes(e.kind)));
+  if (!shown.length) ul.append(el("li", "empty", "Nothing coming up in this group."));
+  for (const e of shown.slice(0, 50)) {
+    const li = el("li"); const t = el("time", "", mlabel(e.m_start));
+    const body = el("div"); const tag = el("span", "tag " + e.kind, kindLabel[e.kind] || e.kind);
+    body.append(tag, document.createTextNode(e.title));
+    if (withWho && e.astronaut_id && e.astronaut_id !== "crew") body.append(el("span", "who", "  · " + e.astronaut_id));
+    if (e.detail) body.append(el("div", "detail", e.detail));
+    const src = el("div", "src", e.source || "");
+    if (e.link) { const a = el("a", "", " record"); a.href = e.link; a.target = "_blank"; a.rel = "noopener"; src.append(a); }
+    body.append(src); li.append(t, body); ul.append(li);
   }
-});
-
-function drawCounts(stats) {
-  const box = document.getElementById("counts");
-  box.replaceChildren();
-  const add = (number, label, extraClass) => {
-    const item = el("div", "count" + (extraClass ? " " + extraClass : ""));
-    item.append(el("span", "number", String(number)), el("span", "label", label));
-    box.append(item);
-  };
-  add(stats.total, "records saved", "total");
-  for (const type of Object.keys(stats.by_type).sort()) add(stats.by_type[type], "type: " + type);
-  for (const id of Object.keys(stats.by_astronaut).sort()) add(stats.by_astronaut[id], "astronaut: " + id);
+  return ul;
 }
 
-// ---------- charts ----------
-// Round clock steps for the time axis (1 s ... 1 day), so labels read 14:30:00, not 14:28:20.
-const TIME_STEPS_MS = [1, 5, 10, 30, 60, 300, 600, 1800, 3600, 10800, 21600, 86400].map((s) => s * 1000);
-
-function roundTimeTicks(axis) {
-  const span = axis.max - axis.min;
-  const step = TIME_STEPS_MS.find((s) => span / s <= 8) || TIME_STEPS_MS[TIME_STEPS_MS.length - 1];
-  const ticks = [];
-  for (let t = Math.ceil(axis.min / step) * step; t <= axis.max; t += step) ticks.push({ value: t });
-  axis.ticks = ticks;
-}
-
-function css(name) {
-  return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
-}
-
-// One chart per astronaut with three lines. Each line has its own band and its
-// own scale (bpm, %, mSv), stacked on one shared time axis, so no line is
-// squashed by another one's scale.
-function makeChart(canvas) {
-  const line = (label, color, axis) => ({
-    label, yAxisID: axis, data: [],
-    borderColor: color, backgroundColor: color,
-    borderWidth: 2, pointRadius: 0, pointHoverRadius: 4, tension: 0,
-  });
-  const band = (title) => ({
-    stack: "bands", offset: true,
-    title: { display: true, text: title },
-    ticks: { maxTicksLimit: 4 },
-    grid: { color: css("--line") },
-  });
-  return new Chart(canvas, {
-    type: "line",
-    data: {
-      datasets: [
-        line("Heart rate (bpm)", css("--heart"), "heart"),
-        line("Blood oxygen (%)", css("--oxygen"), "oxygen"),
-        line("Total radiation dose (mSv)", css("--dose"), "dose"),
-      ],
-    },
-    options: {
-      responsive: true, maintainAspectRatio: false,
-      animation: false, parsing: false, normalized: true,
-      interaction: { mode: "index", intersect: false },   // hover anywhere: one tooltip with all three values
-      scales: {
-        x: {
-          type: "linear",
-          afterBuildTicks: roundTimeTicks,
-          ticks: { callback: (value) => formatClock(value), maxRotation: 0 },
-          grid: { display: false },
-        },
-        // Bands stack from the bottom up, so the last one listed is drawn on top.
-        dose: band("Total dose (mSv)"),
-        oxygen: band("Blood oxygen (%)"),
-        heart: band("Heart rate (bpm)"),
-      },
-      plugins: {
-        legend: { position: "bottom", labels: { boxWidth: 14, boxHeight: 3 } },
-        tooltip: { callbacks: { title: (items) => (items.length ? formatWhen(items[0].parsed.x) : "") } },
-      },
-    },
-  });
-}
-
-// ---------- astronaut panels ----------
-function makePanel(id) {
-  const section = el("section", "astronaut");
-
-  const head = el("div", "astronaut-head");
-  const dose = el("div", "dose");
-  const doseNumber = el("span", "number", "–");
-  dose.append(doseNumber, el("span", "label", "total radiation dose"));
-  head.append(el("h2", "", "Astronaut " + id), dose);
-
-  const chartTitle = el("h3", "", "Whole mission: heart rate, blood oxygen, total radiation dose");
-  const chartBox = el("div", "chart-box");
-  const canvas = el("canvas");
-  chartBox.append(canvas);
-
-  const alertsTitle = el("h3", "", "Alert history");
-  const alerts = el("ul", "list");
-  const summariesTitle = el("h3", "", "Daily summaries");
-  const summaries = el("ul", "list");
-  const labsTitle = el("h3", "", "Onboard lab results (bone loss)");
-  const labs = el("ul", "list");
-  const flagged = el("p", "empty", "");
-
-  section.append(head, chartTitle, chartBox, flagged, alertsTitle, alerts, summariesTitle, summaries, labsTitle, labs);
-
-  let chart = null;
-  if (window.Chart) chart = makeChart(canvas);
-  else chartBox.replaceChildren(el("p", "empty", "The chart library did not load (no internet?). Everything else on this page still works."));
-
-  return { section, doseNumber, chart, alerts, summaries, alertsTitle, summariesTitle, labs, labsTitle, flagged };
-}
-
-function drawAstronaut(panel, astronaut) {
-  // total radiation dose
-  panel.doseNumber.textContent = astronaut.totalDose === null ? "–" : astronaut.totalDose.toFixed(2) + " mSv";
-
-  // chart: one {x, y} point per reading, oldest first
-  if (panel.chart) {
-    const points = (field) => astronaut.readings.filter((r) => r[field] !== null).map((r) => ({ x: r.t, y: r[field] }));
-    panel.chart.data.datasets[0].data = points("heartRate");
-    panel.chart.data.datasets[1].data = points("spo2");
-    panel.chart.data.datasets[2].data = points("totalDose");
-    panel.chart.update("none");
+function chips() {
+  const box = el("div", "chips");
+  for (const [id, label] of [["all", "All"], ["plan", "Mission plan"], ["space_weather", "Space weather"], ["blackout", "Link blackouts"], ["followup", "Follow-ups"]]) {
+    const b = el("button", "", label); b.setAttribute("aria-pressed", String(filter === id)); b.onclick = () => { filter = id; refresh(); }; box.append(b);
   }
-
-  // alert history, newest first, colour-coded by code
-  panel.alertsTitle.textContent = "Alert history (" + astronaut.alerts.length + ")";
-  panel.alerts.replaceChildren(...astronaut.alerts.map((alert) => {
-    const item = el("li", "alert " + (["RETURN_NOW", "CHECK_VITALS", "INFO"].includes(alert.code) ? alert.code : ""));
-    item.append(el("span", "code", alert.code), el("span", "when", formatWhen(alert.t)), el("div", "", alert.message));
-    return item;
-  }));
-  if (astronaut.alerts.length === 0) panel.alerts.replaceChildren(el("li", "empty", "No alerts received yet."));
-
-  // daily summaries, newest first
-  panel.summariesTitle.textContent = "Daily summaries (" + astronaut.summaries.length + ")";
-  panel.summaries.replaceChildren(...astronaut.summaries.map((summary) => {
-    const item = el("li", "summary");
-    item.append(el("span", "when", formatWhen(summary.t)), el("div", "", summary.text));
-    return item;
-  }));
-  if (astronaut.summaries.length === 0) panel.summaries.replaceChildren(el("li", "empty", "No daily summaries received yet."));
-
-  // lab results typed in at the MedVital station, newest first
-  panel.labsTitle.textContent = "Onboard lab results (" + astronaut.labs.length + ")";
-  panel.labs.replaceChildren(...astronaut.labs.map((lab) => {
-    const item = el("li", "summary");
-    item.append(el("span", "when", formatWhen(lab.t)), el("div", "", lab.text));
-    return item;
-  }));
-  if (astronaut.labs.length === 0) panel.labs.replaceChildren(el("li", "empty", "No lab results received yet."));
-
-  // readings the spacecraft's double-check flagged (possible sensor glitches) are saved but not charted
-  panel.flagged.textContent = astronaut.flagged
-    ? astronaut.flagged + " reading(s) flagged by the spacecraft's double-check (possible sensor glitch): saved, not charted."
-    : "";
+  return box;
 }
 
-// ---------- refresh loop ----------
+function alertList(alerts, withWho) {
+  const ul = el("ul", "list");
+  if (!alerts.length) ul.append(el("li", "empty", "No alerts received."));
+  for (const a of alerts) {
+    const li = el("li", "alert " + (a.code || ""));
+    li.append(el("span", "code", a.code), el("span", "when", `${mlabel(a.missionMinute ?? (a.mission || {}).minute)}${withWho ? " · " + a.astronaut_id : ""}`), el("div", "", a.message));
+    ul.append(li);
+  }
+  return ul;
+}
+
+function drawOverview(d) {
+  const main = $("main"); main.replaceChildren();
+  main.append(el("h2", "", "Mission overview"), el("p", "lede", "Everything the spacecraft has sent over the link: once a day in one batch, and right away for RETURN_NOW and CHECK_VITALS alerts."));
+  if (!d.crew.length) main.append(el("p", "notice", "No records yet. They arrive at the end of the first mission day (one minute after the spacecraft starts)."));
+  const cards = el("div", "cards");
+  for (const c of d.crew) {
+    const b = el("button", "card" + (c.lastAlert && c.lastAlert.code !== "INFO" && c.alerts ? " alerting" : ""));
+    b.onclick = () => { view = c.id; refresh(); };
+    const nums = el("div", "nums");
+    for (const [v, l] of [[c.heartRate ?? "–", `bpm (rest ${c.restingHr})`], [c.spo2 !== null && c.spo2 !== undefined ? Math.round(c.spo2) + "%" : "–", "blood oxygen"], [c.careerDose, "mSv career"]]) {
+      const x = el("div"); x.append(el("b", "", String(v)), el("span", "", l)); nums.append(x);
+    }
+    const cv = el("canvas");
+    b.append(el("h4", "", c.name), el("span", "role", `${c.role} · ${c.state || "–"} · ${c.alerts} alert(s)`), nums, cv);
+    cards.append(b); requestAnimationFrame(() => spark(cv, c.spark, "#d6336c"));
+  }
+  main.append(cards);
+  const grid = el("div", "grid2");
+  const up = el("section", "panel"); up.append(el("h3", "", "Upcoming"), chips(), timeline(d.upcoming, true));
+  const al = el("section", "panel"); al.append(el("h3", "", "Recent alerts"), alertList(d.alerts, true));
+  grid.append(up, al); main.append(grid);
+}
+
+// ---------- one astronaut ----------
+function drawAstronaut(d) {
+  const main = $("main"); main.replaceChildren();
+  const p = d.profile || {};
+  const head = el("div", "head"); const left = el("div");
+  left.append(el("h2", "", p.name || d.id), el("div", "facts", `${p.role || ""} · ${p.age ?? "?"} years · ${p.sex === "m" ? "male" : "female"} · ${p.height_cm ?? "?"} cm · ${p.weight_kg ?? "?"} kg · ID ${d.id}`));
+  const right = el("div");
+  if (d.reportPdf) { const a = el("a", "btn", "Pre-flight report (PDF)"); a.href = d.reportPdf; a.target = "_blank"; right.append(a, document.createTextNode(" ")); }
+  if (d.report) { const b = el("button", "btn", reportOpen ? "Hide report text" : "Report text"); b.onclick = () => { reportOpen = !reportOpen; drawAstronaut(d); }; right.append(b); }
+  head.append(left, right); main.append(head);
+  if (reportOpen && d.report) { const s = el("section", "panel"); s.append(el("h3", "", "Pre-flight report"), el("pre", "report", d.report)); main.append(s); }
+
+  const grid = el("div", "grid2");
+  const cmp = el("section", "panel"); cmp.append(el("h3", "", "Pre-flight baseline vs. in flight"));
+  const t = el("table"); const hr = el("tr");
+  for (const h of ["Measurement", "Pre-flight", "Now", "Change", ""]) hr.append(el("th", "", h));
+  t.append(hr);
+  for (const r of d.compare) {
+    const tr = el("tr"); const fmtv = (v) => (v === null || v === undefined ? "–" : `${+v.toFixed ? +(+v).toFixed(2) : v} ${r.unit}`);
+    const ch = r.change === null ? "" : (r.change > 0 ? "+" : "") + r.change;
+    const o = el("td"); o.append(el("span", "origin", r.origin || ""));
+    tr.append(el("td", "", r.label), el("td", "num", fmtv(r.preflight)), el("td", "num", fmtv(r.now)), el("td", "num " + (r.change > 0 ? "up" : r.change < 0 ? "down" : ""), ch), o);
+    t.append(tr);
+  }
+  cmp.append(t, el("p", "empty", "Resting heart rate in flight = average while asleep. Values marked simulated come from the demo's crew simulator; career dose uses real Curiosity RAD dose rates."));
+  const chartP = el("section", "panel"); chartP.append(el("h3", "", "Heart rate, blood oxygen and radiation over the mission"));
+  const box = el("div", "chart-box"); const canvas = el("canvas"); box.append(canvas); chartP.append(box);
+  if (d.flagged) chartP.append(el("p", "empty", `${d.flagged} reading(s) flagged by the spacecraft's double-check (possible sensor glitch): saved, not charted.`));
+  grid.append(chartP, cmp); main.append(grid);
+
+  const g2 = el("div", "grid2");
+  const al = el("section", "panel"); al.append(el("h3", "", `Alerts (${d.alerts.length})`), alertList(d.alerts, false));
+  const up = el("section", "panel"); up.append(el("h3", "", "Upcoming for this astronaut"), timeline(d.upcoming, false));
+  g2.append(al, up); main.append(g2);
+  const g3 = el("div", "grid2");
+  const su = el("section", "panel"); su.append(el("h3", "", "Daily summaries"));
+  const sl = el("ul", "list"); if (!d.summaries.length) sl.append(el("li", "empty", "None yet."));
+  for (const s of d.summaries) { const li = el("li"); li.append(el("b", "", `Mission day ${s.missionDay ?? ""}`), el("span", "when", s.wordedBy ? `worded by ${s.wordedBy}` : ""), el("div", "", s.text)); sl.append(li); }
+  su.append(sl);
+  const te = el("section", "panel"); te.append(el("h3", "", "Onboard tests and results"));
+  const tl = el("ul", "list"); if (!d.tests.length) tl.append(el("li", "empty", "None yet."));
+  for (const x of d.tests) { const li = el("li"); li.append(el("b", "", x.source || ""), el("span", "when", `${mlabel((x.mission || {}).minute)} · ${x.origin || ""}`), el("div", "", x.text)); tl.append(li); }
+  te.append(tl); g3.append(su, te); main.append(g3);
+  if (osdr && osdr.topics.length) {
+    const os = el("section", "panel");
+    os.append(el("h3", "", "NASA spaceflight research behind each risk (OSDR)"),
+      el("p", "empty", "Study records from NASA's Open Science Data Repository. They are the evidence for what MedVital watches; they are not this astronaut's data."));
+    const grid = el("div", "cards");
+    for (const t of osdr.topics) {
+      const c = el("div", "panel"); c.style.margin = "0";
+      c.append(el("b", "", `${t.label}`), el("div", "empty", `${t.total ?? "?"} studies in OSDR`));
+      const ul = el("ul", "list");
+      for (const s of t.studies) { const li = el("li"); const a = el("a", "", s.accession); a.href = s.link; a.target = "_blank"; a.rel = "noopener";
+        li.append(a, el("div", "", s.title || ""), el("span", "when", Array.isArray(s.organism) ? s.organism.join(", ") : (s.organism || ""))); ul.append(li); }
+      if (!t.studies.length) ul.append(el("li", "empty", "No study found for this search."));
+      c.append(ul); grid.append(c);
+    }
+    os.append(grid); main.append(os);
+  }
+  drawChart(canvas, d);
+}
+
+function drawChart(canvas, d) {
+  if (!window.Chart) { canvas.parentNode.replaceChildren(el("p", "empty", "The chart library did not load.")); return; }
+  const pts = (k) => d.readings.filter((r) => typeof r[k] === "number" && typeof r.m === "number").map((r) => ({ x: r.m, y: r[k] }));
+  const line = (label, color, axis, data) => ({ label, yAxisID: axis, data, borderColor: color, backgroundColor: color, borderWidth: 1.5, pointRadius: 0, tension: 0 });
+  const rest = (d.profile || {}).resting_hr;
+  const datasets = [line("Heart rate (bpm)", "#d6336c", "heart", pts("hr")), line("Blood oxygen (%)", "#12917f", "oxygen", pts("spo2")), line("Mission dose (mSv)", "#6250d6", "dose", pts("dose"))];
+  if (rest) datasets.push({ ...line("Pre-flight resting HR", "#d6336c88", "heart", pts("hr").map((p) => ({ x: p.x, y: rest }))), borderDash: [5, 5] });
+  const band = (title) => ({ stack: "bands", offset: true, title: { display: true, text: title }, ticks: { maxTicksLimit: 4 } });
+  if (chart) chart.destroy();
+  chart = new Chart(canvas, { type: "line", data: { datasets }, options: { responsive: true, maintainAspectRatio: false, animation: false, parsing: false,
+    interaction: { mode: "index", intersect: false },
+    scales: { x: { type: "linear", ticks: { callback: (v) => mlabel(v), maxRotation: 0, maxTicksLimit: 6 } },
+              dose: band("mSv"), oxygen: band("SpO2 %"), heart: band("bpm") },
+    plugins: { legend: { position: "bottom", labels: { boxWidth: 12, boxHeight: 3 } }, tooltip: { callbacks: { title: (i) => (i.length ? mlabel(i[0].parsed.x) : "") } } } } });
+}
+
+// ---------- refresh ----------
 async function refresh() {
-  if (busy) return;   // the last refresh is still running
-  busy = true;
+  if (busy) return; busy = true;
   try {
-    const [link, stats, record] = await Promise.all([getJson("/link"), getJson("/stats"), getJson("/records")]);
-    drawLink(link.up);
-    drawCounts(stats);
-
-    const container = document.getElementById("astronauts");
-    for (const astronaut of record.astronauts) {
-      if (!panels[astronaut.id]) {
-        panels[astronaut.id] = makePanel(astronaut.id);
-        container.append(panels[astronaut.id].section);
-      }
-      drawAstronaut(panels[astronaut.id], astronaut);
+    const [link, stats, mission] = await Promise.all([getJson("/link"), getJson("/stats"), getJson("/api/mission")]);
+    drawLink(link.up); $("total").textContent = stats.total; drawClock(mission.now); drawNav(mission.crew);
+    if (view === "overview") drawOverview(mission);
+    else {
+      const d = await getJson(`/api/astronaut/${encodeURIComponent(view)}`);
+      if (chart && document.body.contains(chart.canvas)) {   // keep the page, just update the numbers and chart
+        drawAstronaut(d);
+      } else drawAstronaut(d);
     }
-    // An astronaut that is no longer in the record (database was reset) loses its panel.
-    for (const id of Object.keys(panels)) {
-      if (!record.astronauts.some((a) => a.id === id)) {
-        if (panels[id].chart) panels[id].chart.destroy();
-        panels[id].section.remove();
-        delete panels[id];
-      }
-    }
-    showNotice(record.astronauts.length === 0 ? "No records yet. They appear here as soon as the spacecraft syncs." : "");
-  } catch (error) {
-    showNotice("Cannot reach the NASA receiver. Is the NASA receiver (python start.py) still running? Trying again every few seconds.");
-  } finally {
-    busy = false;
-  }
+  } catch (e) {
+    $("main").replaceChildren(el("p", "notice", "Cannot reach the NASA receiver, or no records for this astronaut yet. Retrying every few seconds."));
+  } finally { busy = false; }
 }
-
 refresh();
 setInterval(refresh, REFRESH_MS);
 </script>

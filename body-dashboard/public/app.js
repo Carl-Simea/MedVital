@@ -153,7 +153,7 @@ function renderScores() {
 function renderTiles() {
   const box = $('tiles'); box.innerHTML = '';
   for (const v of VITALS.filter(v => !viewGroups[activeView] || viewGroups[activeView].includes(v.id))) {
-    const s = vitals[v.id], b = document.createElement('button'); b.className = 'tile' + (state.vital === v.id ? ' sel' : '');
+    const s = vitals[v.id], b = document.createElement('button'); b.className = 'tile' + (state.vital === v.id ? ' sel' : ''); b.dataset.vital = v.id;
     b.innerHTML = '<span class="tl"></span><span class="td"></span><span class="tv"></span><span class="ts"></span>';
     b.querySelector('.tl').textContent = v.label; b.querySelector('.ts').textContent = s.text;
     b.querySelector('.td').className = 'td ' + (s.status || '');
@@ -176,7 +176,7 @@ function selectVital(id) {
 /* ---------- Past data + upcoming (right) ---------- */
 function renderPast() {
   const v = VITALS.find(x => x.id === state.vital), h = vitals[v.id].history;
-  $('pastSub').textContent = h.length ? `${v.label} · last ${h.length} days` : v.label;
+  $('pastSub').textContent = h.length ? `${v.label} · ${(window.MedVitalHistoryLabel && window.MedVitalHistoryLabel(v.id, h.length)) || `last ${h.length} days`}` : v.label;
   const chart = $('chart'), stats = $('stats');
   if (!h.length) { chart.textContent = 'No history yet'; stats.innerHTML = ''; return; }
   const mn = Math.min(...h), mx = Math.max(...h), pad = (mx - mn) * 0.15 || 1, lo = mn - pad, hi = mx + pad, W = 300, H = 110;
@@ -457,6 +457,7 @@ function readSource(text, name) {
     const set = {}; list.querySelectorAll('input:checked').forEach(c => { set[c.dataset.key] = r.values[c.dataset.key]; });
     const n = Object.keys(set).length; if (!n) return;
     setMeasurements(set); if (set['hr.rest'] && lobby) lobby.setHeartRate(set['hr.rest']);
+    window.dispatchEvent(new CustomEvent('medvital:applied', { detail: set }));   // hub-bridge.js saves it to the spacecraft
     list.querySelectorAll('input').forEach(c => { c.disabled = true; }); act.replaceWith(el('p', 'done', `Applied ${n} value${n > 1 ? 's' : ''} · ${new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}`));
   };
   no.onclick = () => { list.querySelectorAll('input').forEach(c => { c.disabled = true; c.checked = false; }); act.replaceWith(el('p', 'done', 'Discarded')); };

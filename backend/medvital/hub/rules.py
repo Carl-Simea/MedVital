@@ -185,9 +185,9 @@ def summary_text(name: str, day: int, f: dict[str, Any]) -> str:
         parts.append(f"Average awake heart rate {f['avgAwakeHr']} bpm (baseline {f['baselineHr']}).")
     if f["minSpo2"] is not None:
         parts.append(f"Lowest blood oxygen {f['minSpo2']:.0f}%.")
-    parts.append(f"Exercise {f['exerciseMinutes']} of {f['exerciseTargetMinutes']} min.")
+    parts.append(f"Exercise {f['exerciseMinutes']:.0f} of {f['exerciseTargetMinutes']:.0f} min.")
     if f["spacewalkMinutes"]:
-        parts.append(f"Spacewalk {f['spacewalkMinutes']} min.")
+        parts.append(f"Spacewalk {f['spacewalkMinutes']:.0f} min.")
     parts.append(f"Radiation today {f['doseMsv']} mSv.")
     if f["alerts"]:
         parts.append(f"{f['alerts']} alert(s) today.")
@@ -198,7 +198,7 @@ def exercise_tip(f: dict[str, Any]) -> str:
     short = f["exerciseTargetMinutes"] - f["exerciseMinutes"]
     if short > 0:
         return (
-            f"Do {short} more minutes of exercise: resistance work "
+            f"Do {short:.0f} more minutes of exercise: resistance work "
             "(squats, deadlifts on the resistive device) "
             "loads your hips and spine, where bone is lost fastest, "
             "and the treadmill or bike keeps your heart fit."

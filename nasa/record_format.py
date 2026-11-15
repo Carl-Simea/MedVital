@@ -5,7 +5,7 @@ Shared format (confirm with the Spacecraft spot before changing anything):
 
     {
       "id":          "<unique string>",
-      "type":        "reading" | "alert" | "summary" | "lab",
+      "type":        "reading" | "alert" | "summary" | "lab" | "test" | "profile" | "event",
       "astronautId": "...",
       "time":        "<ISO 8601>",
       "data":        { ... }
@@ -32,7 +32,10 @@ FIELD_DATA = "data"
 TYPE_READING = "reading"
 TYPE_ALERT = "alert"
 TYPE_SUMMARY = "summary"
-TYPE_LAB = "lab"   # onboard blood and urine test results typed in at the MedVital station
+TYPE_LAB = "lab"   # onboard test results typed in by the astronaut
+TYPE_TEST = "test"           # scheduled onboard tests (simulated in the demo)
+TYPE_PROFILE = "profile"     # the astronaut's pre-flight baseline and report
+TYPE_EVENT = "event"         # mission schedule, real space weather, blackouts, follow-ups
 
 # ---------------------------------------------------------------------------
 # 2. Field names inside "data"
@@ -173,7 +176,50 @@ LAB_LABELS = {
     "bp.sys": ("Blood pressure, systolic", "mmHg"),
     "bp.dia": ("Blood pressure, diastolic", "mmHg"),
     "temp.c": ("Temperature", "°C"),
+    "glucose.mgdl": ("Blood glucose", "mg/dL"),
+    "pvt.meanRtMs": ("Reaction time", "ms"),
+    "pvt.lapses": ("Reaction-test lapses", ""),
+    "sleep.hours": ("Sleep", "h"),
+    "sleep.quality": ("Sleep quality", "/5"),
+    "back.pain": ("Back pain", "/10"),
+    "mass.changePct": ("Body mass vs. pre-flight", "%"),
+    "strength.changePct": ("Strength vs. pre-flight", "%"),
+    "aerobic.changePct": ("Aerobic fitness vs. pre-flight", "%"),
+    "bmd.hipPct": ("Hip bone density vs. pre-flight", "%"),
+    "bmd.lumbarPct": ("Spine bone density vs. pre-flight", "%"),
+    "bmd.wholeBodyPct": ("Whole-body bone density vs. pre-flight", "%"),
+    "exercise.minPerWeek": ("Exercise", "min/week"),
+    "exercise.resistiveDays": ("Resistance-training days", "/week"),
+    "nutrition.energyPct": ("Energy intake", "% of need"),
+    "nutrition.proteinGkg": ("Protein", "g/kg"),
+    "nutrition.fluidL": ("Fluid", "L/day"),
+    "hr.rest": ("Resting heart rate", "bpm"),
+    "spo2.pct": ("Blood oxygen", "%"),
+    "resp.rate": ("Breathing rate", "/min"),
+    "radiation.careerMsv": ("Career radiation dose", "mSv"),
+    "mission.month": ("Mission month", ""),
 }
+
+# Rows of the flight surgeon's "pre-flight vs. now" table: (label, unit, pre-flight key, live source)
+COMPARE = [
+    ("Resting heart rate", "bpm", "hr.rest", "sleep_hr"),
+    ("Blood oxygen", "%", "spo2.pct", "spo2"),
+    ("Breathing rate", "/min", "resp.rate", "resp"),
+    ("Blood pressure, systolic", "mmHg", "bp.sys", None),
+    ("Blood pressure, diastolic", "mmHg", "bp.dia", None),
+    ("Blood glucose", "mg/dL", "glucose.mgdl", None),
+    ("Hemoglobin", "g/dL", "hemoglobin.gdl", None),
+    ("Vitamin D", "ng/mL", "vitd.ngml", None),
+    ("Urine volume", "L/day", "urine.volumeL", None),
+    ("Urinary calcium", "mg/day", "urine.calciumMgDay", None),
+    ("Reaction time", "ms", "pvt.meanRtMs", None),
+    ("Sleep", "h", "sleep.hours", None),
+    ("Back pain", "/10", "back.pain", None),
+    ("Body mass vs. pre-flight", "%", "mass.changePct", None),
+    ("Strength vs. pre-flight", "%", "strength.changePct", None),
+    ("Hip bone density vs. pre-flight", "%", "bmd.hipPct", None),
+    ("Career radiation dose", "mSv", "radiation.careerMsv", "dose"),
+]
 
 
 def lab_for_screen(data):

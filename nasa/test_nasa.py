@@ -78,3 +78,39 @@ def test_screen_and_chart_library_are_served(nasa):
     client, _ = nasa
     assert client.get("/").status_code == 200
     assert client.get("/vendor/chart.umd.js").status_code == 200
+
+
+def test_flight_surgeon_views(nasa):
+    client, _ = nasa
+    mission = {"minute": 2000.0, "day": 2, "time": "09:20", "phase": "cruise", "phaseLabel": "Cruise to Mars"}
+    prof = {"name": "Maya Okafor", "role": "Commander", "resting_hr": 58, "spo2": 98, "prior_career_msv": 112,
+            "baseline": {"bp.sys": 112}, "report": "astro-1_maya-okafor"}
+    recs = [
+        {**fmt.make_record("p", fmt.TYPE_PROFILE, "astro-1", "2026-11-14T12:00:00Z", {"profile": prof, "report": "Name: Maya"}), "mission": mission},
+        {**reading("r1"), "mission": mission},
+        {**fmt.make_record("t1", fmt.TYPE_TEST, "astro-1", "2026-11-14T12:01:00Z",
+                           {"values": {"bp.sys": 118}, "origin": "simulated", "source": "onboard morning check"}), "mission": mission},
+        {**fmt.make_record("e1", fmt.TYPE_EVENT, "crew", "2026-11-14T12:01:00Z",
+                           {"m_start": 3000, "m_end": 3000, "kind": "space_weather", "title": "Class X1.6 solar flare",
+                            "source": "NASA DONKI 2024-05-03T02:11:00-FLR-001"}), "mission": mission},
+        {**fmt.make_record("e0", fmt.TYPE_EVENT, "crew", "2026-11-14T12:01:00Z",
+                           {"m_start": 100, "m_end": 200, "kind": "test", "title": "already over"}), "mission": mission},
+    ]
+    client.post("/batch", json={"records": recs})
+    m = client.get("/api/mission").get_json()
+    assert m["now"]["day"] == 2 and m["crew"][0]["name"] == "Maya Okafor"
+    assert [e["title"] for e in m["upcoming"]] == ["Class X1.6 solar flare"]  # past events are not upcoming
+    a = client.get("/api/astronaut/astro-1").get_json()
+    bp = next(r for r in a["compare"] if r["label"] == "Blood pressure, systolic")
+    assert bp["preflight"] == 112 and bp["now"] == 118 and bp["change"] == 6
+    assert a["reportPdf"] == "/reports/astro-1_maya-okafor.pdf" and a["report"] == "Name: Maya"
+    assert client.get("/reports/astro-1_maya-okafor.pdf").status_code == 200
+    assert client.get("/api/astronaut/nobody").status_code == 404
+
+
+def test_osdr_studies_behind_each_risk(nasa):
+    client, _ = nasa
+    d = client.get("/api/osdr").get_json()
+    if d["topics"]:  # data/nasa/osdr_studies.json present
+        heart = next(t for t in d["topics"] if t["key"] == "heart")
+        assert heart["studies"] and heart["studies"][0]["accession"].startswith("OSD-")

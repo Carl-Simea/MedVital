@@ -1,11 +1,12 @@
 # MedVital
 
-Astronaut health monitoring for the NASA Space Apps Challenge 2026 (New York City). A software-simulated wearable streams
-each astronaut's heart rate, blood oxygen and radiation dose to the spacecraft. The spacecraft runs on Cloudflare: it
-double-checks every reading, compares it with that astronaut's own pre-flight baseline, buzzes the wearable when
-something is wrong, and syncs everything to NASA over the link to Earth without losing a record when the link drops.
+Astronaut health monitoring for the NASA Space Apps Challenge 2026 (New York City). Each astronaut wears a device
+that streams heart rate, blood oxygen, breathing, temperature and radiation to the spacecraft every second. The
+spacecraft runs on Cloudflare: it double-checks every reading against that astronaut's own pre-flight report, buzzes
+the wearable when something is wrong, and sends everything to NASA at the end of each day without losing a record
+when the link to Earth drops.
 
-It focuses on four astronaut health risks: radiation, bone, heart and behavioral health (sleep and stress).
+It covers four astronaut health risks: radiation, bone, heart and behavioral health (sleep and stress).
 
 ## Run it
 
@@ -15,101 +16,77 @@ You need Python 3.11 or newer. From the repo root:
 python start.py --fresh
 ```
 
-The first run creates `.venv/` and installs the backend (a few minutes, once). Then it starts the NASA receiver and the
-spacecraft hub and opens the apps in your browser:
+The first run creates `.venv/` and installs the backend (a few minutes, once). Then it starts the NASA receiver and
+the spacecraft hub and opens the start page, where you pick a role:
 
-| App | URL | Who it is |
+| Role | URL | What you see |
 |---|---|---|
-| Astronaut 1 / Astronaut 2 | <http://localhost:8000/astronaut/?id=astro-1> | The wearable plus the astronaut's MedVital station. One tab per astronaut. |
-| Spacecraft hub | <http://localhost:8000/cloudflare/> | The Cloudflare side: live traffic through the private network, crew overview, database, verification. |
-| NASA | <http://localhost:5000/> | The flight surgeon's mission record. |
-| 3D body | <http://localhost:8000/body/?astronaut=astro-1> | The rotatable 3D body, fed live from the spacecraft. |
+| Start page | <http://localhost:8000/> | Astronaut, Spacecraft hub or NASA |
+| Astronaut | <http://localhost:8000/astronaut/> | Log in as a crew member or sign up, then your 3D body, live |
+| Spacecraft hub | <http://localhost:8000/cloudflare/> | The private network, connected wearables, mission clock, the daily send to NASA |
+| NASA | <http://localhost:5000/> | Every astronaut, their pre-flight report, live vs. baseline, mission summary, upcoming events |
 
-`Ctrl+C` stops everything. Mission data stays in `runtime/`; `--fresh` starts a clean mission.
+**Demo clock: 1 real minute = 1 mission day.** Days 1–8 are the cruise to Mars, the crew lands on day 9, and
+spacewalks start on day 10. `Ctrl+C` stops everything; `--fresh` starts a new mission.
 
-### Three laptops (the demo setup)
-
-All three on the same Wi-Fi:
+### Three laptops (same Wi-Fi)
 
 ```sh
-# NASA laptop
-python start.py --role nasa --lan
-# Spacecraft laptop
-python start.py --role spacecraft --lan --nasa-url http://<NASA-laptop-IP>:5000
-# Astronaut laptop: no install, just open http://<spacecraft-laptop-IP>:8000/astronaut/ (one tab per astronaut)
+python start.py --role nasa --lan                                                   # NASA laptop
+python start.py --role spacecraft --lan --nasa-url http://<NASA-laptop-IP>:5000     # spacecraft laptop
+# astronaut laptop or phone: open http://<spacecraft-laptop-IP>:8000/astronaut/
 ```
 
-`start.py` prints each laptop's address. Add `--tunnel` on the spacecraft laptop to publish the hub through a
-Cloudflare quick tunnel (needs [`cloudflared`](https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/downloads/)),
-so a phone can open the astronaut page and really vibrate.
+`--tunnel` also publishes the hub through a Cloudflare quick tunnel (needs `cloudflared`; no account), so a phone can
+open the astronaut screen and really vibrate.
 
 ## Demo script
 
-1. In each astronaut tab press **Put on wearable**. Each tab sends a burst every 5 seconds.
-2. Astronaut 1: press **4 Spacewalk**. On the hub, press **Replay solar event** (a real NASA DONKI event from
-   17 Sep 2024). Within one burst Astronaut 1's screen turns red: **RETURN NOW**, three long buzzes, repeating until
-   they press *Heading back inside*.
-3. Astronaut 2: press **5 Heart-rate spike**. After two bursts in a row confirm it, **CHECK VITALS** (two short buzzes).
-   The same heart rate would not alert for Astronaut 1, whose baseline is lower: the system adapts to each person.
-4. Press **G Sensor glitch**: the impossible reading is stored and flagged, but nothing buzzes.
-   Press **T Fake device**: the private network blocks it (red cross on the hub diagram).
-5. On the NASA screen press **Cut the link**. Keep going: the hub's outbox grows. **Restore the link**: it drains.
-   The hub's **Verify** tab shows the counts on both sides match ("Nothing lost").
-6. Type onboard test results (bone loss), ask MedVital a question, press **Write today's summary now**. All of it
-   reaches NASA.
+1. **Start page → Spacecraft hub.** Four wearables are connected and pulse every second. Click *Private network*
+   to see each device, its data going up and alerts coming down. The day bar fills; at the end of the day the
+   batch flies to NASA and NASA's confirmation comes back.
+2. **Start page → Astronaut → Maya Okafor.** Her 3D body: every tile is live, the heart beats at her real-time
+   rate, *Upcoming* shows her schedule and the space weather. Press **D** for the hidden Demo drawer.
+3. **Real solar event.** Around mission day 10 (about 9 minutes in) Maya and Daniel are on their first spacewalk when
+   the real May 2024 solar particle event from NASA DONKI arrives: **RETURN NOW**, three long buzzes. Or press
+   *Solar event* in the Demo drawer at any time.
+4. **Heart-rate spike** (Demo drawer): after two readings confirm it, **CHECK VITALS**. The same heart rate would not
+   alert for Jean-Luc, whose baseline is higher. *Sensor glitch* is flagged but never buzzes; *Fake device* is
+   blocked by the private network.
+5. **Onboard tests.** Paste "urinary calcium 250 mg/day" into *Data input* and apply: it goes to the spacecraft
+   database and on to NASA.
+6. **New astronaut.** Astronaut → *New astronaut* → upload a report from `reports/` (or type the values). Everything
+   else about them is simulated from that baseline.
+7. **NASA.** Pick an astronaut: pre-flight report, pre-flight vs. in-flight table, the mission chart, alerts, daily
+   summaries, upcoming events, and the NASA research behind each risk. *Cut the link*, wait a day, *Restore*: the
+   outbox drains and the hub's *Link* panel shows "Nothing lost" for everyone.
 
-Keyboard on an astronaut tab: `1` normal, `2` sleep, `3` exercise, `4` spacewalk, `5` heart-rate spike, `6` solar event,
-`G` glitch, `T` fake device. Demo clock: one burst = 30 minutes of mission time, so a mission day is 48 bursts (4 minutes).
+## Where the numbers come from
 
-## How it fits together
+| | Source | Origin label |
+|---|---|---|
+| Radiation dose rate | Real Curiosity RAD observations (PDS, cruise 2011–12 and surface 2012) at that point of the mission, x RAD's measured quality factor (3.82 cruise, 3.05 surface) | measured |
+| Space weather | Real NASA DONKI records, May–June 2024, placed on the mission calendar (flares, CMEs, solar particle events, storms, CME arrival forecasts at Mars) | measured |
+| Research behind each risk | NASA OSDR study records (links in the NASA view) | reference |
+| Heart rate, SpO2, breathing, temperature, test results | Simulated around each astronaut's pre-flight report | simulated |
+| Bone density | Modeled from the loss rates the 3D body cites (Sibonga et al. 2015) | modeled |
+| Limits | NASA-STD-3001: 600 mSv career, 250 mSv per solar event. Spacewalk budget and heart-rate allowances are demo settings. | |
 
-```
- Astronaut tabs (wearable sim)          Spacecraft hub  (backend/medvital/hub, port 8000)               NASA (nasa/, port 5000)
- ─────────────────────────────          ─────────────────────────────────────────────────               ───────────────────────
- burst every 5 s ───────────────► private network: device key check
- {astronautId, deviceKey, time,         ├─ double-check (plausible? glitch?)
-  heartRate, spo2, state,               ├─ store: runtime/spacecraft.db ("D1") + observation store
-  doseRate, totalDose}                  ├─ rules vs. personal baseline ─► alert code in the reply
- ◄──── alert code (vibration) ──────────┤  Workers AI words it, onboard agent checks the numbers
-                                        ├─ DONKI space weather (live pull + replay)
- MedVital station ◄── /hub/astronauts ──┤
- question box   ───► onboard agent ─────┤
-                                        └─ outbox ── batches of 50 ── link to Earth ──────────► POST /batch
-                                                 ◄──────────────── {"saved": [ids]} ─────────── mission.db
-```
+The four astronauts and their reports (`reports/`) are fictional. MedVital is not a medical device and gives no
+diagnosis. Re-download the NASA data with `python tools/fetch_nasa_data.py`; rebuild the sample reports with
+`python tools/make_reports.py`.
 
-| Team plan spot | Code |
-|---|---|
-| 1. Astronaut (wearable, MedVital station, hub screen) | `apps/astronaut/`, `apps/cloudflare/`, `body-dashboard/` (3D body) |
-| 2. Spacecraft (Cloudflare hub, rules, AI, DONKI, onboard agent) | `backend/medvital/hub/` (plus the MEDVITAL observation platform in `backend/medvital/`) |
-| 3. NASA (receiver, link switch, mission record) | `nasa/` (receiver), `spacecraft-sync/sync.js` (the same outbox sync written for a real Cloudflare Worker) |
+### Cloudflare and AI
 
-Record format shared by the hub and NASA: `nasa/record_format.py` (`reading`, `alert`, `summary`, `lab`).
-
-### Where the numbers come from
-
-* Normal radiation: Curiosity RAD measured 0.64 mSv/day on the surface of Mars (Hassler et al., *Science*, 2014), so the
-  simulator sends about 26.7 µSv/h.
-* Limits: NASA-STD-3001 Vol. 1, 600 mSv career limit [V1 4030] and 250 mSv per solar particle event [V1 4031].
-* The spacewalk dose budget, the heart-rate allowance above each astronaut's baseline, and the SpO2 drop are **demo
-  settings**, labelled `source="demo"` in `backend/medvital/hub/settings.py`. They are not clinical values.
-* Heart rate and blood oxygen are simulated around two made-up pre-flight baselines (`astro-1` resting 58 bpm,
-  `astro-2` resting 72 bpm). MedVital is not a medical device and gives no diagnosis.
-
-### Optional AI
-
-Without any setup, alerts and summaries use rule-written text and the onboard agent answers with rules from the
-astronaut's own data. To turn on the real models:
+Nothing in this repository holds a Cloudflare account, token or key: the Cloudflare side is simulated locally, so a
+public repo exposes nothing. Optional, on your own machine only:
 
 ```sh
-# Workers AI (Cloudflare) words alerts and daily summaries
-export CLOUDFLARE_ACCOUNT_ID=...  CLOUDFLARE_API_TOKEN=...
-# a local model answers the astronauts' questions (onboard agent), via Ollama
-export MEDVITAL_OLLAMA_MODEL=gemma3
-python start.py
+export CLOUDFLARE_ACCOUNT_ID=...  CLOUDFLARE_API_TOKEN=...   # Workers AI words alerts and summaries
+export MEDVITAL_OLLAMA_MODEL=gemma3                          # a local model answers the astronauts' questions
 ```
 
-The rules always fire first; AI only explains, and the onboard agent rejects any AI wording that changes a number.
+Rules always fire first; AI only explains, and the onboard agent rejects any AI wording that changes a number.
 
 ## Tests
 
@@ -121,16 +98,16 @@ node --test body-dashboard/tests/*.mjs
 ## Repository layout
 
 ```
-start.py              one command: installs, starts NASA + the hub, opens the apps
-apps/                 Astronaut and Cloudflare/hub web apps (plain HTML/JS, no build step)
-backend/medvital/hub/ the spacecraft hub: bursts, rules, alerts, outbox sync, DONKI, AI, verification
+start.py              one command: installs, starts NASA + the hub, opens the start page
+apps/                 start page, astronaut log-in/sign-up, spacecraft hub screen (plain HTML/JS)
+body-dashboard/       the astronaut screen: 3D body (three.js, BodyParts3D); hub-bridge.js feeds it live
+backend/medvital/hub/ the spacecraft: mission clock, crew simulator, rules, outbox sync, schedule, AI
 backend/medvital/     MEDVITAL observation platform: provenance-labelled observations, four health modules
-nasa/                 NASA receiver (Flask + SQLite) and the mission record screen
-spacecraft-sync/      outbox -> NASA sync for a real Cloudflare Worker (same logic as the hub's Python port)
-body-dashboard/       3D body dashboard (three.js, BodyParts3D anatomy)
-frontend/             earlier React live view of the gateway (optional, not started by start.py)
-docs/                 architecture, decisions (D-033 covers the hub), data dictionary, NASA sources
+nasa/                 NASA receiver (Flask + SQLite) and the flight surgeon's screen
+data/nasa/            downloaded RAD, DONKI and OSDR data
+reports/              four sample pre-flight reports (.txt + .pdf)
+tools/                fetch_nasa_data.py, make_reports.py
+spacecraft-sync/      the outbox sync written for a real Cloudflare Worker (same logic as the hub's Python port)
+frontend/             earlier React live view (optional, not started)
+docs/                 decisions (D-033, D-034), data dictionary, NASA sources, architecture
 ```
-
-More on the observation platform: [CLAUDE.md](CLAUDE.md), [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md),
-[docs/DECISIONS.md](docs/DECISIONS.md), [docs/NASA_SOURCES.md](docs/NASA_SOURCES.md).

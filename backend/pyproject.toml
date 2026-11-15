@@ -15,6 +15,7 @@ dependencies = [
     "scipy>=1.12",
     "pandas>=2.2",
     "scikit-learn>=1.4",
+    "pypdf>=4",   # reads uploaded pre-flight report PDFs at sign-up (D-034)
 ]
 
 [project.optional-dependencies]
@@ -48,6 +49,7 @@ select = ["E", "F", "I", "UP", "B"]
 
 [tool.ruff.lint.per-file-ignores]
 "tests/*" = ["E501"]
+"medvital/hub/*" = ["E501"]   # long SQL strings and schedule text
 
 [tool.ruff.lint.isort]
 known-first-party = ["medvital", "conftest"]

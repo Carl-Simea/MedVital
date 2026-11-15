@@ -278,6 +278,41 @@ NASA link. P-2 noted that alerts conflict with rule 3 unless the rule is scoped 
 equivalent, 0.64 mSv/day (Hassler et al., Science 2014). The replayed solar event is a real DONKI record
 (2024-09-17T07:35:00-SEP-001); its dose spike in the demo is simulated.
 
+## D-034 Mission simulation on real NASA data; one screen per role (2026-11-14)
+**Context.** Feedback on the first build: the demo must show a whole mission day in about a minute, every screen
+must always have live data, the astronaut's screen is the 3D body, NASA must be able to pick any astronaut, and
+the data must come from OSDR, Curiosity RAD and DONKI "the way it's meant to be used".
+
+**Decision.**
+* **Demo clock.** One real minute = one mission day (`MEDVITAL_DAY_SECONDS`). Every wearable sends a burst every real
+  second (= 24 mission minutes). Mission: cruise to Mars on days 1-8, landing on day 9 at 06:00, surface after.
+* **The hub runs the crew.** `hub/simulator.py` drives all four wearables and the scheduled onboard tests from each
+  astronaut's pre-flight report. Every value carries its origin: `simulated` (around the pre-flight value),
+  `modeled` (bone density from the loss rates the 3D body already cites, Sibonga et al. 2015) or
+  `pre-flight` / `entered`.
+* **Curiosity RAD** (`data/nasa/rad_dose.csv`, from the PDS PPI RDR volume): the dose rate is a real RAD observation
+  for that point of the mission (20 cruise days, 30 surface sols, tissue-equivalent detector E), times RAD's measured
+  mean quality factor (3.82 cruise, 3.05 surface; Hassler et al. 2014). Medians check out against the papers
+  (surface 0.209 mGy/day vs. 0.21 published). Demo factors on top: habitat shielding 0.8, SEP x40 outside.
+* **DONKI** (`data/nasa/donki_2024-05-01_2024-06-29.json`): the 60 days May-June 2024 are replayed on the mission
+  calendar (day 1 = 2024-05-01). M5+/X flares, fast CMEs, SEPs, storms and WSA-ENLIL CME arrival forecasts at Mars
+  become upcoming events with their DONKI id and link. A real SEP window raises radiation and triggers RETURN_NOW
+  for anyone outside: the May 2024 event falls on mission day 10, during the first spacewalk.
+* **OSDR** (`data/nasa/osdr_studies.json`): the search API returns study metadata, not astronaut values, so MedVital
+  links each health risk to the real OSDR studies (NASA view). No OSDR value is turned into a crew number.
+* **Records to NASA.** Readings, tests, summaries, profiles and schedule events go in one batch at the end of each
+  mission day; RETURN_NOW / CHECK_VITALS go at once (`outbox.urgent`). Scheduled blackouts (surface 02:00-04:30,
+  one DSN gap in cruise) and the link switch hold the outbox; the batch goes when the link is back.
+* **Screens.** Start page with three roles. Astronaut: log in or sign up (form and/or report upload; PDF text via
+  `pypdf`), then the 3D body dashboard *is* the astronaut screen (`body-dashboard/public/hub-bridge.js`), with a
+  hidden Demo drawer (key D). Hub: the private network with live devices, mission clock and the day-end send;
+  clicking a box opens its details. NASA: crew picker, pre-flight report (PDF/text), pre-flight vs. in-flight table,
+  mission chart, alerts, summaries, tests, upcoming events, OSDR studies.
+* **Dependencies.** `pypdf` (pure Python) reads uploaded PDF reports. `reportlab` is only used by
+  `tools/make_reports.py` to regenerate the sample PDFs; it is not a runtime dependency.
+* **Cloudflare stays simulated** in this repository: no account, token or key is stored anywhere. Workers AI is used
+  only when the presenter sets `CLOUDFLARE_ACCOUNT_ID` / `CLOUDFLARE_API_TOKEN` in their own shell.
+
 ## Open questions
 
 * **Q-1 Offline computation parity.** Summaries are computed server-side only, so an offline client cannot show derived values. Options: port calculations to TypeScript with shared test vectors; run the Python in Pyodide/WASM; or cache the last server summary. Decide before building the dashboard.

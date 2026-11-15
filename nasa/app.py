@@ -10,6 +10,9 @@ Endpoints
   GET  /link    the current state of the link: {"up": true|false}
   GET  /records everything the mission record screen draws, grouped per astronaut
   GET  /        the mission record screen (the view NASA's flight surgeon uses)
+  GET  /api/mission          crew overview, mission clock, upcoming events, recent alerts and batches
+  GET  /api/astronaut/<id>   one astronaut: pre-flight report, pre-flight vs. now, charts, alerts, summaries
+  GET  /reports/<file>       the pre-flight reports NASA keeps on Earth (repo folder reports/)
 """
 
 import json
@@ -74,6 +77,8 @@ def init_db():
                 )
                 """
             )
+            db.execute("CREATE INDEX IF NOT EXISTS records_by_astronaut ON records (astronaut_id, type)")
+            db.execute("CREATE INDEX IF NOT EXISTS records_by_type ON records (type)")
     finally:
         db.close()
 
@@ -247,6 +252,167 @@ def records_for_screen():
                 break
 
     return jsonify({"astronauts": sorted(astronauts.values(), key=lambda a: a["id"])})
+
+
+# ---------------------------------------------------------------------------
+# STEP 6 - flight surgeon's views: mission overview and one astronaut
+# ---------------------------------------------------------------------------
+REPORTS_DIR = os.path.join(os.path.dirname(BASE_DIR), "reports")
+
+
+def load(where="", args=()):
+    """Records as dicts, oldest first. ``where`` filters on the stored columns (type, astronaut_id)."""
+    db = open_db()
+    try:
+        rows = db.execute(f"SELECT body, received_at FROM records {where} ORDER BY rowid", args).fetchall()
+    finally:
+        db.close()
+    out = []
+    for row in rows:
+        raw = json.loads(row["body"])
+        rec = fmt.parse_record(raw)
+        if rec is None:
+            continue
+        rec["mission"] = raw.get("mission") if isinstance(raw.get("mission"), dict) else {}
+        rec["received_at"] = row["received_at"]
+        out.append(rec)
+    return out
+
+
+def mission_now():
+    """The latest mission time NASA has heard about (NASA only knows what came over the link)."""
+    db = open_db()
+    try:
+        row = db.execute("SELECT body FROM records ORDER BY rowid DESC LIMIT 1").fetchone()
+    finally:
+        db.close()
+    return (json.loads(row["body"]).get("mission") or {}) if row else {}
+
+
+def latest_values(records):
+    """Latest value per measurement key, plus its origin, from test/lab/profile records."""
+    values, origin, pre = {}, {}, {}
+    for r in records:
+        d = r["data"]
+        if r["type"] == fmt.TYPE_PROFILE:
+            prof = d.get("profile") or {}
+            pre = dict(prof.get("baseline") or {})
+            pre.update({"hr.rest": prof.get("resting_hr"), "spo2.pct": prof.get("spo2"),
+                        "radiation.careerMsv": prof.get("prior_career_msv", 0)})
+            for k in ("mass.changePct", "strength.changePct", "bmd.hipPct"):
+                pre.setdefault(k, 0.0)
+        elif r["type"] in (fmt.TYPE_TEST, fmt.TYPE_LAB) and isinstance(d.get("values"), dict):
+            for k, v in d["values"].items():
+                values[k] = v
+                origin[k] = d.get("origin") or r["type"]
+    return pre, values, origin
+
+
+@app.get("/api/mission")
+def api_mission():
+    now = mission_now()
+    m = now.get("minute") or 0
+    profiles = {r["astronaut_id"]: r for r in load("WHERE type = ?", (fmt.TYPE_PROFILE,))}
+    crew = []
+    for aid, prof_rec in profiles.items():
+        recs = load("WHERE astronaut_id = ? AND type IN (?, ?, ?)", (aid, fmt.TYPE_READING, fmt.TYPE_ALERT, fmt.TYPE_SUMMARY))
+        readings = [r for r in recs if r["type"] == fmt.TYPE_READING and r["data"].get("quality", "valid") == "valid"]
+        alerts = [r for r in recs if r["type"] == fmt.TYPE_ALERT]
+        summaries = [r for r in recs if r["type"] == fmt.TYPE_SUMMARY]
+        prof = prof_rec["data"].get("profile") or {}
+        last = readings[-1]["data"] if readings else {}
+        crew.append({
+            "id": aid, "name": prof.get("name", aid), "role": prof.get("role", ""), "restingHr": prof.get("resting_hr"),
+            "heartRate": last.get("heartRate"), "spo2": last.get("spo2"), "state": last.get("state"),
+            "careerDose": round((prof.get("prior_career_msv") or 0) + (last.get("totalDose") or 0), 2),
+            "readings": len(readings), "alerts": len([a for a in alerts if a["data"].get("code") != "INFO"]),
+            "lastAlert": alerts[-1]["data"] if alerts else None,
+            "lastSummary": summaries[-1]["data"].get("text") if summaries else None,
+            "spark": [r["data"].get("heartRate") for r in readings[-60:]],
+        })
+    events = [r["data"] | {"astronaut_id": r["astronaut_id"]} for r in load("WHERE type = ?", (fmt.TYPE_EVENT,))]
+    upcoming = sorted((e for e in events if (e.get("m_end") or e.get("m_start") or 0) > m), key=lambda e: e["m_start"])
+    alerts = [{"astronaut_id": r["astronaut_id"], "mission": r["mission"], **r["data"]}
+              for r in load("WHERE type = ?", (fmt.TYPE_ALERT,)) if r["data"].get("code") != "INFO"][-12:][::-1]
+    return jsonify({"now": now, "crew": sorted(crew, key=lambda c: c["id"]), "upcoming": upcoming[:80],
+                    "alerts": alerts, "link": link})
+
+
+@app.get("/api/astronaut/<aid>")
+def api_astronaut(aid):
+    recs = load("WHERE astronaut_id = ?", (aid,))
+    if not recs:
+        return jsonify({"error": "no records for this astronaut yet"}), 404
+    now = mission_now()
+    prof_rec = next((r for r in recs if r["type"] == fmt.TYPE_PROFILE), None)
+    prof = (prof_rec["data"].get("profile") if prof_rec else None) or {}
+    report_text = prof_rec["data"].get("report") if prof_rec else None
+    stem = prof.get("report")
+    pdf = f"/reports/{stem}.pdf" if stem and os.path.exists(os.path.join(REPORTS_DIR, f"{stem}.pdf")) else None
+    readings = [r for r in recs if r["type"] == fmt.TYPE_READING]
+    valid = [r for r in readings if r["data"].get("quality", "valid") == "valid"]
+    pre, values, origin = latest_values(recs)
+    sleep_hr = [r["data"]["heartRate"] for r in valid[-120:] if r["data"].get("state") == "asleep"]
+    live = {
+        "sleep_hr": round(sum(sleep_hr) / len(sleep_hr)) if sleep_hr else None,
+        "spo2": valid[-1]["data"].get("spo2") if valid else None,
+        "resp": valid[-1]["data"].get("respRate") if valid else None,
+        "dose": round((prof.get("prior_career_msv") or 0) + (valid[-1]["data"].get("totalDose") or 0), 2) if valid else None,
+    }
+    compare = []
+    for label, unit, key, live_key in fmt.COMPARE:
+        now_v = live.get(live_key) if live_key else values.get(key)
+        if now_v is None:
+            now_v = values.get(key)
+        before = pre.get(key)
+        compare.append({"label": label, "unit": unit, "preflight": before, "now": now_v,
+                        "change": round(now_v - before, 2) if isinstance(now_v, (int, float)) and isinstance(before, (int, float)) else None,
+                        "origin": "wearable" if live_key and live.get(live_key) is not None else origin.get(key, "")})
+    m = now.get("minute") or 0
+    events = [r["data"] for r in recs if r["type"] == fmt.TYPE_EVENT]
+    crew_events = [r["data"] for r in load("WHERE type = ? AND astronaut_id = ?", (fmt.TYPE_EVENT, "crew"))]
+    upcoming = sorted((e for e in events + crew_events if (e.get("m_end") or 0) > m), key=lambda e: e["m_start"])[:30]
+    tests = [{"mission": r["mission"], "text": fmt.lab_for_screen(r["data"])["text"], "origin": r["data"].get("origin"),
+              "source": r["data"].get("source")} for r in recs if r["type"] in (fmt.TYPE_TEST, fmt.TYPE_LAB)][-25:][::-1]
+    return jsonify({
+        "id": aid, "profile": prof, "report": report_text, "reportPdf": pdf, "now": now, "compare": compare,
+        "readings": [{"m": r["data"].get("missionMinute") or (r["mission"] or {}).get("minute"), "hr": r["data"].get("heartRate"),
+                      "spo2": r["data"].get("spo2"), "dose": r["data"].get("totalDose"), "state": r["data"].get("state")}
+                     for r in valid[-900:]],
+        "flagged": len(readings) - len(valid),
+        "alerts": [{"mission": r["mission"], **r["data"]} for r in recs if r["type"] == fmt.TYPE_ALERT][::-1][:30],
+        "summaries": [{"mission": r["mission"], **r["data"]} for r in recs if r["type"] == fmt.TYPE_SUMMARY][::-1][:20],
+        "tests": tests, "upcoming": upcoming,
+    })
+
+
+OSDR_FILE = os.path.join(os.path.dirname(BASE_DIR), "data", "nasa", "osdr_studies.json")
+OSDR_TOPICS = [("heart", "Heart and blood vessels"), ("bone", "Bone loss"), ("muscle", "Muscle"), ("radiation", "Radiation"),
+               ("immune", "Immune system"), ("eye", "Eyes (SANS)"), ("sleep", "Sleep and circadian rhythm")]
+
+
+@app.get("/api/osdr")
+def api_osdr():
+    """NASA OSDR study records behind each health risk (downloaded by tools/fetch_nasa_data.py)."""
+    if not os.path.exists(OSDR_FILE):
+        return jsonify({"topics": []})
+    with open(OSDR_FILE, encoding="utf-8") as fh:
+        data = json.load(fh)
+    topics = []
+    for key, label in OSDR_TOPICS:
+        t = data["topics"].get(key) or {}
+        studies = [s for s in t.get("studies", []) if s.get("accession")]
+        # human studies first, then the rest, three per risk
+        studies.sort(key=lambda s: 0 if "Homo sapiens" in str(s.get("organism")) else 1)
+        topics.append({"key": key, "label": label, "total": t.get("total"), "studies": [
+            {"accession": s["accession"], "title": s.get("title"), "organism": s.get("organism"), "link": s.get("link")}
+            for s in studies[:3]]})
+    return jsonify({"source": data.get("source"), "retrieved_at": data.get("retrieved_at"), "topics": topics})
+
+
+@app.get("/reports/<path:name>")
+def reports(name):
+    return send_from_directory(REPORTS_DIR, name)
 
 
 # ---------------------------------------------------------------------------

@@ -1,3 +1,15 @@
+# NASA sources
+
+## Ingested for the demo (2026-11-14)
+
+| Dataset | Where it lives | How MedVital uses it |
+|---|---|---|
+| Curiosity RAD, PDS PPI `MSL-M-RAD-3-RDR-V1.0` (https://pds-ppi.igpp.ucla.edu/data/MSL-M-RAD-3-RDR-V1.0/) | `data/nasa/rad_dose.csv` (2,749 observations: 20 cruise days 2011-12 to 2012-07, 30 surface sols 2012) | Per-observation `DOSIMETRY_TOTAL_DOSE_E` (uGy/h) is the crew's dose rate at that mission time, x mean quality factor 3.82 (cruise) / 3.05 (surface) from Hassler et al., Science 2014. |
+| DONKI, NASA CCMC (https://ccmc.gsfc.nasa.gov/DONKI-API/get/) | `data/nasa/donki_2024-05-01_2024-06-29.json` (FLR 243, CME 255, SEP 27, GST 7, IPS 23, WSA-ENLIL 215) | Replayed onto the mission calendar as upcoming space weather; SEP windows raise radiation. |
+| NASA OSDR search API (https://osdr.nasa.gov/osdr/data/search) | `data/nasa/osdr_studies.json` (study metadata for heart, bone, muscle, radiation, immune, eye, sleep) | Linked as the evidence behind each risk in the NASA view. No OSDR value becomes an astronaut value. |
+
+Re-download: `python tools/fetch_nasa_data.py` (needs internet).
+
 # NASA Sources
 
 **Status (research pass 1, 2026-11-14, ~08:30–09:30 ET):** sources below were read live from their primary hosts. **No dataset has been
