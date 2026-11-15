@@ -52,7 +52,7 @@ def load_dotenv(path: Path) -> None:
     """KEY=value lines from the gitignored .env; real environment variables always win."""
     if not path.exists():
         return
-    for line in path.read_text(encoding="utf-8").splitlines():
+    for line in path.read_text(encoding="utf-8-sig").splitlines():  # utf-8-sig: Windows may add a BOM
         line = line.strip()
         if not line or line.startswith("#") or "=" not in line:
             continue
@@ -188,6 +188,9 @@ def main() -> None:
     args = p.parse_args()
 
     load_dotenv(ROOT / ".env")
+    for wrong in (ROOT / ".env.txt", ROOT / "env", ROOT / ".env.example.txt"):
+        if wrong.exists() and not (ROOT / ".env").exists():
+            say(f"found {wrong.name} but no .env: rename it to .env (Windows Notepad adds .txt)")
     ensure_env()
     host = "0.0.0.0" if args.lan else "127.0.0.1"
     if args.fresh and RUNTIME.exists():
@@ -205,6 +208,34 @@ def main() -> None:
         if local:
             env["MEDVITAL_CLOUDFLARE_URL"], env["MEDVITAL_CLOUDFLARE_KEY"] = local
     cf_url, cf_key = env.get("MEDVITAL_CLOUDFLARE_URL", ""), env.get("MEDVITAL_CLOUDFLARE_KEY", "")
+    model = env.get("MEDVITAL_OLLAMA_MODEL", "")
+    if model:
+        import json as _json
+        base = env.get("MEDVITAL_OLLAMA_URL", "http://localhost:11434").rstrip("/")
+        try:
+            with urllib.request.urlopen(base + "/api/tags", timeout=5) as r:  # noqa: S310
+                names = [m.get("name") for m in _json.loads(r.read()).get("models", [])]
+            if model in names or f"{model}:latest" in names:
+                say(f"Onboard agent: Ollama {model} (loading it in the background)")
+                def _warm() -> None:   # load the model now so the first question is quick
+                    req = urllib.request.Request(base + "/api/generate", method="POST",
+                                                 data=_json.dumps({"model": model, "prompt": "hi", "keep_alive": "30m",
+                                                                   "stream": False}).encode())
+                    try:
+                        urllib.request.urlopen(req, timeout=180).read()  # noqa: S310
+                    except OSError:
+                        pass
+                threading.Thread(target=_warm, daemon=True).start()
+            else:
+                say(f"Onboard agent: '{model}' is not in `ollama list` ({', '.join(n for n in names if n)}): fix the name in .env")
+        except OSError:
+            say("Onboard agent: Ollama is not running (start the Ollama app); using Workers AI or built-in replies")
+    else:
+        say("Onboard agent: no local model set (MEDVITAL_OLLAMA_MODEL); using Workers AI or built-in replies")
+    if not cf_url:
+        say("Cloudflare: OFF (no MEDVITAL_CLOUDFLARE_URL in .env). The spacecraft sends straight to NASA.")
+    elif "<" in cf_key or not cf_key.strip():
+        say("Cloudflare: the key in .env is empty or still the placeholder <your key>: put your real key there")
     if cf_url and not cf_key:
         say("MEDVITAL_CLOUDFLARE_URL is set but MEDVITAL_CLOUDFLARE_KEY is not: using the direct link instead")
         env.pop("MEDVITAL_CLOUDFLARE_URL")
@@ -212,7 +243,7 @@ def main() -> None:
     if cf_url:
         status = worker_call(cf_url, cf_key, "GET", "/link")
         if status == 200:
-            say(f"link to NASA: Cloudflare Worker {cf_url}")
+            say(f"Cloudflare: ON. Link to NASA, checker and DONKI run through {cf_url}")
             if args.fresh and args.role in ("all", "spacecraft"):
                 # a clean mission on Earth too, or NASA would pull the last mission's records
                 worker_call(cf_url, cf_key, "POST", "/reset", {"confirm": "new mission"})
