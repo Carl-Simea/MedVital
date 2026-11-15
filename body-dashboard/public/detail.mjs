@@ -80,7 +80,6 @@ function renderOverview(box, M, parts, onPick) {
     const s = h('summary'); s.append(h('i', 'mdot ' + (lv >= 0 ? LV[lv] : 'none')), h('span', 'pname', p.label), h('small', '', flagged ? `${flagged} to check · ${have}/${ks.length}` : `${have}/${ks.length}`));
     d.append(s); const list = h('div', 'plist2'); for (const k of ks) list.append(row(k, M, parts, onPick)); d.append(list); box.append(d);
   }
-  box.append(h('p', 'dnote', 'Ranges: general adult clinical reference ranges unless a source is named (labs differ slightly; these are not NASA limits). Values marked "tracked" have no verified threshold and only mean something against the own preflight baseline.'));
 }
 
 /* ---------- Sleep ---------- */
@@ -129,7 +128,6 @@ function renderSleep(box, M, parts, onPick) {
   for (const k of ['sleep.remPct', 'sleep.n3Pct', 'sleep.n2Pct', 'sleep.n1Pct', 'sleep.latencyMin', 'sleep.wasoMin', 'sleep.awakenings', 'sleep.efficiencyPct', 'sleep.hours', 'sleep.inBedH', 'sleep.remLatencyMin', 'sleep.cycles', 'sleep.onsetClock', 'sleep.lightLux', 'pvt.lapses'])
     if (INDICATORS[k]) card.append(row(k, M, parts, onPick));
   box.append(card);
-  box.append(h('p', 'dnote', 'Sleep stages need brain-wave recording (polysomnography or an EEG headband); wrist wearables only estimate them. Good-quality thresholds: National Sleep Foundation consensus for adults (Ohayon et al. 2017).'));
 }
 
 /* ---------- Exercise ---------- */
@@ -187,7 +185,6 @@ function renderNutrition(box, M, parts, onPick) {
   const groups = [['Intake', ['nutrition.proteinGkg', 'nutrition.fluidL', 'nut.fiberG', 'nut.omega3G', 'nut.sodiumMg', 'nut.potassiumMg', 'nut.calciumMg', 'nut.vitdIU', 'nut.ironMg', 'nut.folateUg', 'nut.vitkUg', 'nut.caffeineMg']],
     ['Markers in blood and urine', ['vitd.ngml', 'ferritin.ngml', 'iron.ugdl', 'tsat.pct', 'folate.ngml', 'b12.pgml', 'vite.mgl', 'vitk.ngml', 'homocysteine.umol', 'albumin.gdl', 'ohdg.ngmg', 'pgf2a.ngmg', 'urine.sodiumMmol', 'mass.changePct']]];
   for (const [t, ks] of groups) { const card = h('div', 'dcard'); card.append(h('b', 'dsub', t)); for (const k of ks) if (INDICATORS[k]) card.append(row(k, M, parts, onPick)); box.append(card); }
-  box.append(h('p', 'dnote', 'Intake ranges: US Dietary Reference Intakes for the general population, not spaceflight-specific requirements.'));
 }
 
 let sig = '';

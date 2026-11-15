@@ -268,8 +268,7 @@ function renderScores() {
       const val = el('span', 'cv'); val.append(inp, el('small', '', it.unit));
       const bar = el('span', 'cbar'); const fill = el('i'); fill.style.width = (it.score === null ? 0 : Math.max(3, it.score)) + '%'; fill.style.background = scoreColor(it.score); bar.append(fill);
       sum.append(el('span', 'cl', it.label), val, bar); d.append(sum);
-      const more = el('p', 'cmore', it.target + '. ' + (it.basis === 'reference' ? 'Anchored to: ' : 'General convention. '));
-      const a = srcLink(it.src); if (a) more.append(a); d.append(more); box.append(d);
+      box.append(d);
     }
   }
   requestAnimationFrame(() => box.querySelectorAll('.rval').forEach(c => { c.style.strokeDashoffset = c.dataset.off; }));
@@ -361,7 +360,7 @@ function renderCard() {
   if (st.warnings.length) {
     card.append(el('h3', '', 'Warnings'));
     for (const w of st.warnings) {
-      const li = el('div', 'warnli lv' + w.level, w.text); const m = el('span', 'meta', BASIS[w.basis] || ''); if (w.src) { m.append(document.createTextNode(' · ')); const a = srcLink(w.src); if (a) m.append(a); } li.append(m); card.append(li);
+      const li = el('div', 'warnli lv' + w.level, w.text); card.append(li);
     }
   } else if (st.level === LEVEL.nodata) {
     const rated = def.ind.filter(k => INDICATORS[k].rate !== false);
@@ -374,12 +373,12 @@ function renderCard() {
     const g = el('div', 'ind');
     for (const i of st.indicators) {
       const v = i.value === null ? '–' : typeof i.value === 'boolean' ? (i.value ? 'yes' : 'no') : `${i.value}${i.unit ? ' ' + i.unit : ''}`;
-      g.append(el('span', '', i.label), el('b', '', v), el('small', '', i.how + (i.flight ? ' · measurable in flight' : ' · not measurable in flight') + (i.rate === false ? ' · tracked, not rated: it is read against the personal baseline' : '') + (i.why ? '. Why: ' + i.why : '')));
+      g.append(el('span', '', i.label), el('b', '', v));
     }
     card.append(g);
   }
-  if (def.facts.length) { card.append(el('h3', '', 'What spaceflight does')); const ul = el('ul'); for (const f of def.facts) { const li = el('li', '', f.t); const m = el('span', 'meta'); const a = srcLink(f.s); if (a) m.append(a); li.append(m); ul.append(li); } card.append(ul); }
-  if (def.helps.length) { card.append(el('h3', '', 'What helps')); const ul = el('ul'); for (const f of def.helps) { const li = el('li', '', f.t); const m = el('span', 'meta'); const a = srcLink(f.s); if (a) m.append(a); li.append(m); ul.append(li); } card.append(ul); }
+  if (def.facts.length) { card.append(el('h3', '', 'What spaceflight does')); const ul = el('ul'); for (const f of def.facts) { ul.append(el('li', '', f.t)); } card.append(ul); }
+  if (def.helps.length) { card.append(el('h3', '', 'What helps')); const ul = el('ul'); for (const f of def.helps) { ul.append(el('li', '', f.t)); } card.append(ul); }
   if (def.gap) card.append(el('div', 'gap', 'Gap: ' + def.gap));
   card.append(el('div', 'disc', 'Decision support, not a diagnosis. Contact the flight surgeon for anything that worries you.'));
   card.scrollTop = 0;
@@ -720,6 +719,7 @@ const fitIn = () => { const t = $('chatIn'); t.style.height = 'auto'; t.style.he
 $('chatForm').onsubmit = e => { e.preventDefault(); const t = $('chatIn').value; if (!t.trim()) return; $('chatIn').value = ''; fitIn(); route(t); };
 $('chatIn').oninput = fitIn;
 $('chatIn').onkeydown = e => { e.stopPropagation(); if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) { e.preventDefault(); $('chatForm').requestSubmit(); } };
+$('chatPlus').onclick = () => $('chatFile').click();
 $('chatFile').onchange = e => { readFiles([...e.target.files]); e.target.value = ''; };
 { const dock = $('dock'), drop = $('drop'); let depth = 0;
   dock.addEventListener('dragenter', e => { if (![...e.dataTransfer.types].includes('Files')) return; e.preventDefault(); depth++; drop.hidden = false; });

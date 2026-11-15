@@ -110,8 +110,8 @@
       <form class="composer" id="chatForm">
         <textarea id="chatIn" rows="1" placeholder="Ask a question or paste a report" aria-label="Message"></textarea>
         <div class="crow">
-          <label class="cbtn" title="Add a report file (.txt, .csv, .json)" aria-label="Add a file"><input type="file" id="chatFile" multiple accept=".txt,.csv,.tsv,.json,.md,.log,.xml,.html,.pdf,image/*" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></label>
-          <span class="cnote">Reads text, CSV and JSON</span>
+          <button type="button" class="cbtn" id="chatPlus" title="Add a file" aria-label="Add a file"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></button><input type="file" id="chatFile" multiple accept=".txt,.csv,.tsv,.json,.md,.log,.xml,.html,.pdf,image/*" hidden>
+          
           <button type="button" id="chatMic" class="cbtn" aria-label="Speak" title="Speak"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg></button>
           <button class="csend" type="submit" id="chatSend" aria-label="Send" title="Send" disabled><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M6 11l6-6 6 6"/></svg></button>
         </div>
