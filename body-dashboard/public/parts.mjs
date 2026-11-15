@@ -31,6 +31,10 @@ export const SRC = Object.freeze({
   nutritionPg: { kind: 'primary',   title: 'NASA: Studying the role of nutrition in spaceflight', url: 'https://www.nasa.gov/?p=209742' },
   nutBone:     { kind: 'primary',   title: 'NASA HRP (2014): nutrition, vitamin D and exercise for bone', url: 'https://ntrs.nasa.gov/api/citations/20140009569/downloads/20140009569.pdf' },
   gutTransit:  { kind: 'secondary', title: 'Nature Communications 2026 (via Space.com): gut protein fermentation in 52 astronauts', url: 'https://space.com/space-exploration/human-spaceflight/its-harder-to-poop-in-space-scientists-may-finally-know-why' },
+  stdMeasures: { kind: 'primary',   title: 'NASA: Spaceflight Standard Measures (actigraphy, cognition, blood, urine and saliva markers, carotid ultrasound, sensorimotor tests)', url: 'https://www.nasa.gov/humans-in-space/spaceflight-standard-measures-characterizing-how-humans-adapt-in-space' },
+  artemis2:    { kind: 'primary',   title: 'NASA: Artemis II crew health research (ARCHeR wristbands, immune biomarkers, standard measures, radiation sensors)', url: 'https://www.nasa.gov/general/artemis-ii-crew-both-subjects-and-scientists-in-nasa-deep-space-research' },
+  bioMonitor:  { kind: 'primary',   title: 'Canadian Space Agency: Bio-Monitor smart shirt (heart activity, blood pressure, breathing, skin temperature, blood oxygen, activity)', url: 'https://www.asc-csa.gc.ca/eng/sciences/bio-monitor.asp' },
+  sansConsensus:{ kind: 'secondary', title: 'SANS expert consensus in Eye, 2026 (reported by The Ophthalmologist): 20 µm retinal thickening as earliest sign, 55 µm as concerning', url: 'https://theophthalmologist.com/issues/2026/articles/august/standardizing-sans-in-spaceflight/' },
   liverMouse:  { kind: 'primary',   title: 'Lipid accumulation in the livers of mice flown on the ISS (Scientific Reports 2019)', url: 'https://www.nature.com/articles/s41598-019-55869-2' }
 });
 
@@ -74,7 +78,38 @@ export const INDICATORS = Object.freeze({
   'temp.c':                { label: 'Body temperature', unit: '°C', how: 'Thermometer', flight: true },
   'glucose.mgdl':          { label: 'Blood glucose', unit: 'mg/dL', how: 'Finger-prick or blood test', flight: true },
   'mass.changePct':        { label: 'Body mass change vs. preflight', unit: '%', how: 'Mass measurement device', flight: true },
-  'vitd.ngml':             { label: 'Vitamin D (25-OH)', unit: 'ng/mL', how: 'Blood test', flight: true }
+  'vitd.ngml':             { label: 'Vitamin D (25-OH)', unit: 'ng/mL', how: 'Blood test', flight: true },
+  // Continuous values from wearables (live). `rate: false` means the value is shown and tracked but not rated,
+  // because no verified threshold exists or it only means something against the personal baseline.
+  'hr.now':                { label: 'Heart rate now', unit: 'bpm', how: 'ECG shirt or wrist wearable, continuous', flight: true, live: true },
+  'hrv.rmssdMs':           { label: 'Heart rate variability (RMSSD)', unit: 'ms', how: 'ECG shirt or wrist wearable', flight: true, live: true, rate: false },
+  'skin.tempC':            { label: 'Skin temperature', unit: '°C', how: 'Smart shirt or wrist wearable', flight: true, live: true, rate: false },
+  'eda.uS':                { label: 'Skin conductance (stress arousal)', unit: 'µS', how: 'Wrist wearable', flight: true, live: true, rate: false },
+  'radiation.rateUsvH':    { label: 'Radiation dose rate', unit: 'µSv/h', how: 'Personal active dosimeter', flight: true, live: true, rate: false },
+  // Behaviour and sensorimotor
+  'sleep.efficiencyPct':   { label: 'Sleep efficiency', unit: '%', how: 'Wrist actigraphy', flight: true },
+  'cognition.scorePct':    { label: 'Cognition tests vs. own baseline', unit: '%', how: 'Computer test battery (10 tests)', flight: true, rate: false },
+  'stress.score':          { label: 'Stress, self-rated', unit: '/5', how: 'Pre-sleep questionnaire', flight: true, rate: false },
+  'mood.score':            { label: 'Mood, self-rated', unit: '/5', how: 'Pre-sleep questionnaire', flight: true, rate: false },
+  'motion.sickness':       { label: 'Motion sickness', unit: '/10', how: 'Symptom report, 0 to 10', flight: true },
+  'balance.changePct':     { label: 'Balance test vs. preflight', unit: '%', how: 'Sensorimotor tests before and after flight', flight: false, rate: false },
+  // Blood
+  'wbc.k':                 { label: 'White blood cells', unit: 'k/µL', how: 'Blood count', flight: true },
+  'platelets.k':           { label: 'Platelets', unit: 'k/µL', how: 'Blood count', flight: true },
+  'hematocrit.pct':        { label: 'Hematocrit', unit: '%', how: 'Blood count', flight: true },
+  'ferritin.ngml':         { label: 'Ferritin (iron stores)', unit: 'ng/mL', how: 'Blood test', flight: true },
+  'sodium.mmol':           { label: 'Sodium', unit: 'mmol/L', how: 'Blood chemistry', flight: true },
+  'potassium.mmol':        { label: 'Potassium', unit: 'mmol/L', how: 'Blood chemistry', flight: true },
+  'creatinine.mgdl':       { label: 'Creatinine', unit: 'mg/dL', how: 'Blood chemistry', flight: true },
+  'calcium.mgdl':          { label: 'Serum calcium', unit: 'mg/dL', how: 'Blood chemistry', flight: true },
+  'crp.mgl':               { label: 'C-reactive protein (inflammation)', unit: 'mg/L', how: 'Blood test', flight: true },
+  'cortisol.ugdl':         { label: 'Cortisol (stress hormone)', unit: 'µg/dL', how: 'Blood or saliva sample', flight: true, rate: false },
+  // Imaging and urine
+  'cimt.mm':               { label: 'Carotid wall thickness (CIMT)', unit: 'mm', how: 'Ultrasound of the carotid artery', flight: true, rate: false },
+  'sans.trtChangeUm':      { label: 'Retinal thickness change at the optic disc', unit: 'µm', how: 'OCT, compared with preflight', flight: true },
+  'urine.citrateMgDay':    { label: 'Urinary citrate per 24 h', unit: 'mg', how: '24-hour urine collection', flight: true },
+  'urine.ph':              { label: 'Urine pH', unit: '', how: 'Urine test strip or 24-hour collection', flight: true },
+  'kidney.stone':          { label: 'Kidney stone on ultrasound', unit: '', how: 'Ultrasound of the kidneys', flight: true, type: 'bool' }
 });
 export const WHY = Object.freeze({
   'hr.rest': 'A resting heart rate that drifts above the personal baseline is an early sign of cardiovascular strain or dehydration.',
@@ -105,7 +140,33 @@ export const WHY = Object.freeze({
   'temp.c': 'Fever signals infection; in a closed habitat it can spread to the crew.',
   'glucose.mgdl': 'Blood glucose shows energy metabolism; stress, inactivity and diet change it.',
   'mass.changePct': 'Unplanned mass loss means energy intake is too low, which also costs bone and muscle.',
-  'vitd.ngml': 'Without sunlight, vitamin D must be supplemented; it supports bone health.'
+  'vitd.ngml': 'Without sunlight, vitamin D must be supplemented; it supports bone health.',
+  'hr.now': 'The live heart rate shows load and recovery; only values at rest are rated.',
+  'hrv.rmssdMs': 'Heart rate variability falls with stress, fatigue and illness; it is read against the personal baseline.',
+  'skin.tempC': 'Skin temperature follows activity, sleep phase and cabin climate.',
+  'eda.uS': 'Skin conductance rises with arousal and stress.',
+  'radiation.rateUsvH': 'The dose rate shows a solar particle event as it happens.',
+  'sleep.efficiencyPct': 'Time asleep as a share of time in bed, measured by movement.',
+  'cognition.scorePct': 'Thinking speed and accuracy can drop with sleep loss, stress and CO2.',
+  'stress.score': 'NASA asks crews about mood, team cohesion and workload before sleep.',
+  'mood.score': 'NASA asks crews about mood, team cohesion and workload before sleep.',
+  'motion.sickness': 'Space motion sickness is common in the first days and after landing.',
+  'balance.changePct': 'Balance is disturbed after landing; it decides how soon a crew can work on a surface.',
+  'wbc.k': 'White blood cells show infection and immune changes.',
+  'platelets.k': 'Platelets matter for clotting.',
+  'hematocrit.pct': 'Blood plasma falls early in flight, which changes the share of red cells.',
+  'ferritin.ngml': 'Iron stores change in flight as red blood cell production changes.',
+  'sodium.mmol': 'Sodium shows fluid balance.',
+  'potassium.mmol': 'Potassium outside its range can disturb the heart rhythm.',
+  'creatinine.mgdl': 'Creatinine shows kidney function and hydration.',
+  'calcium.mgdl': 'Bone loss releases calcium.',
+  'crp.mgl': 'A raised value points to inflammation or infection.',
+  'cortisol.ugdl': 'Stress hormones are part of the NASA standard measures; the value depends on the time of day.',
+  'cimt.mm': 'NASA scans the carotid wall to watch for early artery changes.',
+  'sans.trtChangeUm': 'Thickening of the retina around the optic disc is the earliest measurable sign of disc swelling.',
+  'urine.citrateMgDay': 'Citrate holds calcium in solution; it falls in flight.',
+  'urine.ph': 'Acidic urine favours some kidney stones; pH falls in flight.',
+  'kidney.stone': 'A stone could impair a crew member in flight.'
 });
 
 /* ---------- Parts: one entry per anatomy group ---------- */
@@ -142,12 +203,12 @@ export const PARTS = Object.freeze({
   shin:    { label: 'Lower-leg bones', system: 'skeleton', does: 'Tibia and fibula carry weight below the knee.', ind: ['bmd.wholeBodyPct'], facts: [f('Weight-bearing sites lose the most bone on average (1–1.5 % per month).', 'boneER2017'), BONE_NOTE], helps: SKEL_HELPS, gap: 'No site-specific figure collected for the lower leg.' },
   foot:    { label: 'Foot bones', system: 'skeleton', does: 'Ankle and foot bones.', ind: ['bmd.wholeBodyPct'], facts: [BONE_NOTE], helps: SKEL_HELPS, gap: 'No site-specific spaceflight figure collected for the foot bones.' },
 
-  heart:   { label: 'Heart', system: 'cardio', does: 'Pumps blood through the body.', ind: ['hr.rest', 'orthostatic.presyncope', 'aerobic.changePct', 'bp.sys', 'bp.dia'],
+  heart:   { label: 'Heart', system: 'cardio', does: 'Pumps blood through the body.', ind: ['hr.rest', 'orthostatic.presyncope', 'aerobic.changePct', 'bp.sys', 'bp.dia', 'hr.now', 'hrv.rmssdMs', 'potassium.mmol'],
     facts: [f('Orthostatic intolerance is the primary in-mission cardiovascular risk, particularly in low Earth orbit and on the lunar surface.', 'cvRisk'),
             f('Cardiovascular disease is a significant long-term risk, especially for missions beyond low Earth orbit.', 'cvRisk'),
             f('NASA found no definitive evidence that spaceflight increases the frequency of cardiac arrhythmias; a few cases, including one non-sustained ventricular tachycardia, are documented.', 'rhythm')],
     helps: [f('Exercise and a healthy diet help maintain cardiovascular fitness; compression garments and fluids before landing help prevent low blood pressure.', 'cvRiskPage')] },
-  artery:  { label: 'Arteries', system: 'cardio', does: 'Carry oxygen-rich blood from the heart.', ind: ['orthostatic.presyncope', 'bp.sys', 'bp.dia'],
+  artery:  { label: 'Arteries', system: 'cardio', does: 'Carry oxygen-rich blood from the heart.', ind: ['orthostatic.presyncope', 'bp.sys', 'bp.dia', 'cimt.mm'],
     facts: [f('Carotid and brachial artery structure and stiffness did not change on average in 13 astronauts during ISS missions, although markers of oxidative stress and inflammation rose.', 'arteries')],
     helps: [f('Exercise and a healthy diet help maintain cardiovascular fitness.', 'cvRiskPage')] },
   vein:    { label: 'Veins', system: 'cardio', does: 'Return blood to the heart.', ind: ['jugular.flow', 'orthostatic.presyncope'],
@@ -163,31 +224,31 @@ export const PARTS = Object.freeze({
   liver:   { label: 'Liver', system: 'digest', does: 'Processes nutrients, makes bile and clears toxins.', ind: ['glucose.mgdl'],
     facts: [f('In mice flown on the ISS, fat accumulated in the liver in every experiment, consistent with early signs of liver disease; human evidence is not established.', 'liverMouse')],
     helps: [], gap: 'Animal evidence only; no verified human measurement or threshold collected.' },
-  stomach: { label: 'Stomach', system: 'digest', does: 'Starts the digestion of food.', ind: ['mass.changePct'],
+  stomach: { label: 'Stomach', system: 'digest', does: 'Starts the digestion of food.', ind: ['mass.changePct', 'motion.sickness'],
     facts: [f('It is thought that food settles differently in the stomach in weightlessness, which can make astronauts feel full before they eat enough.', 'nutritionPg')],
     helps: [], gap: 'Little verified data; energy intake is tracked through nutrition assessment.' },
   intestine:{ label: 'Intestines', system: 'digest', does: 'Absorb nutrients and water.', ind: ['mass.changePct'],
     facts: [f('Blood tests of 52 astronauts suggest gut bacteria ferment more protein in flight; this points to slower transit, but transit time was not measured.', 'gutTransit')],
     helps: [], gap: 'Constipation is common; no verified threshold collected.' },
-  kidney:  { label: 'Kidneys', system: 'digest', does: 'Filter blood and make urine.', ind: ['urine.volumeL', 'urine.calciumMgDay'],
+  kidney:  { label: 'Kidneys', system: 'digest', does: 'Filter blood and make urine.', ind: ['urine.volumeL', 'urine.calciumMgDay', 'urine.citrateMgDay', 'urine.ph', 'kidney.stone', 'creatinine.mgdl', 'sodium.mmol', 'potassium.mmol'],
     facts: [f('In flight, urine volume, pH and citrate fall and urinary calcium rises, which raises the risk of kidney stones.', 'renalE057'),
             f('Urine changes appear as early as flight day 3–4 on short missions and the risk stays elevated on landing day.', 'renalE057'),
             f('A stone could impair a crew member in flight; bone loss adds calcium to the urine.', 'renalKcit')],
     helps: [f('Increasing fluid intake is recommended to all crew members.', 'renalE057'),
             f('Potassium citrate reduced urinary calcium and kept stone risk at preflight levels in treated crew.', 'renalKcit'),
             f('Lower protein, sodium and oxalate intake while keeping calcium at recommended levels.', 'renalKcit')] },
-  spleen:  { label: 'Spleen (blood health)', system: 'digest', does: 'Filters the blood and removes worn-out red blood cells (general anatomy).', ind: ['hemoglobin.gdl'],
+  spleen:  { label: 'Spleen (blood health)', system: 'digest', does: 'Filters the blood and removes worn-out red blood cells (general anatomy).', ind: ['hemoglobin.gdl', 'hematocrit.pct', 'wbc.k', 'platelets.k', 'ferritin.ngml'],
     facts: [f('Astronauts destroyed 54 % more red blood cells in flight (3 million per second instead of 2 million), measured in 14 astronauts over six months.', 'rbc'),
             f('Five of 13 astronauts were clinically anemic at landing; the effect resolved over 3–4 months, but red-cell destruction stayed 30 % above preflight levels one year later.', 'rbcDetail'),
             f('Past research suggests astronauts need less iron on long missions because red blood cell production changes.', 'nutritionPg')],
     helps: [f('Screening for existing blood conditions before flight and an adapted diet are suggested.', 'rbc')] },
 
-  brain:   { label: 'Brain', system: 'brain', does: 'Controls thinking, movement and sleep.', ind: ['pvt.lapses', 'sleep.hours'],
+  brain:   { label: 'Brain', system: 'brain', does: 'Controls thinking, movement and sleep.', ind: ['pvt.lapses', 'sleep.hours', 'sleep.efficiencyPct', 'cognition.scorePct', 'stress.score', 'mood.score', 'motion.sickness', 'balance.changePct'],
     facts: [f('Sleep loss is apparent during spaceflight, and ground evidence suggests it leads to performance impairment.', 'sleepER'),
             f('The 3-minute PVT with a 355 ms lapse threshold is as sensitive to sleep loss as the 10-minute PVT.', 'pvtB'),
             f('SANS (spaceflight associated neuro-ocular syndrome) combines eye and optic nerve changes.', 'sans')],
     helps: [] , gap: 'No verified countermeasure list collected for sleep in this work.' },
-  eye:     { label: 'Eye', system: 'brain', does: 'Capture light and send images to the brain.', ind: ['sans.hyperopicShiftD', 'sans.discEdema', 'sans.choroidalFolds'],
+  eye:     { label: 'Eye', system: 'brain', does: 'Capture light and send images to the brain.', ind: ['sans.hyperopicShiftD', 'sans.discEdema', 'sans.choroidalFolds', 'sans.trtChangeUm'],
     facts: [f('SANS covers optic disc edema, globe flattening, choroidal and retinal folds and hyperopic shifts.', 'sans'),
             f('A reported symptom is reduced near vision: hyperopic shift of +0.50 to +1.75 D in six astronauts.', 'sans'),
             f('A prospective cohort of 11 astronauts showed optic disc edema and choroidal thickening on 6-month ISS missions, measured by imaging.', 'sansCohort')],
@@ -202,7 +263,7 @@ export const PARTS = Object.freeze({
   mShin:   { label: 'Lower-leg muscles', system: 'muscle', does: 'Move the ankle and foot.', ind: ['strength.changePct'], facts: MUSC_FACTS, helps: MUSC_HELPS },
   tendon:  { label: 'Tendons', system: 'muscle', does: 'Connect muscles to bones.', ind: [], facts: [], helps: [], gap: 'No verified spaceflight data collected for tendons.' },
 
-  body:    { label: 'Whole body', system: 'body', does: 'Effects that act on every organ.', ind: ['radiation.careerMsv', 'radiation.eventMsv', 'virus.shedding', 'zoster.symptoms', 'sleep.hours', 'temp.c', 'glucose.mgdl', 'mass.changePct', 'vitd.ngml'],
+  body:    { label: 'Whole body', system: 'body', does: 'Effects that act on every organ.', ind: ['radiation.careerMsv', 'radiation.eventMsv', 'virus.shedding', 'zoster.symptoms', 'sleep.hours', 'temp.c', 'glucose.mgdl', 'mass.changePct', 'vitd.ngml', 'skin.tempC', 'eda.uS', 'radiation.rateUsvH', 'crp.mgl', 'cortisol.ugdl', 'calcium.mgdl'],
     facts: [f('NASA lists five human-spaceflight hazards: radiation, isolation and confinement, distance from Earth, gravity fields, and hostile/closed environments.', 'hrpHazards'),
             f('Career radiation dose must stay below 600 mSv; a single solar particle event is limited to 250 mSv.', 'radLimit'),
             f('Immune function is altered in and after flight; latent herpes viruses reactivate, but this has not been directly tied to disease.', 'immuneER'),
@@ -351,6 +412,7 @@ rule('spo2', ['lung'], M => {
 });
 rule('resp', ['lung', 'airway'], M => {
   const v = M['resp.rate']; if (!num(v)) return null;
+  if ((ACTIVE(M.activity) || M.recovering) && v >= 12 && v <= 45) return r(0, `Breathing rate ${v}/min during ${M.activity === 'eva' ? 'a spacewalk' : 'exercise'} (only resting values are rated).`, 'convention', null, 'resp.rate');
   return v < 8 || v > 30 ? r(3, `Breathing rate ${v}/min is extreme. Contact the flight surgeon now.`, 'convention', null, 'resp.rate')
        : v < 10 || v > 24 ? r(2, `Breathing rate ${v}/min is clearly outside the usual 12–20 range.`, 'convention', null, 'resp.rate')
        : v < 12 || v > 20 ? r(1, `Breathing rate ${v}/min is slightly outside the usual 12–20 range.`, 'convention', null, 'resp.rate')
@@ -384,8 +446,67 @@ rule('vitd', ['body'], M => {
        : r(0, `Vitamin D ${v} ng/mL.`, 'convention', 'nutBone', 'vitd.ngml');
 });
 
+/* ---------- Rules for the wearable, blood, urine and imaging values added in v3.8 ----------
+   Unless a source is named, the cut-offs are general clinical reference ranges (basis 'convention'), not NASA limits. */
+const ACTIVE = a => a === 'exercise' || a === 'eva';
+rule('hrnow', ['heart'], M => {
+  const v = M['hr.now']; if (!num(v)) return null;
+  if (ACTIVE(M.activity)) return r(0, `Heart rate ${v} bpm during ${M.activity === 'eva' ? 'a spacewalk' : 'exercise'} (only resting values are rated).`, 'convention', null, 'hr.now');
+  if (M.recovering) return r(0, `Heart rate ${v} bpm while recovering from exercise (only resting values are rated).`, 'convention', null, 'hr.now');
+  const fi = evalHeartRate({ bpm: v, source: 'device', context: 'rest' });
+  return r(fi.severity, `Heart rate now ${v} bpm${M.activity === 'sleep' ? ' while asleep' : ''}.`, 'convention', null, 'hr.now');
+});
+rule('sleepEff', ['brain'], M => {
+  const v = M['sleep.efficiencyPct']; if (!num(v)) return null;
+  return v < 75 ? r(2, `Sleep efficiency ${v} %: a quarter or more of the time in bed was spent awake.`, 'convention', 'stdMeasures', 'sleep.efficiencyPct')
+       : v < 85 ? r(1, `Sleep efficiency ${v} % is below the usual 85 %.`, 'convention', 'stdMeasures', 'sleep.efficiencyPct')
+       : r(0, `Sleep efficiency ${v} %.`, 'convention', 'stdMeasures', 'sleep.efficiencyPct');
+});
+rule('motion', ['brain', 'stomach'], M => {
+  const v = M['motion.sickness']; if (!num(v)) return null;
+  return v >= 7 ? r(2, `Motion sickness ${v}/10. Avoid fast head movements, keep fluids up and tell the flight surgeon.`, 'convention', 'artemis2', 'motion.sickness')
+       : v >= 4 ? r(1, `Motion sickness ${v}/10. Common in the first days of flight and after landing.`, 'convention', 'artemis2', 'motion.sickness')
+       : r(0, `Motion sickness ${v}/10.`, 'convention', 'artemis2', 'motion.sickness');
+});
+rule('trt', ['eye'], M => {
+  const v = M['sans.trtChangeUm']; if (!num(v)) return null;
+  return v >= 55 ? r(2, `Retina around the optic disc is ${v} µm thicker than preflight: at or above the 55 µm level an expert consensus calls clinically concerning.`, 'verified', 'sansConsensus', 'sans.trtChangeUm')
+       : v >= 20 ? r(1, `Retina around the optic disc is ${v} µm thicker than preflight: 20 µm is the earliest sign of optic disc swelling in an expert consensus.`, 'verified', 'sansConsensus', 'sans.trtChangeUm')
+       : r(0, `Retinal thickness change ${v} µm, below the 20 µm early-sign level.`, 'verified', 'sansConsensus', 'sans.trtChangeUm');
+});
+/** Two-sided reference range: [low, high] is usual; beyond [farLow, farHigh] is rated one level higher. */
+function band(id, groups, key, name, unit, range, far, farLevel = 2) {
+  rule(id, groups, M => {
+    const v = M[key]; if (!num(v)) return null;
+    const [lo, hi] = typeof range === 'function' ? range(M) : range, [flo, fhi] = far ? (typeof far === 'function' ? far(M) : far) : [-Infinity, Infinity];
+    const t = `${name} ${v}${unit ? ' ' + unit : ''}`;
+    if (v < flo || v > fhi) return r(farLevel, `${t} is far outside the usual ${lo}–${hi}. ${farLevel >= 3 ? 'Contact the flight surgeon now.' : 'Repeat the test and tell the flight surgeon.'}`, 'convention', null, key);
+    if (v < lo || v > hi) return r(1, `${t} is ${v < lo ? 'below' : 'above'} the usual ${lo}–${hi}.`, 'convention', null, key);
+    return r(0, `${t}.`, 'convention', null, key);
+  });
+}
+band('wbc', ['spleen'], 'wbc.k', 'White blood cells', 'k/µL', [4, 11], [2, 20]);
+band('platelets', ['spleen'], 'platelets.k', 'Platelets', 'k/µL', [150, 450], [50, 1000]);
+band('hematocrit', ['spleen'], 'hematocrit.pct', 'Hematocrit', '%', M => (M.sex === 'm' ? [41, 53] : [36, 46]), M => (M.sex === 'm' ? [30, 60] : [27, 55]));
+band('ferritin', ['spleen'], 'ferritin.ngml', 'Ferritin', 'ng/mL', M => (M.sex === 'm' ? [30, 400] : [15, 150]), null);
+band('sodium', ['kidney'], 'sodium.mmol', 'Sodium', 'mmol/L', [135, 145], [130, 150]);
+band('potassium', ['kidney', 'heart'], 'potassium.mmol', 'Potassium', 'mmol/L', [3.5, 5], [3, 6], 3);
+band('creatinine', ['kidney'], 'creatinine.mgdl', 'Creatinine', 'mg/dL', M => (M.sex === 'm' ? [0.7, 1.3] : [0.6, 1.1]), [0.3, 2]);
+band('calcium', ['body'], 'calcium.mgdl', 'Serum calcium', 'mg/dL', [8.6, 10.2], [7.5, 12]);
+band('crp', ['body'], 'crp.mgl', 'C-reactive protein', 'mg/L', [0, 10], [0, 50]);
+rule('stoneRisk', ['kidney'], M => {
+  const c = M['urine.citrateMgDay'], ph = M['urine.ph'], st = M['kidney.stone'];
+  if (!num(c) && !num(ph) && typeof st !== 'boolean') return null;
+  if (st === true) return r(2, 'A kidney stone was seen on ultrasound. A stone could impair a crew member in flight: increase fluids and tell the flight surgeon.', 'verified', 'renalKcit', 'kidney.stone');
+  const t = [];
+  if (num(c) && c < 320) t.push(`urinary citrate ${c} mg/day is low (below 320)`);
+  if (num(ph) && ph < 5.5) t.push(`urine pH ${ph} is acidic (below 5.5)`);
+  return t.length ? r(1, `Stone risk: ${t.join('; ')}. Citrate and pH fall in flight; potassium citrate is the studied countermeasure.`, 'convention', 'renalE057', num(c) && c < 320 ? 'urine.citrateMgDay' : 'urine.ph')
+                  : r(0, 'Urinary citrate, pH and ultrasound without a stone-risk finding.', 'convention', 'renalE057', 'urine.citrateMgDay');
+});
+
 /* ---------- Evaluation ---------- */
-/** M = measurement object (keys of INDICATORS plus 'mission.month', 'sex', 'pvt.confirmed').
+/** M = measurement object (keys of INDICATORS plus 'mission.month', 'sex', 'pvt.confirmed', 'activity', 'recovering').
     ext = optional findings from the decision engine ({hr, pvt, bone}), used only where M has no value. */
 export function evaluate(M = {}, ext = {}) {
   const out = {};

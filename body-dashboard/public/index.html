@@ -35,7 +35,8 @@
   <section class="col center">
     <div class="head">
       <input id="crewName" class="crew" type="text" value="Crew member" maxlength="28" spellcheck="false" aria-label="Crew member name">
-      <button class="bodypill" id="bodyBtn" type="button" title="Height and body mass">Body size</button>
+      <button class="actpill" id="actBtn" type="button" title="Current activity" aria-haspopup="menu"><i></i><span id="actTxt">Activity</span></button>
+      <button class="bodypill" id="bodyBtn" type="button" title="Sex, height and body mass">Body</button>
       <span class="dot" id="dot"></span>
       <span class="sub" id="sSub">Loading anatomy …</span>
     </div>
@@ -44,12 +45,15 @@
         <canvas id="gl" aria-label="3D body. Drag to rotate, scroll to zoom, click a part to select it."></canvas>
         <div class="tip glass" id="tip" hidden></div>
         <div class="bodypop glass" id="bodyPop" hidden>
+          <div class="bprow"><label>Biological sex</label></div>
+          <div class="seg small" id="segSex"><button type="button" data-sex="f">Female</button><button type="button" data-sex="m">Male</button></div>
           <div class="bprow"><label for="rH">Height</label><b id="vH"></b></div>
-          <input id="rH" type="range" min="150" max="195" step="1" value="166">
+          <input id="rH" type="range" min="150" max="205" step="1" value="166">
           <div class="bprow"><label for="rW">Body mass</label><b id="vW"></b></div>
-          <input id="rW" type="range" min="45" max="110" step="1" value="62">
-          <p>Approximate: the model is stretched, not re-shaped. <button type="button" id="bodyReset">Reset</button></p>
+          <input id="rW" type="range" min="45" max="130" step="1" value="62">
+          <p>Sex sets the reference ranges (for example hemoglobin) and the proportions. Approximate: the male reference model is stretched and its shoulders, waist and pelvis are adjusted; it is not a female anatomy. <button type="button" id="bodyReset">Reset</button></p>
         </div>
+        <div class="actmenu glass" id="actMenu" hidden role="menu"></div>
         <div class="camMsg" id="camMsg"><div id="camTxt">Loading anatomy …</div></div>
         <div class="tools">
           <button class="tool glass" id="bBody" aria-label="Whole body" title="Whole body"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="5" r="2.4"/><path d="M12 8v7M7 10.5h10M12 15l-3 6M12 15l3 6"/></svg></button>
@@ -129,7 +133,7 @@
     <h2>Settings</h2><div class="legal">Average anatomy, not an X-ray and not a diagnosis. Part status comes only from the data you enter or load. Models: BodyParts3D © DBCLS, CC BY-SA 2.1 JP.</div>
     <div class="field"><label>Look</label><div class="seg small" id="segLook"><button data-look="solid" class="on">Solid</button><button data-look="xray">X-ray</button></div></div>
     <div class="field"><label>Anatomy opacity <span id="vOp"></span></label><input id="rOp" type="range" min="30" max="100" value="100"></div>
-    <div class="field"><label>Auto-rotate</label><div class="seg small" id="segRot"><button data-rot="1" class="on">On</button><button data-rot="0">Off</button></div></div>
+    <div class="field"><label>Auto-rotate</label><div class="seg small" id="segRot"><button data-rot="1">On</button><button data-rot="0" class="on">Off</button></div></div>
     <div class="two"><button class="primary" id="setDone">Done</button></div>
   </div>
 </div>

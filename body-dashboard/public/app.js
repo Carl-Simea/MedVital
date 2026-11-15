@@ -4,9 +4,10 @@ import { answer as assistantAnswer, SUGGESTIONS } from './assistant.mjs';
 import { DOMAIN_IDS, SCORE_KEYS, SCORE_SRC, SCORE_INPUTS, scoreAll, scoreColor, scoreWord } from './scores.mjs';
 import { extract, READABLE } from './intake.mjs';
 import { SCENARIOS, SCENARIO_IDS, reportText } from './testdata.mjs';
+import { createLive, ACTIVITIES, ACTIVITY_IDS } from './live.mjs';
 const ALL_SRC = { ...SRC, ...SCORE_SRC };
 
-const BUILD = 'v3.7 · 14 Nov 2026';
+const BUILD = 'v3.8 · 14 Nov 2026';
 const errLog = [];
 const logErr = m => { errLog.push(new Date().toISOString().slice(11, 19) + ' ' + String(m).slice(0, 200)); if (errLog.length > 20) errLog.shift(); };
 addEventListener('error', e => logErr(e.message + ' @' + (e.filename || '').split('/').pop() + ':' + e.lineno));
@@ -15,6 +16,7 @@ addEventListener('unhandledrejection', e => logErr('promise: ' + (e.reason && e.
 const $ = id => document.getElementById(id);
 const state = { vital: 'hr', look: 'solid', layer: 'bone', sample: false, sel: null };
 let M = {};                                  // current measurements (keys of INDICATORS)
+const body = { heightCm: null, massKg: null, sex: null };   // profile: stretches the model, sex also sets reference ranges
 let parts = evaluate({});                    // evaluated state per anatomy group
 let lobby = null;
 
@@ -34,12 +36,13 @@ const extFindings = () => {
 };
 function currentInput() {
   const { F } = extFindings(), In = { ...M };
+  if (body.sex && In.sex === undefined) In.sex = body.sex;
   if (In['pvt.lapses'] === undefined && F.pvt && F.pvt.score && typeof F.pvt.score.lapses === 'number') In['pvt.lapses'] = F.pvt.score.lapses;
   if (In['mission.month'] === undefined && F.bone && F.bone.detail) In['mission.month'] = F.bone.detail.avg[0];
   return In;
 }
 const manual = {};                           // legacy overrides from setGroupStatus / setSystemStatus
-function recompute() {
+function recompute(light) {
   const { ext } = extFindings();
   // The engine's bone model is a reminder for weight-bearing sites only, not for every bone
   const boneExt = ext.bone ? { ...ext.bone } : null;
@@ -52,7 +55,13 @@ function recompute() {
   }
   for (const g in manual) if (parts[g] && LEVEL[manual[g]] > parts[g].level) { parts[g].level = LEVEL[manual[g]]; parts[g].status = manual[g]; parts[g].statusLabel = LEVEL_LABEL[parts[g].level]; }
   if (lobby) lobby.setStatus(bodyColors(parts));
-  renderAttention(); renderTiles(); renderScores(); if (state.sel) renderCard(); if (typeof assistantStatus === 'function') assistantStatus();
+  renderAttention(); renderTiles();
+  if (!light) { renderScores(); if (state.sel) renderCard(); }
+  else if (state.sel) {                                             // live tick: redraw the card only when its content changed, and keep its place
+    const st = parts[state.sel.group], sig = JSON.stringify([st.level, st.warnings.map(w => w.text), st.notes.map(n => n.text), st.indicators.map(i => i.value)]), card = $('partCard');
+    if (card.dataset.sig !== sig) { const y = card.scrollTop, open = !!(card.querySelector('.plist') || {}).open; renderCard(); card.dataset.sig = sig; card.scrollTop = y; const d = card.querySelector('.plist'); if (d) d.open = open; }
+  }
+  if (typeof assistantStatus === 'function') assistantStatus();
 }
 const keyLevel = key => {
   let lv = -1;
@@ -64,10 +73,13 @@ const levelToUi = lv => (lv < 0 ? null : LEVEL_NAME[lv]);
 /* ---------- Tiles (left, no part selected) ---------- */
 const num = v => typeof v === 'number' && Number.isFinite(v);
 const VITALS = [
-  { id: 'hr', label: 'Heart rate', unit: 'bpm', key: 'hr.rest', group: 'heart', layer: 'organ' },
+  { id: 'hr', label: 'Heart rate', unit: 'bpm', key: 'hr.rest', live: 'hr.now', group: 'heart', layer: 'organ' },
   { id: 'bp', label: 'Blood pressure', unit: 'mmHg', key: 'bp.sys', group: 'artery', layer: 'organ', val: M => (num(M['bp.sys']) && num(M['bp.dia']) ? `${M['bp.sys']}/${M['bp.dia']}` : undefined), base: M => M['bp.sys'] },
-  { id: 'spo2', label: 'Blood oxygen', unit: '%', key: 'spo2.pct', group: 'lung', layer: 'organ' },
-  { id: 'resp', label: 'Breathing', unit: '/min', key: 'resp.rate', group: 'lung', layer: 'organ' },
+  { id: 'spo2', label: 'Blood oxygen', unit: '%', key: 'spo2.pct', live: 'spo2.pct', group: 'lung', layer: 'organ' },
+  { id: 'resp', label: 'Breathing', unit: '/min', key: 'resp.rate', live: 'resp.rate', group: 'lung', layer: 'organ' },
+  { id: 'hrv', label: 'Heart rate variability', unit: 'ms', key: 'hrv.rmssdMs', live: 'hrv.rmssdMs', group: 'heart', layer: 'organ' },
+  { id: 'skin', label: 'Skin temperature', unit: '°C', key: 'skin.tempC', live: 'skin.tempC', group: 'body' },
+  { id: 'eda', label: 'Skin conductance', unit: 'µS', key: 'eda.uS', live: 'eda.uS', group: 'body' },
   { id: 'temp', label: 'Temperature', unit: '°C', key: 'temp.c', group: 'body' },
   { id: 'glucose', label: 'Blood glucose', unit: 'mg/dL', key: 'glucose.mgdl', group: 'liver', layer: 'organ' },
   { id: 'rt', label: 'Reaction time', unit: 'ms', key: 'pvt.lapses', group: 'brain', layer: 'organ', val: M => M['pvt.meanRtMs'] },
@@ -77,13 +89,14 @@ const VITALS = [
   { id: 'urine', label: 'Urine volume', unit: 'L/day', key: 'urine.volumeL', group: 'kidney', layer: 'organ' },
   { id: 'mass', label: 'Body mass', unit: '% vs. pre', key: 'mass.changePct', group: 'body' },
   { id: 'rad', label: 'Radiation', unit: 'mSv', key: 'radiation.careerMsv', group: 'body' },
+  { id: 'dose', label: 'Dose rate', unit: 'µSv/h', key: 'radiation.rateUsvH', live: 'radiation.rateUsvH', group: 'body' },
   { id: 'hip', label: 'Hip bone', unit: '% vs. pre', key: 'bmd.hipPct', group: 'femur', layer: 'bone' },
   { id: 'str', label: 'Strength', unit: '% vs. pre', key: 'strength.changePct', group: 'mThigh', layer: 'muscle' },
   { id: 'vitd', label: 'Vitamin D', unit: 'ng/mL', key: 'vitd.ngml', group: 'body' }
 ];
 const vitals = {}; const resetVitals = () => { for (const v of VITALS) vitals[v.id] = { value: null, status: null, text: 'No data', history: [] }; }; resetVitals();
 let activeView = 'overview';
-const viewGroups = {sleep:['sleep','rt'],exercise:['str','hr','hip','pain'],nutrition:['mass','glucose','vitd','hgb']};
+const viewGroups = {sleep:['sleep','rt','hrv','eda'],exercise:['str','hr','resp','hip','pain','skin'],nutrition:['mass','glucose','vitd','hgb']};
 const viewCopy = {
  overview:['YOUR HEALTH AT A GLANCE','Daily overview'],
  sleep:['REST & RECOVERY','Sleep'],
@@ -152,21 +165,22 @@ function renderScores() {
   lastScores = all;
 }
 function renderTiles() {
-  const box = $('tiles'); box.innerHTML = '';
-  for (const v of VITALS.filter(v => !viewGroups[activeView] || viewGroups[activeView].includes(v.id))) {
-    const s = vitals[v.id], b = document.createElement('button'); b.className = 'tile' + (state.vital === v.id ? ' sel' : '');
-    b.innerHTML = '<span class="tl"></span><span class="td"></span><span class="tv"></span><span class="ts"></span>';
-    b.querySelector('.tl').textContent = v.label; b.querySelector('.ts').textContent = s.text;
-    b.querySelector('.td').className = 'td ' + (s.status || '');
-    const tv = b.querySelector('.tv'); tv.textContent = s.value === null ? '–' : s.value;
-    if (s.value !== null) { const u = document.createElement('small'); u.textContent = v.unit; tv.appendChild(u); }
-    if (s.history.length > 2 && v.unit.length < 6) {
-      const h = s.history, mn = Math.min(...h), mx = Math.max(...h), sp = (mx - mn) || 1;
-      const pts = h.map((x, i) => `${(i / (h.length - 1) * 60).toFixed(1)},${(18 - (x - mn) / sp * 16).toFixed(1)}`).join(' ');
-      b.insertAdjacentHTML('beforeend', `<svg class="spark" viewBox="0 0 60 20" aria-hidden="true"><polyline points="${pts}"/></svg>`);
-    }
-    b.onclick = () => selectVital(v.id);
-    box.appendChild(b);
+  const box = $('tiles'), list = VITALS.filter(v => !viewGroups[activeView] || viewGroups[activeView].includes(v.id)), sig = list.map(v => v.id).join();
+  if (box.dataset.sig !== sig) {                                    // build once per view; afterwards the tiles are updated in place
+    box.innerHTML = ''; box.dataset.sig = sig;
+    for (const v of list) { const b = document.createElement('button'); b.dataset.id = v.id;
+      b.innerHTML = '<span class="tl"></span><span class="td"></span><span class="tv"><span></span><small></small></span><span class="ts"></span><svg class="spark" viewBox="0 0 60 20" aria-hidden="true"><polyline points=""/></svg>';
+      b.querySelector('.tl').textContent = v.label; b.onclick = () => selectVital(v.id); box.appendChild(b); }
+  }
+  for (const b of box.children) {
+    const v = VITALS.find(x => x.id === b.dataset.id), s = vitals[v.id], isLive = live.on && !!v.live;
+    b.className = 'tile' + (state.vital === v.id ? ' sel' : '') + (isLive ? ' live' : '');
+    b.querySelector('.ts').textContent = s.text; b.querySelector('.td').className = 'td ' + (s.status || '');
+    b.querySelector('.tv span').textContent = s.value === null ? '–' : s.value; b.querySelector('.tv small').textContent = s.value === null ? '' : v.unit;
+    const sp = b.querySelector('.spark'), h = s.history;
+    if (h.length > 2 && v.unit.length < 6) { const mn = Math.min(...h), mx = Math.max(...h), span = (mx - mn) || 1;
+      sp.firstChild.setAttribute('points', h.map((x, i) => `${(i / (h.length - 1) * 60).toFixed(1)},${(18 - (x - mn) / span * 16).toFixed(1)}`).join(' ')); sp.style.display = ''; }
+    else sp.style.display = 'none';
   }
 }
 function selectVital(id) {
@@ -177,7 +191,7 @@ function selectVital(id) {
 /* ---------- Past data + upcoming (right) ---------- */
 function renderPast() {
   const v = VITALS.find(x => x.id === state.vital), h = vitals[v.id].history;
-  $('pastSub').textContent = h.length ? `${v.label} · last ${h.length} days` : v.label;
+  $('pastSub').textContent = h.length ? `${v.label} · ${live.on && v.live ? 'live, last ' + h.length + ' s' : 'last ' + h.length + ' days'}` : v.label;
   const chart = $('chart'), stats = $('stats');
   if (!h.length) { chart.textContent = 'No history yet'; stats.innerHTML = ''; return; }
   const mn = Math.min(...h), mx = Math.max(...h), pad = (mx - mn) * 0.15 || 1, lo = mn - pad, hi = mx + pad, W = 300, H = 110;
@@ -198,8 +212,9 @@ const renderUpcoming = () => { renderList($('envList'), envItems); renderList($(
 
 /* ---------- Attention chips (centre) ---------- */
 function renderAttention() {
-  const box = $('attn'); box.innerHTML = '';
-  const { counts, attention } = summarize(parts);
+  const box = $('attn'), { counts, attention } = summarize(parts);
+  const sig = counts.nodata + '|' + attention.map(a => a.id + a.level).join(); if (box.dataset.sig === sig) return;
+  box.dataset.sig = sig; box.innerHTML = '';
   if (counts.nodata === Object.keys(parts).length) return;
   if (!attention.length) { const s = document.createElement('span'); s.textContent = 'Nothing needs attention in the data entered.'; box.appendChild(s); return; }
   for (const a of attention.slice(0, 6)) {
@@ -248,7 +263,8 @@ function renderCard() {
       const li = el('div', 'warnli lv' + w.level, w.text); const m = el('span', 'meta', BASIS[w.basis] || ''); if (w.src) { m.append(document.createTextNode(' · ')); const a = srcLink(w.src); if (a) m.append(a); } li.append(m); card.append(li);
     }
   } else if (st.level === LEVEL.nodata) {
-    card.append(el('div', 'gap', def.ind.length ? 'No data for this part yet. It is rated from: ' + def.ind.map(k => INDICATORS[k].label.toLowerCase()).join(', ') + '.' : 'No indicator is connected to this part, so it cannot be rated.'));
+    const rated = def.ind.filter(k => INDICATORS[k].rate !== false);
+    card.append(el('div', 'gap', rated.length ? 'No rated data for this part yet. It is rated from: ' + rated.map(k => INDICATORS[k].label.toLowerCase()).join(', ') + '.' : 'No indicator is connected to this part, so it cannot be rated.'));
   } else card.append(el('div', 'gap', 'No warning in the data entered.'));
   if (st.level >= 2) card.append(el('div', 'gap', st.level >= 3 ? 'Contact the flight surgeon now.' : 'Re-measure, then tell the flight surgeon at the next contact.'));
   if (st.notes.length) { card.append(el('h3', '', 'In range')); const ul = el('ul'); for (const n of st.notes) { const li = el('li', '', n.text); ul.append(li); } card.append(ul); }
@@ -257,7 +273,7 @@ function renderCard() {
     const g = el('div', 'ind');
     for (const i of st.indicators) {
       const v = i.value === null ? '–' : typeof i.value === 'boolean' ? (i.value ? 'yes' : 'no') : `${i.value}${i.unit ? ' ' + i.unit : ''}`;
-      g.append(el('span', '', i.label), el('b', '', v), el('small', '', i.how + (i.flight ? ' · measurable in flight' : ' · not measurable in flight') + (i.why ? '. Why: ' + i.why : '')));
+      g.append(el('span', '', i.label), el('b', '', v), el('small', '', i.how + (i.flight ? ' · measurable in flight' : ' · not measurable in flight') + (i.rate === false ? ' · tracked, not rated: it is read against the personal baseline' : '') + (i.why ? '. Why: ' + i.why : '')));
     }
     card.append(g);
   }
@@ -309,34 +325,36 @@ function sampleSeries(seed, base, spread, n) { let s = seed; const out = []; for
 const TXT = lv => (lv < 0 ? 'No data' : LEVEL_LABEL[lv]);
 function syncTiles(withHistory) {
   for (const d of VITALS) {
-    const value = d.val ? d.val(M) : M[d.key]; if (value === undefined || value === null) continue;
-    const lv = keyLevel(d.key), s = vitals[d.id], base = d.base ? d.base(M) : value;
+    const key = d.live && num(M[d.live]) ? d.live : d.key;
+    const value = d.val ? d.val(M) : M[key]; if (value === undefined || value === null) continue;
+    const lv = keyLevel(key), s = vitals[d.id], base = d.base ? d.base(M) : value, rated = !INDICATORS[key] || INDICATORS[key].rate !== false;
     s.value = value; s.status = levelToUi(lv);
-    s.text = d.id === 'rt' && num(M['pvt.lapses']) ? `${M['pvt.lapses']} lapses · ${TXT(lv)}` : TXT(lv);
+    s.text = d.id === 'rt' && num(M['pvt.lapses']) ? `${M['pvt.lapses']} lapses · ${TXT(lv)}` : !rated ? 'Not rated' : TXT(lv);
     if (withHistory && num(Number(base))) s.history = sampleSeries(d.id.length * 7 + d.unit.length, Number(base), Math.max(Math.abs(Number(base)) * 0.04, 0.6), 14).map(v => (d.id === 'pain' ? Math.max(0, Math.min(10, Math.round(v))) : v));
   }
   renderTiles(); renderPast();
 }
 function setMeasurements(obj, opts = {}) {
-  if (obj['body.heightCm'] !== undefined || obj['body.massKg'] !== undefined) setBody({ heightCm: obj['body.heightCm'], massKg: obj['body.massKg'] });
+  if (obj['body.heightCm'] !== undefined || obj['body.massKg'] !== undefined || obj.sex) setBody({ heightCm: obj['body.heightCm'], massKg: obj['body.massKg'], sex: obj.sex }, false, true);
   for (const k in obj) {
-    if (k === 'mission.month' || k === 'sex' || k === 'pvt.confirmed' || k === 'pvt.meanRtMs' || INDICATORS[k] || SCORE_KEYS.includes(k)) M[k] = obj[k];
+    if (k === 'mission.month' || k === 'sex' || k === 'activity' || k === 'pvt.confirmed' || k === 'pvt.meanRtMs' || INDICATORS[k] || SCORE_KEYS.includes(k)) M[k] = obj[k];
   }
   recompute(); syncTiles(!!opts.history); return true;
 }
 /** Loads one of the invented test scenarios (testdata.mjs): 'nominal', 'mixed' or 'critical'. */
 function loadSample(id = 'mixed') {
   const sc = SCENARIOS[id] || SCENARIOS.mixed; id = SCENARIOS[id] ? id : 'mixed';
-  M = {}; resetVitals(); state.sample = id; setBody(sc.body); setMeasurements(sc.data, { history: true });
+  stopLive(); M = {}; resetVitals(); state.sample = id; setBody(sc.body, false, true); setMeasurements(sc.data, { history: true });
   envItems = sc.environment.map(text => ({ text, note: 'Test data' })); predItems = sc.predictions.map(text => ({ text, note: 'Test data' }));
   renderUpcoming(); $('sampleChip').hidden = false; $('sampleChip').textContent = 'Test data · ' + sc.label; $('sampleBtn').textContent = 'Test data · ' + sc.label;
   if (lobby) lobby.setHeartRate(M['hr.rest']);
+  startLive();
   return true;
 }
 function clearSample() {
-  M = {}; state.sample = false; resetVitals(); envItems = []; predItems = []; setBody(null);
+  stopLive(); M = {}; state.sample = false; resetVitals(); envItems = []; predItems = []; setBody(storedBody(), false, true);
   $('sampleChip').hidden = true; $('sampleBtn').textContent = 'Test data';
-  recompute(); renderTiles(); renderPast(); renderUpcoming();
+  recompute(); renderTiles(); renderPast(); renderUpcoming(); renderActivity();
 }
 /* Test-data menu above the button */
 function testMenu(open) {
@@ -348,32 +366,85 @@ function testMenu(open) {
   rp.onclick = () => { testMenu(false); const t = $('chatIn'); t.value = reportText('mixed'); fitIn(); t.focus(); }; m.append(rp);
   if (state.sample) { const c = el('button', 'tm plainrow'); c.type = 'button'; c.append(el('b', '', 'Clear test data')); c.onclick = () => { testMenu(false); clearSample(); }; m.append(c); }
 }
-addEventListener('pointerdown', e => { if (!$('testMenu').hidden && !e.target.closest('#testMenu,#sampleBtn')) testMenu(false); if (!$('bodyPop').hidden && !e.target.closest('#bodyPop,#bodyBtn')) $('bodyPop').hidden = true; });
+addEventListener('pointerdown', e => { if (!$('testMenu').hidden && !e.target.closest('#testMenu,#sampleBtn')) testMenu(false); if (!$('bodyPop').hidden && !e.target.closest('#bodyPop,#bodyBtn')) $('bodyPop').hidden = true; if (!$('actMenu').hidden && !e.target.closest('#actMenu,#actBtn')) actMenu(false); });
 
 /* ---------- Body size: height and mass stretch the model (approximate, the anatomy is not re-shaped) ---------- */
 // The BodyParts3D skeleton spans 164 cm from sole to skull top; with scalp and heel pad that is taken as a stature of 166 cm.
 // Breadth follows the body-mass index relative to 22.5 kg/m², damped, because a frame does not widen as fast as mass grows.
-const REF_BODY = { heightCm: 166, massKg: 62 };
-const body = { heightCm: null, massKg: null };
-try { const b = JSON.parse(localStorage.getItem('medvital.body') || 'null'); if (b && num(b.heightCm) && num(b.massKg)) Object.assign(body, b); } catch (e) {}
+const REF_BODY = { heightCm: 166, massKg: 62 }, BODY_MAX = { heightCm: [150, 205], massKg: [45, 130] };
+function storedBody() { try { const b = JSON.parse(localStorage.getItem('medvital.body') || 'null'); return b && typeof b === 'object' ? b : null; } catch (e) { return null; } }
 function bodyScale(h, m) {
-  const sy = h / REF_BODY.heightCm, bmi = m / (h / 100) ** 2, f = Math.max(.9, Math.min(1.16, Math.pow(bmi / 22.5, .4)));
+  const sy = h / REF_BODY.heightCm, bmi = m / (h / 100) ** 2, f = Math.max(.9, Math.min(1.22, Math.pow(bmi / 22.5, .4)));
   return { sx: sy * f, sy, bmi };
 }
-function setBody(b, save) {
-  if (!b) { body.heightCm = body.massKg = null; }
-  else { if (num(b.heightCm)) body.heightCm = Math.max(150, Math.min(195, Math.round(b.heightCm))); if (num(b.massKg)) body.massKg = Math.max(45, Math.min(110, Math.round(b.massKg))); }
-  const h = body.heightCm || REF_BODY.heightCm, m = body.massKg || REF_BODY.massKg, sc = bodyScale(h, m), set = body.heightCm || body.massKg;
-  if (lobby) lobby.setBody(sc.sx, sc.sy);
+/** setBody({heightCm, massKg, sex}) changes what is given; setBody(null) clears everything. `quiet` skips the re-rating (the caller does it). */
+function setBody(b, save, quiet) {
+  const cl = (v, r) => Math.max(r[0], Math.min(r[1], Math.round(v)));
+  if (!b) { body.heightCm = body.massKg = body.sex = null; }
+  else { if (num(b.heightCm)) body.heightCm = cl(b.heightCm, BODY_MAX.heightCm); if (num(b.massKg)) body.massKg = cl(b.massKg, BODY_MAX.massKg); if (b.sex === 'f' || b.sex === 'm') body.sex = b.sex; else if (b.sex === null) body.sex = null; }
+  const h = body.heightCm || REF_BODY.heightCm, m = body.massKg || REF_BODY.massKg, sc = bodyScale(h, m), sized = body.heightCm || body.massKg;
+  if (lobby) { lobby.setBody(sc.sx, sc.sy); lobby.setFemale(body.sex === 'f'); }
+  if (body.sex) M.sex = body.sex; else delete M.sex;
   $('rH').value = h; $('rW').value = m; $('vH').textContent = h + ' cm'; $('vW').textContent = `${m} kg · BMI ${sc.bmi.toFixed(1)}`;
-  $('bodyBtn').textContent = set ? `${h} cm · ${m} kg` : 'Body size';
-  if (save) { try { set ? localStorage.setItem('medvital.body', JSON.stringify(body)) : localStorage.removeItem('medvital.body'); } catch (e) {} }
+  document.querySelectorAll('#segSex button').forEach(x => x.classList.toggle('on', x.dataset.sex === body.sex));
+  $('bodyBtn').textContent = [body.sex ? (body.sex === 'f' ? 'Female' : 'Male') : '', sized ? `${h} cm · ${m} kg` : ''].filter(Boolean).join(' · ') || 'Body';
+  if (save) { try { sized || body.sex ? localStorage.setItem('medvital.body', JSON.stringify(body)) : localStorage.removeItem('medvital.body'); } catch (e) {} }
+  if (!quiet) { recompute(); syncTiles(false); }
   return { ...body, ...sc };
 }
-$('bodyBtn').onclick = () => { $('bodyPop').hidden = !$('bodyPop').hidden; };
-$('rH').oninput = () => setBody({ heightCm: +$('rH').value, massKg: +$('rW').value }, true);
+$('bodyBtn').onclick = () => { actMenu(false); $('bodyPop').hidden = !$('bodyPop').hidden; };
+$('rH').oninput = () => setBody({ heightCm: +$('rH').value, massKg: +$('rW').value }, true, true);
 $('rW').oninput = $('rH').oninput;
+document.querySelectorAll('#segSex button').forEach(x => x.onclick = () => setBody({ sex: body.sex === x.dataset.sex ? null : x.dataset.sex }, true));
 $('bodyReset').onclick = () => setBody(null, true);
+
+/* ---------- Current activity and the live test stream (live.mjs) ----------
+   The activity (resting, sleeping, working, exercising, spacewalk) is part of the rating: heart and breathing rate are only
+   rated at rest. With test data loaded, a simulated wearable stream updates the continuous values once per second and
+   follows a compressed day; the activity can also be set by hand. Nothing in the stream is measured. */
+const live = { on: false, sim: null, t: 0, mode: 'auto', timer: null, lastActive: -1e9 };
+const RECOVERY_S = 30;                       // after exercise the heart and breathing rate need time to settle and are not rated
+function renderActivity() {
+  const a = M.activity, btn = $('actBtn');
+  btn.className = 'actpill' + (a ? ' a-' + a : '') + (live.on ? ' live' : '');
+  $('actTxt').textContent = a ? (M.recovering ? 'Recovering' : ACTIVITIES[a].label) + (live.on ? ' · live' : '') : 'Activity';
+}
+function setActivity(a) {
+  if (a === 'auto') live.mode = 'auto';
+  else if (ACTIVITIES[a]) { live.mode = a; M.activity = a; }
+  else { live.mode = 'auto'; delete M.activity; }
+  if (live.on) liveTick(); else { recompute(); syncTiles(false); }
+  renderActivity(); return M.activity || null;
+}
+function liveTick() {
+  const a = live.mode === 'auto' ? live.sim.activityAt(live.t) : live.mode, v = live.sim.step(1, a); live.t++;
+  Object.assign(M, v); M.activity = a;
+  if (a === 'exercise' || a === 'eva') live.lastActive = live.t; M.recovering = live.t - live.lastActive <= RECOVERY_S && live.t !== live.lastActive;
+  for (const d of VITALS) if (d.live && num(v[d.live])) { const s = vitals[d.id]; s.history = [...s.history.slice(-59), v[d.live]]; }
+  recompute(true); syncTiles(false); renderActivity();
+  if (lobby) { lobby.setHeartRate(v['hr.now']); lobby.setBreathRate(v['resp.rate']); }
+}
+function startLive() {
+  stopLive(true); live.sim = createLive({ base: { ...M }, seed: 7 }); live.on = true; live.t = 0; live.mode = 'auto'; live.lastActive = -1e9;
+  for (const d of VITALS) if (d.live) vitals[d.id].history = [];
+  live.timer = setInterval(liveTick, 1000); liveTick(); return true;
+}
+function stopLive(quiet) {
+  clearInterval(live.timer); live.timer = null; const was = live.on; live.on = false; delete M.recovering;
+  if (was && !quiet) { renderTiles(); renderActivity(); }
+  if (lobby) lobby.setBreathRate(13.3);
+  return was;
+}
+function actMenu(open) {
+  const m = $('actMenu'); m.hidden = !open; if (!open) return; $('bodyPop').hidden = true; m.innerHTML = '';
+  const row = (cls, title, note, fn, on) => { const b = el('button', 'tm ' + cls + (on ? ' on' : '')); b.type = 'button'; b.setAttribute('role', 'menuitem'); b.append(el('i'), el('b', '', title)); if (note) b.append(el('small', '', note)); b.onclick = () => { actMenu(false); fn(); }; m.append(b); };
+  if (live.on) row('auto', 'Follow the test stream', 'A compressed day: rest, work, exercise, sleep', () => setActivity('auto'), live.mode === 'auto');
+  for (const id of ACTIVITY_IDS) row('a-' + id, ACTIVITIES[id].label, ACTIVITIES[id].note, () => setActivity(id), live.mode === id || (!live.on && M.activity === id));
+  if (live.on) row('plainrow', 'Stop the live test stream', '', () => { stopLive(); });
+  else if (state.sample) row('plainrow', 'Start the live test stream', 'Simulated wearable values, once per second', () => startLive());
+  else row('plainrow', 'Clear the activity', '', () => setActivity(null));
+}
+$('actBtn').onclick = () => actMenu($('actMenu').hidden);
 
 /** Tile values from health.mjs and other callers. */
 function setVital(id, d) {
@@ -402,7 +473,7 @@ addEventListener('keydown', e => {
   if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
   const m = { '1': 'bone', '2': 'organ', '3': 'muscle', '4': 'all' }[e.key]; if (m) setLayer(m);
   if (e.key === 'x') setLook(state.look === 'xray' ? 'solid' : 'xray');
-  if (e.key === 'Escape') { deselect(); testMenu(false); $('bodyPop').hidden = true; }
+  if (e.key === 'Escape') { deselect(); testMenu(false); actMenu(false); $('bodyPop').hidden = true; }
   if (e.key === 'r') { deselect(); if (lobby) lobby.resetView(); }
 });
 
@@ -421,7 +492,7 @@ function feedbackState() {
   const L = lobby; const c = L ? L.camera : {};
   return { build: BUILD, t: new Date().toISOString(), ua: navigator.userAgent, viewport: `${innerWidth}x${innerHeight}@${devicePixelRatio}`, url: location.href,
     layer: state.layer, look: state.look, selected: state.sel, camera: L ? { yaw: +c.yaw.toFixed(2), pitch: +c.pitch.toFixed(2), dist: Math.round(c.dist) } : null,
-    pointer: L ? L.stats : null, errors: errLog, measurements: M, counts: summarize(parts).counts, sample: state.sample,
+    pointer: L ? L.stats : null, errors: errLog, measurements: M, body: { ...body }, live: live.on ? live.mode : false, counts: summarize(parts).counts, sample: state.sample,
     health: Object.keys((window.AstroHealth && window.AstroHealth.findings) || {}) };
 }
 function openFeedback(o) { $('fbOv').hidden = !o; if (o) { $('fbT').value = ''; $('fbMsg').textContent = ''; setTimeout(() => $('fbT').focus(), 50); } }
@@ -492,9 +563,9 @@ function ask(q) {
 /** Kept for callers of the old two-tab dock: both tabs are one conversation now. */
 function showDock() { setTimeout(() => $('chatIn').focus(), 30); }
 
-const KEY_LABEL = { 'mission.month': ['Mission month', ''], 'pvt.meanRtMs': ['Mean reaction time', 'ms'], 'body.heightCm': ['Height', 'cm'], 'body.massKg': ['Body mass', 'kg'] };
+const KEY_LABEL = { sex: ['Biological sex', ''], 'mission.month': ['Mission month', ''], 'pvt.meanRtMs': ['Mean reaction time', 'ms'], 'body.heightCm': ['Height', 'cm'], 'body.massKg': ['Body mass', 'kg'] };
 const keyInfo = k => KEY_LABEL[k] || (INDICATORS[k] ? [INDICATORS[k].label, INDICATORS[k].unit] : SCORE_INPUTS[k] ? [SCORE_INPUTS[k].label, SCORE_INPUTS[k].unit] : [k, '']);
-const fmtVal = (k, v) => (typeof v === 'boolean' ? (v ? 'yes' : 'no') : `${v}${keyInfo(k)[1] ? ' ' + keyInfo(k)[1] : ''}`);
+const fmtVal = (k, v) => (k === 'sex' ? (v === 'f' ? 'female' : 'male') : typeof v === 'boolean' ? (v ? 'yes' : 'no') : `${v}${keyInfo(k)[1] ? ' ' + keyInfo(k)[1] : ''}`);
 function readSource(text, name) {
   const me = el('div'); if (name) me.append(el('b', 'file', name)); const prev = text.trim().replace(/\s+/g, ' '); if (!name || prev) me.append(el('span', 'prev', prev.length > 140 ? prev.slice(0, 140) + ' …' : prev));
   inMsg('me', me);
@@ -517,7 +588,7 @@ function readSource(text, name) {
     const set = {}; list.querySelectorAll('input:checked').forEach(c => { set[c.dataset.key] = r.values[c.dataset.key]; });
     const n = Object.keys(set).length; if (!n) return;
     setMeasurements(set); if (set['hr.rest'] && lobby) lobby.setHeartRate(set['hr.rest']);
-    if (set['body.heightCm'] !== undefined || set['body.massKg'] !== undefined) setBody({}, true);
+    if (set['body.heightCm'] !== undefined || set['body.massKg'] !== undefined || set.sex) setBody({}, true, true);
     list.querySelectorAll('input').forEach(c => { c.disabled = true; }); act.replaceWith(el('p', 'done', `Applied ${n} value${n > 1 ? 's' : ''} · ${new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}`));
     chips(['What needs attention?', 'How am I doing?', 'Sleep score']);
   };
@@ -566,7 +637,7 @@ hello();
 renderTiles(); renderPast(); renderUpcoming(); renderAttention();
 try {
   lobby = await createLobby($('gl'), { paired: PAIRED, onPick, onHover });
-  lobby.setLook(state.look); lobby.setLayer(state.layer); lobby.setOpacity(+$('rOp').value / 100); setBody({});
+  lobby.setLook(state.look); lobby.setLayer(state.layer); lobby.setOpacity(+$('rOp').value / 100); setBody(storedBody() || {}, false, true); renderActivity();
   $('camMsg').classList.add('hide'); setSub(BUILD); setDot('ok');
   recompute();
   setTimeout(() => $('hint').classList.add('gone'), 9000);
@@ -591,8 +662,10 @@ window.AstroBody = {
   getParts: () => parts,
   /** loadSample('nominal' | 'mixed' | 'critical') loads invented test data; AstroBody.scenarios lists them. */
   loadSample, clearSample, scenarios: SCENARIO_IDS,
-  /** setBody({heightCm: 178, massKg: 74}) stretches the model (150 to 195 cm, 45 to 110 kg); setBody(null) resets it. */
+  /** setBody({sex: 'f', heightCm: 178, massKg: 74}): sex 'f' | 'm', 150 to 205 cm, 45 to 130 kg; setBody(null) resets it. */
   setBody,
+  /** setActivity('rest' | 'sleep' | 'work' | 'exercise' | 'eva' | 'auto' | null); startLive() and stopLive() control the simulated wearable stream. */
+  setActivity, startLive, stopLive, activities: ACTIVITY_IDS,
   /** Sleep / Exercise / Nutrition scores: {sleep:{score,coverage,items}, ...}. Inputs: AstroBody.scoreInputs */
   getScores: () => scoreAll(currentInput()), scoreInputs: SCORE_KEYS, setView,
   _state: state, _lobby: () => lobby

@@ -30,15 +30,24 @@ export async function createLobby(canvas, { paired = [], onPick = () => {}, onHo
 
   const U = { palette: { value: palette }, glow: { value: glow }, lvl: { value: lvl },
     heartC: { value: new THREE.Vector3(...meta.heartC) }, lungC: { value: new THREE.Vector3(...meta.lungC) },
-    beat: { value: 0 }, breath: { value: 0 }, time: { value: 0 }, sel: { value: -1 }, selG: { value: -1 }, sib: { value: -1 }, hov: { value: -1 }, dimOthers: { value: .3 }, fade: { value: 0 } };
+    beat: { value: 0 }, breath: { value: 0 }, time: { value: 0 }, sel: { value: -1 }, selG: { value: -1 }, sib: { value: -1 }, hov: { value: -1 }, dimOthers: { value: .3 }, fade: { value: 0 }, fem: { value: 0 } };
   const VS = `
     uniform vec3 palette[32]; uniform float glow[32]; uniform float lvl[32];
-    uniform vec3 heartC; uniform vec3 lungC; uniform float beat; uniform float breath; uniform float time;
+    uniform vec3 heartC; uniform vec3 lungC; uniform float beat; uniform float breath; uniform float time; uniform float fem;
+    // Female proportions, approximated on the male reference model: narrower shoulders and waist, wider pelvis. Not a female anatomy.
+    vec3 morph(vec3 p){
+      float sh=smoothstep(1150.0,1320.0,p.y)*(1.0-smoothstep(1440.0,1490.0,p.y));
+      float trunk=1.0-smoothstep(135.0,200.0,abs(p.x));
+      float pe=smoothstep(760.0,870.0,p.y)*(1.0-smoothstep(980.0,1070.0,p.y))*trunk;
+      float wa=smoothstep(1010.0,1090.0,p.y)*(1.0-smoothstep(1130.0,1210.0,p.y))*trunk;
+      p.x*=1.0+fem*(-0.085*sh+0.065*pe-0.05*wa); p.z=mix(p.z,60.0+(p.z-60.0)*(1.0-0.04*sh),fem);
+      return p;
+    }
     attribute float grp; attribute float pid; attribute float gid; attribute vec3 fib; attribute float ten;
     varying vec3 vN; varying vec3 vCol; varying float vP; varying float vG; varying float vL;
     varying vec3 vPo; varying vec3 vNo; varying vec3 vFib; varying vec3 vFibV; varying float vTen; varying vec3 vView;
     void main(){
-      int g=int(grp+0.5); vec3 p=position;
+      int g=int(grp+0.5); vec3 p=morph(position);
       if(g==${GI.heart}) p=heartC+(p-heartC)*(1.0+0.06*beat);
       if(g==${GI.lung}) p=lungC+(p-lungC)*(1.0+0.03*breath);
       float pulse=lvl[g]>=2.0?0.25*sin(time*4.0):0.0;
@@ -47,9 +56,9 @@ export async function createLobby(canvas, { paired = [], onPick = () => {}, onHo
       vec4 mv=modelViewMatrix*vec4(p,1.0); vView=-mv.xyz;
       gl_Position=projectionMatrix*mv;
     }`;
-  /* Solid look. Muscles get fibres that run along each muscle's long axis, a pale tendon towards both ends of long muscles,
-     wrap lighting and a soft sheen along the fibres. Bones get a matte ivory finish. Each part is shifted slightly in tone so
-     neighbours can be told apart. Fibre lines fade out when they would be thinner than a pixel, so nothing shimmers. */
+  /* Solid look. Muscles get a smooth surface with a pale tendon towards both ends of long muscles, wrap lighting and a soft
+     sheen that follows each muscle's long axis. Bones get a matte ivory finish. Each part is shifted slightly in tone so
+     neighbours can be told apart. No procedural line pattern: an earlier fibre texture read as a glitch. */
   const FS = `
     uniform float opacity; uniform float xray; uniform float gain; uniform float fade; uniform float sel; uniform float selG; uniform float sib; uniform float hov;
     uniform float time; uniform float dimOthers; uniform float kind;
@@ -67,15 +76,7 @@ export async function createLobby(canvas, { paired = [], onPick = () => {}, onHo
         if(kind>1.5){                                                          // muscle
           vec3 base=vCol*(1.0+0.16*tone); base.r*=1.0+0.05*tone; base.b*=1.0-0.25*tone;
           float status=step(0.5,vL);
-          if(dot(vFib,vFib)>0.2){
-            vec3 no=normalize(vNo), sd=cross(normalize(vFib),no); float sl=length(sd);
-            float u=dot(vPo,sd/max(sl,1e-4)), w=dot(vPo,normalize(vFib));
-            float f1=u*0.55+0.6*sin(w*0.035+vP), f2=u*1.9+0.9*sin(w*0.05+vP*2.0);
-            float k1=1.0-smoothstep(0.5,1.6,fwidth(f1)), k2=1.0-smoothstep(0.5,1.6,fwidth(f2));
-            float fibre=(0.6*sin(f1)*k1+0.4*sin(f2)*k2)*smoothstep(0.15,0.5,sl);
-            base*=0.86+0.24*fibre;
-            base=mix(base,vec3(0.93,0.88,0.78),vTen*(1.0-0.75*status));        // tendon ends
-          }
+          base=mix(base,vec3(0.93,0.88,0.78),vTen*(1.0-0.75*status));          // pale tendon towards the ends of long muscles
           float d=clamp((nl+0.3)/1.3,0.0,1.0); d=d*d*(3.0-2.0*d);
           col=base*(0.17+0.19*sky+0.82*d);
           vec3 T=normalize(vFibV-n*dot(vFibV,n)+1e-4); float th=dot(T,H);
@@ -153,8 +154,18 @@ export async function createLobby(canvas, { paired = [], onPick = () => {}, onHo
   }
   // Neutral outer anatomy provides spatial context without intercepting picks.
   const shell = new THREE.Mesh(layers.muscle.geometry, new THREE.ShaderMaterial({
-    transparent:true, depthWrite:false, side:THREE.DoubleSide, uniforms:{k:{value:1}},
-    vertexShader:'varying vec3 n; varying vec3 v; void main(){vec4 p=modelViewMatrix*vec4(position,1.0);n=normalize(normalMatrix*normal);v=normalize(-p.xyz);gl_Position=projectionMatrix*p;}',
+    transparent:true, depthWrite:false, side:THREE.DoubleSide, uniforms:{k:{value:1}, fem:U.fem},
+    vertexShader:`uniform float fem;
+      // Female proportions, approximated on the male reference model: narrower shoulders and waist, wider pelvis. Not a female anatomy.
+      vec3 morph(vec3 p){
+        float sh=smoothstep(1150.0,1320.0,p.y)*(1.0-smoothstep(1440.0,1490.0,p.y));
+        float trunk=1.0-smoothstep(135.0,200.0,abs(p.x));
+        float pe=smoothstep(760.0,870.0,p.y)*(1.0-smoothstep(980.0,1070.0,p.y))*trunk;
+        float wa=smoothstep(1010.0,1090.0,p.y)*(1.0-smoothstep(1130.0,1210.0,p.y))*trunk;
+        p.x*=1.0+fem*(-0.085*sh+0.065*pe-0.05*wa); p.z=mix(p.z,60.0+(p.z-60.0)*(1.0-0.04*sh),fem);
+        return p;
+      }
+      varying vec3 n; varying vec3 v; void main(){vec4 p=modelViewMatrix*vec4(morph(position),1.0);n=normalize(normalMatrix*normal);v=normalize(-p.xyz);gl_Position=projectionMatrix*p;}`,
     fragmentShader:'uniform float k; varying vec3 n; varying vec3 v; void main(){float rim=pow(1.0-abs(dot(normalize(n),normalize(v))),2.2);gl_FragColor=vec4(0.38,0.77,0.74,(0.008+0.055*rim)*k);}'
   }));
   shell.renderOrder=4; body.add(shell);
@@ -256,7 +267,7 @@ export async function createLobby(canvas, { paired = [], onPick = () => {}, onHo
   function fit() {
     const w = canvas.clientWidth || 600, h = canvas.clientHeight || 800, dpr = Math.min(devicePixelRatio || 1, 1.5);
     renderer.setPixelRatio(dpr); renderer.setSize(w, h, false); camera.aspect = w / h;
-    const tv = Math.tan(camera.fov * Math.PI / 360), byH = 1180 / tv, byW = 540 / (tv * camera.aspect);
+    const tv = Math.tan(camera.fov * Math.PI / 360), k = Math.max(1, scl.y / 1.12), byH = 1180 * k / tv, byW = 540 * k / (tv * camera.aspect);
     const old = cam.baseDist; cam.baseDist = Math.max(byH, byW);
     if (!selected && Math.abs(cam.goalDist - old) < 1) cam.goalDist = cam.baseDist; else cam.goalDist = clamp(cam.goalDist, ZMIN, cam.baseDist * 1.15);
     camera.updateProjectionMatrix();
@@ -270,7 +281,7 @@ export async function createLobby(canvas, { paired = [], onPick = () => {}, onHo
   }
 
   /* ---- state ---- */
-  let layer = 'bone', look = 'solid', selected = -1, hovered = -1, hr = 70, opacity = 1, auto = true;
+  let layer = 'bone', look = 'solid', selected = -1, hovered = -1, hr = 70, br = 13.3, phB = 0, opacity = 1, auto = false;
   function applyLayer() {
     const all = layer === 'all', xr = look === 'xray', ghost = layer === 'organ' && xr;
     shell.visible = layer === 'organ'; shell.material.uniforms.k.value = xr ? .45 : 1;
@@ -373,7 +384,7 @@ export async function createLobby(canvas, { paired = [], onPick = () => {}, onHo
     const dt = Math.min(.1, (now - tPrev) / 1000); tPrev = now; const t = (now - t0) / 1000;
     U.time.value = t; U.fade.value += (1 - U.fade.value) * Math.min(1, dt * 3);
     const ph = (t * hr / 60) % 1; U.beat.value = Math.exp(-ph * 9) * Math.sin(Math.min(1, ph * 6) * Math.PI) + .45 * Math.exp(-Math.abs(ph - .32) * 22);
-    U.breath.value = Math.sin(t * 2 * Math.PI / 4.5);
+    phB += dt * br / 60; U.breath.value = Math.sin(phB * 2 * Math.PI);
     cam.idle += dt;
     if (!ptrs.size) { cam.yaw += cam.vYaw * dt; cam.vYaw *= Math.pow(.02, dt); if (auto && cam.idle > 5 && selected < 0 && Math.abs(cam.vYaw) < .05) cam.yaw += .16 * dt; }
     const k = 1 - Math.pow(.0015, dt);
@@ -401,12 +412,15 @@ export async function createLobby(canvas, { paired = [], onPick = () => {}, onHo
     /** Selection units of one group (and side): every single bone or muscle in it. */
     partsOf: (group, side) => Object.values(info).filter(i => i.pid >= PART0 && i.group === group && (!side || !i.side || i.side === side)),
     /** Rough body scaling: sy stretches the height, sx the breadth and depth. The model is scaled, not re-shaped. */
-    setBody(sx, sy) { scl.x = clamp(+sx || 1, .8, 1.3); scl.y = clamp(+sy || 1, .8, 1.3); body.scale.set(scl.x, scl.y, scl.x); T0.y = 790 * scl.y;
+    setBody(sx, sy) { scl.x = clamp(+sx || 1, .8, 1.5); scl.y = clamp(+sy || 1, .8, 1.3); body.scale.set(scl.x, scl.y, scl.x); T0.y = 790 * scl.y; fit();
       if (selected >= 0) { const c = worldC(info[selected]); cam.goalTarget.copy(c); cam.goalTarget.y = clamp(c.y, 90, 1700); } else cam.goalTarget.copy(T0); },
     getBody: () => ({ ...scl }),
     resetView() { select(-1); cam.yaw = .45; cam.pitch = .08; cam.vYaw = 0; },
     setAutoRotate(v) { auto = !!v; },
     setHeartRate(b) { hr = clamp(+b || 70, 30, 200); },
+    setBreathRate(b) { br = clamp(+b || 13.3, 5, 50); },
+    /** Female proportions on or off (an approximation, see the vertex shader). */
+    setFemale(v) { U.fem.value = v ? 1 : 0; },
     nudge(d) { cam.vYaw = d * 2.2; cam.idle = 0; },
     stats,
     snapshot() { try { renderer.render(scene, camera); const c = document.createElement('canvas'); c.width = canvas.width; c.height = canvas.height; const x = c.getContext('2d'); x.fillStyle = '#0b1a30'; x.fillRect(0, 0, c.width, c.height); x.drawImage(canvas, 0, 0); return c.toDataURL('image/jpeg', .8); } catch (e) { return ''; } },

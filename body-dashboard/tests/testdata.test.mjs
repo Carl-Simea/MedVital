@@ -27,7 +27,7 @@ test('scores fall from nominal to critical and all have full coverage', () => {
 test('the text report of a scenario is read back completely and unchanged', () => {
   for (const id of SCENARIO_IDS) {
     const s = SCENARIOS[id], r = extract(reportText(id)), want = { ...s.data, 'body.heightCm': s.body.heightCm, 'body.massKg': s.body.massKg };
-    delete want.sex; delete want['pvt.confirmed'];
+    delete want['pvt.confirmed'];
     assert.deepEqual(r.rejected, [], id); assert.deepEqual(r.unread, [], id);
     for (const [k, v] of Object.entries(want)) assert.equal(r.values[k], v, `${id} ${k}`);
   }

@@ -438,3 +438,21 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--brand-teal);out
 .right .panel{border-radius:18px}
 .past .ptitle,.upcoming .ptitle{align-items:center}
 .dock .achips{flex-wrap:wrap;overflow:visible}
+
+/* ---------- v3.8: activity status, live stream, sex ---------- */
+.actpill{flex:none;display:flex;align-items:center;gap:7px;border:1px solid var(--line);border-radius:999px;padding:5px 11px 5px 9px;font-size:11.5px;font-weight:600;color:var(--muted);white-space:nowrap}
+.actpill:hover{color:var(--ink);border-color:rgba(99,219,205,.4)}
+.actpill i{width:8px;height:8px;border-radius:50%;background:#5d6b73;flex:none}
+.actpill.a-rest,.actpill.a-sleep,.actpill.a-work,.actpill.a-exercise,.actpill.a-eva{color:var(--ink)}
+.actpill.a-rest i,.tm.a-rest i{background:#63dbcd}.actpill.a-sleep i,.tm.a-sleep i{background:#7f9cff}.actpill.a-work i,.tm.a-work i{background:#ffd23f}
+.actpill.a-exercise i,.tm.a-exercise i{background:#ff8a1f}.actpill.a-eva i,.tm.a-eva i{background:#e58cff}.tm.auto i{background:#fff}
+.actpill.live i{animation:livedot 1.6s ease-in-out infinite}
+@keyframes livedot{0%,100%{box-shadow:0 0 0 0 rgba(255,255,255,.35)}50%{box-shadow:0 0 0 5px rgba(255,255,255,0)}}
+.actmenu{position:absolute;left:14px;top:14px;z-index:5;width:292px;padding:6px;border-radius:16px;display:flex;flex-direction:column;gap:2px;background:rgba(14,22,30,.92);border:1px solid rgba(160,184,196,.16);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px)}
+.tile.live .tl::after{content:"LIVE";margin-left:6px;font-size:8.5px;font-weight:700;letter-spacing:.08em;color:#63dbcd;vertical-align:1px}
+.tile .tv{display:flex;align-items:baseline;gap:4px}
+.bodypop .seg.small{display:grid;grid-template-columns:1fr 1fr;margin:0 0 6px}
+.bodypop .seg.small button{padding:6px 4px;font-size:11.5px}
+.bodypop{width:250px}
+@media (prefers-reduced-motion:reduce){.actpill.live i{animation:none}}
+.tm.plainrow i{display:none}

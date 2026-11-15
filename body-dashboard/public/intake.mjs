@@ -16,12 +16,37 @@ const conv = {
   hours: (v, u) => (/min/.test(u) ? Math.round(v / 60 * 10) / 10 : v)
 };
 const NUMERIC = [
+  ['hrv.rmssdMs',           /heart rate variability|\bhrv\b|rmssd/],
+  ['hr.now',                /(?:current|live)\s*heart rate|heart rate\s*(?:now|live)/],
+  ['skin.tempC',            /skin temp(?:erature)?/],
+  ['eda.uS',                /skin conductance|electrodermal(?: activity)?|\beda\b/],
+  ['radiation.rateUsvH',    /(?:radiation\s*)?dose rate/],
+  ['sleep.efficiencyPct',   /sleep efficiency/],
+  ['cognition.scorePct',    /cognition(?:\s*(?:score|tests?|battery))?/],
+  ['stress.score',          /stress(?:\s*(?:score|level|rating))?/],
+  ['mood.score',            /mood(?:\s*(?:score|rating))?/],
+  ['motion.sickness',       /motion sickness(?:\s*score)?/],
+  ['balance.changePct',     /balance(?:\s*(?:test|score))?(?:\s*change)?/],
+  ['wbc.k',                 /white blood cells?(?:\s*count)?|\bwbc\b|leukocytes/],
+  ['platelets.k',           /platelets?(?:\s*count)?|\bplt\b/],
+  ['hematocrit.pct',        /ha?ematocrit|\bhct\b/],
+  ['ferritin.ngml',         /ferritin/],
+  ['sodium.mmol',           /sodium/],
+  ['potassium.mmol',        /potassium/],
+  ['creatinine.mgdl',       /creatinine/],
+  ['crp.mgl',               /c-reactive protein|\bcrp\b/],
+  ['cortisol.ugdl',         /cortisol/],
+  ['cimt.mm',               /carotid (?:intima[- ]media |wall )?thickness|\bcimt\b/],
+  ['sans.trtChangeUm',      /(?:total |peripapillary )?retinal thickness(?:\s*change)?|\btrt\b/],
+  ['urine.citrateMgDay',    /(?:urinary|urine)\s*citrate/],
+  ['urine.ph',              /(?:urinary|urine)\s*ph/],
   ['bmd.hipPct',            /(?:hip|femoral neck|total hip)\s*(?:bmd|bone (?:mineral )?density)(?:\s*change)?/],
   ['bmd.lumbarPct',         /(?:lumbar(?: spine)?|spine)\s*(?:bmd|bone (?:mineral )?density)(?:\s*change)?/],
   ['bmd.wholeBodyPct',      /(?:whole[- ]body|total body)\s*(?:bmd|bone (?:mineral )?density)(?:\s*change)?/],
   ['radiation.eventMsv',    /(?:solar particle event|spe|event)\s*dose/],
   ['radiation.careerMsv',   /(?:career|cumulative|total)?\s*(?:radiation\s*)?(?:effective\s*)?dose|radiation/],
   ['urine.calciumMgDay',    /(?:urinary|urine|24[- ]?h(?:our)?\s*urine)\s*calcium/],
+  ['calcium.mgdl',          /(?:serum\s*)?calcium/],
   ['urine.volumeL',         /(?:24[- ]?h(?:our)?\s*)?urine(?:\s*(?:volume|output))?/],
   ['sleep.quality',         /sleep quality/],
   ['sleep.hours',           /sleep(?:\s*(?:duration|time|hours))?|slept|total sleep/],
@@ -56,6 +81,11 @@ export const RANGES = Object.freeze({
   'radiation.careerMsv': [0, 2000], 'radiation.eventMsv': [0, 2000], 'bmd.hipPct': [-40, 20], 'bmd.lumbarPct': [-40, 20], 'bmd.wholeBodyPct': [-40, 20],
   'strength.changePct': [-80, 50], 'aerobic.changePct': [-80, 50], 'sans.hyperopicShiftD': [-5, 5],
   'exercise.minPerWeek': [0, 1500], 'exercise.resistiveDays': [0, 7], 'nutrition.energyPct': [0, 200], 'nutrition.proteinGkg': [0, 4], 'nutrition.fluidL': [0, 8],
+  'hr.now': [20, 230], 'hrv.rmssdMs': [1, 300], 'skin.tempC': [20, 42], 'eda.uS': [0, 60], 'radiation.rateUsvH': [0, 100000],
+  'sleep.efficiencyPct': [0, 100], 'cognition.scorePct': [0, 200], 'stress.score': [1, 5], 'mood.score': [1, 5], 'motion.sickness': [0, 10], 'balance.changePct': [-100, 100],
+  'wbc.k': [0.1, 100], 'platelets.k': [5, 1500], 'hematocrit.pct': [10, 70], 'ferritin.ngml': [1, 5000], 'sodium.mmol': [100, 180], 'potassium.mmol': [1.5, 9],
+  'creatinine.mgdl': [0.1, 15], 'calcium.mgdl': [4, 18], 'crp.mgl': [0, 500], 'cortisol.ugdl': [0, 80], 'cimt.mm': [0.2, 2.5], 'sans.trtChangeUm': [-100, 400],
+  'urine.citrateMgDay': [0, 2000], 'urine.ph': [4, 9],
   'mission.month': [0, 36], 'body.heightCm': [140, 210], 'body.massKg': [35, 160], 'bp.sys': [50, 260], 'bp.dia': [30, 160]
 });
 const CONVERT = { 'temp.c': conv.temp, 'glucose.mgdl': conv.glucose, 'vitd.ngml': conv.vitd, 'hemoglobin.gdl': conv.hgb, 'urine.volumeL': conv.urineL, 'sleep.hours': conv.hours, 'nutrition.fluidL': conv.urineL, 'body.heightCm': conv.height };
@@ -67,7 +97,8 @@ const FLAGS = [
   ['sans.discEdema',         /(?:optic\s*)?disc (?:edema|oedema|swelling)|papilledema/],
   ['sans.choroidalFolds',    /choroidal folds/],
   ['virus.shedding',         /(?:viral|virus)\s*shedding|(?:ebv|vzv|cmv)\s*(?:dna\s*)?(?:in\s*saliva)?/],
-  ['zoster.symptoms',        /shingles|zoster/]
+  ['zoster.symptoms',        /shingles|zoster/],
+  ['kidney.stone',           /kidney stones?|renal stones?|nephrolith\w*/]
 ];
 
 const toNum = s => Number(String(s).replace('−', '-').replace(',', '.'));
@@ -108,13 +139,15 @@ export function extract(raw, name = '') {
     values[key] = value; found.push({ key, value, text: snippet.trim() });
   };
   // exact app keys first ("hr.rest: 64", "sans.discEdema: false"), as written by AstroBody exports and JSON files
-  const KEYS = Object.fromEntries([...Object.keys(RANGES), 'jugular.flow', ...FLAGS.map(f => f[0])].map(k => [k.toLowerCase(), k]));
+  const KEYS = Object.fromEntries([...Object.keys(RANGES), 'jugular.flow', 'sex', ...FLAGS.map(f => f[0])].map(k => [k.toLowerCase(), k]));
   text = text.replace(/^\s*([a-z0-9]+\.[a-z0-9]+)\s*[:=]\s*(\S+)[^\n]*$/gm, (line, k, v) => {
     const key = KEYS[k]; if (!key) return line;
     if (/^(true|yes)$/.test(v)) take(key, true, line); else if (/^(false|no)$/.test(v)) take(key, false, line);
-    else if (key === 'jugular.flow') take(key, v, line); else take(key, toNum(v), line);
+    else if (key === 'jugular.flow' || key === 'sex') take(key, key === 'sex' ? v[0] : v, line); else take(key, toNum(v), line);
     return ' '.repeat(line.length);
   });
+  const sex = /\b(?:biological\s*)?sex\s*[:=]?\s*(female|male|f|m)\b/.exec(text);
+  if (sex) { take('sex', sex[1][0], sex[0]); text = blank(text, sex.index, sex[0].length); }
   // jugular vein flow (categorical)
   const jug = /jugular[^\n]{0,40}?\b(thrombus|clot|occlusi\w*|reversed|retrograde|stagnant|normal|antegrade)\b/.exec(text);
   if (jug) { const w = jug[1]; take('jugular.flow', /thromb|clot|occlu/.test(w) ? 'thrombus' : /rever|retro/.test(w) ? 'reversed' : w === 'stagnant' ? 'stagnant' : 'normal', jug[0]); text = blank(text, jug.index, jug[0].length); }

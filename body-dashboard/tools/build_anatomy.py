@@ -179,7 +179,7 @@ for p in parts:
     W=W/W.sum(1,keepdims=True); p['W']=W
 print(stats); print(collections.Counter(p['g'] for p in parts))
 print('bridge:',sorted({p['name'] for p in parts if p.get('bridge')}))
-# decimate
+# decimate (no smoothing afterwards: Taubin smoothing threw single vertices far out and left needle triangles)
 out={}; plist=[]
 allv=np.vstack([p['v'] for p in parts]); bmin=allv.min(0)-1; bmax=allv.max(0)+1
 for layer in ('bone','organ','muscle'):
@@ -194,8 +194,6 @@ for layer in ('bone','organ','muscle'):
                 v2,f2=v.astype(np.float32),f.astype(np.int32)
                 for agg in (2,3,4,5,6,7):          # gentle passes first: they pick better collapses and keep thin sheets intact
                     if len(f2)>tgt*1.05: v2,f2=fs.simplify(v2,f2,target_count=tgt,agg=agg)
-                if layer=='muscle' and len(f2)>300:
-                    m=trimesh.Trimesh(v2,f2,process=False); trimesh.smoothing.filter_taubin(m,lamb=0.5,nu=-0.53,iterations=6); v2=np.asarray(m.vertices)
             except Exception as e:
                 print('simplify fail',p['name'],e); v2,f2=v,f
         else: v2,f2=v,f
