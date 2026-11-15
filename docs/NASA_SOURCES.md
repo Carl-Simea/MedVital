@@ -1,3 +1,15 @@
+# NASA sources
+
+## Ingested for the demo (2026-11-14)
+
+| Dataset | Where it lives | How MedVital uses it |
+|---|---|---|
+| Curiosity RAD, PDS PPI `MSL-M-RAD-3-RDR-V1.0` (https://pds-ppi.igpp.ucla.edu/data/MSL-M-RAD-3-RDR-V1.0/) | `data/nasa/rad_dose.csv` (2,749 observations: 20 cruise days 2011-12 to 2012-07, 30 surface sols 2012) | Per-observation `DOSIMETRY_TOTAL_DOSE_E` (uGy/h) is the crew's dose rate at that mission time, x mean quality factor 3.82 (cruise) / 3.05 (surface) from Hassler et al., Science 2014. |
+| DONKI, NASA CCMC (https://ccmc.gsfc.nasa.gov/DONKI-API/get/) | `data/nasa/donki_2024-05-01_2024-06-29.json` (FLR 243, CME 255, SEP 27, GST 7, IPS 23, WSA-ENLIL 215) | Replayed onto the mission calendar as upcoming space weather; SEP windows raise radiation. |
+| NASA OSDR search API (https://osdr.nasa.gov/osdr/data/search) | `data/nasa/osdr_studies.json` (study metadata for heart, bone, muscle, radiation, immune, eye, sleep) | Linked as the evidence behind each risk in the NASA view. No OSDR value becomes an astronaut value. |
+
+Re-download: `python tools/fetch_nasa_data.py` (needs internet).
+
 # NASA Sources
 
 **Status (research pass 1, 2026-11-14, ~08:30–09:30 ET):** sources below were read live from their primary hosts. **No dataset has been
@@ -159,6 +171,34 @@ What is imported:
 
 Licence and terms of use for OSDR and PDS files: **still not verified**. Raw files therefore stay git-ignored under
 `data/raw/`.
+
+## 8. Urine test for bone loss: which measures (2026-11-14)
+
+The astronaut's "Urine test (bone loss)" form asks for the measures NASA's nutritional biochemistry studies of
+spaceflight bone loss report from 24-hour urine: urinary calcium and the collagen breakdown markers N-telopeptide
+(NTX), pyridinoline (PYD), deoxypyridinoline (DPD) and C-telopeptide (CTX), plus volume and creatinine.
+
+| Source | What it supports |
+|---|---|
+| Smith SM, *Calcium and bone metabolism during spaceflight*, NASA JSC, NTRS 20100030546 | Urinary calcium is the oldest resorption marker and rises in and after flight; collagen crosslinks appear in urine during resorption. |
+| Smith SM et al., *Bone markers, calcium metabolism, and calcium kinetics during extended-duration space flight on Mir*, NTRS 20050184836 (JBMR) | After flight: urinary calcium, NTX, pyridinoline and deoxypyridinoline all rose. |
+| Smith SM et al., *Collagen cross-link excretion during space flight and bed rest*, NTRS 20040142218 | NTX, pyridinoline and deoxypyridinoline as the urinary collagen breakdown products. |
+| Caillot-Augusseau A et al., Clin Chem 2000;46:1136 (PubMed 10926894) | Urinary CTX rose from flight day 8 in two cosmonauts. |
+| Zwart SR et al., NCT01713634 (NASA JSC) | 24-hour urinary NTX and 24-hour urinary calcium as in-flight outcome measures. |
+
+What the form does **not** carry: reference ranges or "normal" labels. No NASA source for crew reference ranges was
+read, so values are stored as typed (`origin: entered`) and compared only with the astronaut's own earlier results.
+The simulator does not invent NTX/PYD/DPD/CTX values; those tiles stay empty until someone enters a result.
+
+## 9. Common causes the onboard agent names for symptoms (2026-11-15)
+
+The chatbot never diagnoses. For a symptom it names causes commonly reported in spaceflight and cites:
+Law J et al. 2014, J Occup Environ Med (CO₂ levels and headaches on the ISS); Vein AA et al. 2009, Cephalalgia
+(space headache); Heer M & Paloski WH 2006, Autonomic Neuroscience (space motion sickness); Kerstman EL et al. 2012,
+Aviat Space Environ Med (space adaptation back pain); Barger LK et al. 2014, Lancet Neurology (sleep deficiency in
+astronauts); Mader TH et al. 2011, Ophthalmology (optic disc oedema after long-duration flight); NASA HRP evidence
+on spaceflight associated neuro-ocular syndrome (headward fluid shift). Cited from the literature as known; the
+full texts were not re-read in this pass. The danger-sign list is a general emergency convention, not a NASA list.
 
 ## Rules for adding a source
 1. Record exact URL/DOI/accession, retrieval date, licence and any access agreement.

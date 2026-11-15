@@ -1,0 +1,41 @@
+MEDVITAL PRE-FLIGHT MEDICAL REPORT
+SIMULATED: fictional astronaut for the NASA Space Apps 2026 demo. Not a real person, not medical data.
+
+Astronaut ID: astro-1
+Name: Maya Okafor
+Role: Commander
+Age: 44 years
+Sex: female
+Height: 168 cm
+Weight: 63 kg
+Exam: 30 days before launch (L-30)
+
+Vital signs
+Resting heart rate: 58 bpm
+Blood pressure: 112/72 mmHg
+SpO2: 98 %
+Respiratory rate: 13 /min
+Body temperature: 36.6 °C
+
+Laboratory
+Blood glucose: 86 mg/dL
+Hemoglobin: 13.8 g/dL
+Vitamin D: 34 ng/mL
+24-hour urine volume: 2.2 L
+Urinary calcium: 165 mg/day
+
+Cognition and sleep
+Mean reaction time: 248 ms
+PVT lapses: 1
+Sleep duration: 7.1 hours
+
+Musculoskeletal
+Back pain score: 0 /10
+Hip bone density change: 0 % (reference DXA scan)
+Strength change: 0 % (reference test)
+
+Radiation
+Career radiation dose: 112 mSv
+
+These pre-flight values are this astronaut's baseline. MedVital compares every in-flight
+reading with them, not with population averages.

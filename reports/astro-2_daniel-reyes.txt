@@ -1,0 +1,41 @@
+MEDVITAL PRE-FLIGHT MEDICAL REPORT
+SIMULATED: fictional astronaut for the NASA Space Apps 2026 demo. Not a real person, not medical data.
+
+Astronaut ID: astro-2
+Name: Daniel Reyes
+Role: Pilot
+Age: 39 years
+Sex: male
+Height: 181 cm
+Weight: 82 kg
+Exam: 30 days before launch (L-30)
+
+Vital signs
+Resting heart rate: 66 bpm
+Blood pressure: 121/79 mmHg
+SpO2: 97 %
+Respiratory rate: 14 /min
+Body temperature: 36.7 °C
+
+Laboratory
+Blood glucose: 92 mg/dL
+Hemoglobin: 15.1 g/dL
+Vitamin D: 29 ng/mL
+24-hour urine volume: 2 L
+Urinary calcium: 190 mg/day
+
+Cognition and sleep
+Mean reaction time: 262 ms
+PVT lapses: 2
+Sleep duration: 7.4 hours
+
+Musculoskeletal
+Back pain score: 1 /10
+Hip bone density change: 0 % (reference DXA scan)
+Strength change: 0 % (reference test)
+
+Radiation
+Career radiation dose: 41 mSv
+
+These pre-flight values are this astronaut's baseline. MedVital compares every in-flight
+reading with them, not with population averages.

@@ -5,15 +5,15 @@ Shared format (confirm with the Spacecraft spot before changing anything):
 
     {
       "id":          "<unique string>",
-      "type":        "reading" | "alert" | "summary",
+      "type":        "reading" | "alert" | "summary" | "lab" | "test" | "profile" | "event",
       "astronautId": "...",
       "time":        "<ISO 8601>",
       "data":        { ... }
     }
 
 The receiver, the mission record screen and the test scripts all go through
-this file. If the Spacecraft spot uses different names, change them HERE and
-nowhere else on the NASA side.
+this file. The spacecraft hub (backend/medvital/hub/service.py) writes exactly these
+names. If one ever changes, change it HERE and nowhere else on the NASA side.
 (sync.js only needs to know the name of the "id" field: RECORD_ID_FIELD.)
 """
 
@@ -32,6 +32,11 @@ FIELD_DATA = "data"
 TYPE_READING = "reading"
 TYPE_ALERT = "alert"
 TYPE_SUMMARY = "summary"
+TYPE_LAB = "lab"   # onboard test results typed in by the astronaut
+TYPE_TEST = "test"           # scheduled onboard tests (simulated in the demo)
+TYPE_PROFILE = "profile"     # the astronaut's pre-flight baseline and report
+TYPE_EVENT = "event"         # mission schedule, real space weather, blackouts, follow-ups
+TYPE_CONSULT = "consult"     # a chat the astronaut chose to send to the flight surgeon
 
 # ---------------------------------------------------------------------------
 # 2. Field names inside "data"
@@ -44,13 +49,17 @@ READING_SPO2 = "spo2"              # %
 READING_STATE = "state"            # awake | asleep | exercise | spacewalk
 READING_DOSE_RATE = "doseRate"     # µSv/h
 READING_TOTAL_DOSE = "totalDose"   # mSv, running total
+READING_QUALITY = "quality"        # valid | suspect | invalid (the spacecraft's double-check)
 
-# type "alert"   <-- ASSUMPTION: confirm these two names with the Spacecraft spot
+# type "alert"
 ALERT_CODE = "code"                # RETURN_NOW | CHECK_VITALS | INFO
 ALERT_MESSAGE = "message"          # the plain-language explanation
 
-# type "summary" <-- ASSUMPTION: confirm this name with the Spacecraft spot
+# type "summary"
 SUMMARY_TEXT = "text"              # the daily summary text
+
+# type "lab"
+LAB_VALUES = "values"              # {"urine.calciumMgDay": 250, "hemoglobin.gdl": 13.9, ...}
 
 # Alert codes (shared format)
 ALERT_RETURN_NOW = "RETURN_NOW"       # radiation or solar event
@@ -141,6 +150,7 @@ def reading_for_screen(data):
         "heartRate": _number(data.get(READING_HEART_RATE)),
         "spo2": _number(data.get(READING_SPO2)),
         "totalDose": _number(data.get(READING_TOTAL_DOSE)),
+        "quality": str(data.get(READING_QUALITY) or "valid"),
     }
 
 
@@ -157,3 +167,80 @@ def summary_for_screen(data):
     return {
         "text": str(data.get(SUMMARY_TEXT) or ""),
     }
+
+
+LAB_LABELS = {
+    "urine.calciumMgDay": ("Urinary calcium", "mg/day"),
+    "urine.volumeL": ("Urine volume", "L/day"),
+    "hemoglobin.gdl": ("Hemoglobin", "g/dL"),
+    "vitd.ngml": ("Vitamin D", "ng/mL"),
+    "bp.sys": ("Blood pressure, systolic", "mmHg"),
+    "bp.dia": ("Blood pressure, diastolic", "mmHg"),
+    "temp.c": ("Temperature", "°C"),
+    "glucose.mgdl": ("Blood glucose", "mg/dL"),
+    "pvt.meanRtMs": ("Reaction time", "ms"),
+    "pvt.lapses": ("Reaction-test lapses", ""),
+    "sleep.hours": ("Sleep", "h"),
+    "sleep.quality": ("Sleep quality", "/5"),
+    "back.pain": ("Back pain", "/10"),
+    "mass.changePct": ("Body mass vs. pre-flight", "%"),
+    "strength.changePct": ("Strength vs. pre-flight", "%"),
+    "aerobic.changePct": ("Aerobic fitness vs. pre-flight", "%"),
+    "bmd.hipPct": ("Hip bone density vs. pre-flight", "%"),
+    "bmd.lumbarPct": ("Spine bone density vs. pre-flight", "%"),
+    "bmd.wholeBodyPct": ("Whole-body bone density vs. pre-flight", "%"),
+    "exercise.minPerWeek": ("Exercise", "min/week"),
+    "exercise.resistiveDays": ("Resistance-training days", "/week"),
+    "nutrition.energyPct": ("Energy intake", "% of need"),
+    "nutrition.proteinGkg": ("Protein", "g/kg"),
+    "nutrition.fluidL": ("Fluid", "L/day"),
+    "hr.rest": ("Resting heart rate", "bpm"),
+    "spo2.pct": ("Blood oxygen", "%"),
+    "resp.rate": ("Breathing rate", "/min"),
+    "radiation.careerMsv": ("Career radiation dose", "mSv"),
+    "mission.month": ("Mission month", ""),
+    "urine.ntxNmolDay": ("Urinary NTX (bone breakdown)", "nmol BCE/day"),
+    "urine.ctxUgDay": ("Urinary CTX (bone breakdown)", "ug/day"),
+    "urine.pydNmolDay": ("Urinary pyridinoline", "nmol/day"),
+    "urine.dpdNmolDay": ("Urinary deoxypyridinoline", "nmol/day"),
+    "urine.creatinineMmolDay": ("Urinary creatinine", "mmol/day"),
+    "mood.score": ("Mood check-in", "/5"),
+    "eva.minutes": ("Time outside (spacewalk)", "min"),
+    "eva.solarMinutes": ("Outside during a solar event", "min"),
+    "eva.doseMsv": ("Spacewalk dose", "mSv"),
+}
+
+# Rows of the flight surgeon's "pre-flight vs. now" table: (label, unit, pre-flight key, live source)
+COMPARE = [
+    ("Resting heart rate", "bpm", "hr.rest", "sleep_hr"),
+    ("Blood oxygen", "%", "spo2.pct", "spo2"),
+    ("Breathing rate", "/min", "resp.rate", "resp"),
+    ("Blood pressure, systolic", "mmHg", "bp.sys", None),
+    ("Blood pressure, diastolic", "mmHg", "bp.dia", None),
+    ("Blood glucose", "mg/dL", "glucose.mgdl", None),
+    ("Hemoglobin", "g/dL", "hemoglobin.gdl", None),
+    ("Mood check-in", "/5", "mood.score", None),
+    ("Vitamin D", "ng/mL", "vitd.ngml", None),
+    ("Urine volume", "L/day", "urine.volumeL", None),
+    ("Urinary calcium", "mg/day", "urine.calciumMgDay", None),
+    ("Reaction time", "ms", "pvt.meanRtMs", None),
+    ("Sleep", "h", "sleep.hours", None),
+    ("Back pain", "/10", "back.pain", None),
+    ("Body mass vs. pre-flight", "%", "mass.changePct", None),
+    ("Strength vs. pre-flight", "%", "strength.changePct", None),
+    ("Hip bone density vs. pre-flight", "%", "bmd.hipPct", None),
+    ("Career radiation dose", "mSv", "radiation.careerMsv", "dose"),
+]
+
+
+def lab_for_screen(data):
+    """Lab results as readable lines, e.g. "Urinary calcium 250 mg/day"."""
+    values = data.get(LAB_VALUES)
+    if not isinstance(values, dict):
+        return {"text": ""}
+    parts = []
+    for key, value in values.items():
+        label, unit = LAB_LABELS.get(key, (key, ""))
+        if _number(value) is not None:
+            parts.append(f"{label} {value:g} {unit}".strip())
+    return {"text": " · ".join(parts)}

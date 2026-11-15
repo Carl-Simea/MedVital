@@ -1,7 +1,9 @@
 # CLAUDE.md — MEDVITAL
 
 Offline-first astronaut health observation platform (NASA Space Apps 2026). Monorepo:
-`backend/` (Python/FastAPI), `frontend/` (React/TS/Tailwind), `docs/`.
+`backend/` (Python/FastAPI, incl. `medvital/hub/` = the spacecraft), `nasa/` (Flask NASA receiver),
+`apps/` (Astronaut + Cloudflare web apps), `body-dashboard/` (3D body), `frontend/` (React, optional), `docs/`.
+Run everything: `python start.py` at the repo root.
 Read `docs/ARCHITECTURE.md` before structural changes and `docs/DECISIONS.md` before
 reversing a decision.
 
@@ -12,9 +14,10 @@ reversing a decision.
    have none, leave it out and record the gap in `docs/NASA_SOURCES.md`.
 2. **Every value carries provenance** and is exactly one of `simulated`, `measured`,
    `modeled`. Never pool or average across origins. UI must show origin as text.
-3. **No clinical thresholds, no diagnosis, no risk labels** ("normal", "abnormal", "at risk").
-   Metric definitions may carry physical-plausibility rules only (e.g. dose ≥ 0). Any
-   future reference limit must be injected with a mandatory citation, never hard-coded.
+3. **No clinical thresholds, no diagnosis, no risk labels** ("normal", "abnormal", "at risk")
+   in `modules/`. Metric definitions may carry physical-plausibility rules only (e.g. dose ≥ 0).
+   The only alert logic is `backend/medvital/hub/rules.py` (D-033): every limit it uses lives in
+   `hub/settings.py` with either a NASA citation or `source="demo"`.
 4. **Scientific calculations are pure and separate from presentation.**
    `modules/<m>/calculations.py` takes arrays/numbers only: no `medvital` imports, no
    pydantic, no I/O. `service.py` adapts observations → `ModuleSummary`. React components
@@ -31,6 +34,12 @@ reversing a decision.
 ## Commands
 
 Windows PowerShell (macOS/Linux: `.venv/bin/python`).
+
+```powershell
+python start.py --fresh                     # NASA receiver + spacecraft hub + apps, clean mission
+.\.venv\Scripts\python.exe -m pytest backend nasa   # all Python tests (after start.py created .venv)
+node --test body-dashboard/tests/*.mjs      # 3D body tests
+```
 
 ```powershell
 # backend (from backend/)

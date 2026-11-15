@@ -142,6 +142,18 @@ Resolved event: `planned_at`, `window_start` (inclusive), `window_end` (exclusiv
 `DerivedValue` gains two optional fields: `uncertainty` (propagated; `null` when unknown) and `observed_at` (the time of
 the input event).
 
+## Metrics added for the spacecraft hub (D-033)
+
+| Metric | Unit | Context | Notes |
+|---|---|---|---|
+| `cardiovascular.spo2` | `%` | `device` | Pulse-oximetry blood oxygen from the wearable burst (`spo2`). |
+| `radiation.dose_equivalent_rate` | `uSv/h` (alias `µSv/h`) | `instrument` | Wearable dosimeter dose-equivalent rate (`doseRate`). Not pooled with `radiation.dose_rate` (absorbed, `uGy/h`). |
+| `radiation.cumulative_dose_equivalent` | `mSv` | `instrument` | Running total since mission start reported by the wearable (`totalDose`). |
+
+Each hub burst becomes four `simulated` observations (`generator_version` `astronaut-app-1`), with the burst's
+double-check verdict as `quality` (`valid` / `suspect` / `invalid`). The raw bursts, alerts, outbox and space weather
+live in the hub's own SQLite file (`runtime/spacecraft.db`, schema in `backend/medvital/hub/store.py`).
+
 ## Records (non-observations, D-028). All immutable; `schema_version` 1
 
 | Record | Key fields | Markers / rules |

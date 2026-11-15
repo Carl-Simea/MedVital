@@ -1,0 +1,13 @@
+{
+  "name": "medvital-link",
+  "private": true,
+  "description": "MedVital link to Earth on Cloudflare: Worker + D1 + Workers AI",
+  "scripts": {
+    "dev": "wrangler dev --local",
+    "migrate:local": "wrangler d1 migrations apply medvital --local",
+    "deploy": "wrangler deploy"
+  },
+  "devDependencies": {
+    "wrangler": "^4.162.0"
+  }
+}

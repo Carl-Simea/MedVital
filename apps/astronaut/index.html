@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Astronaut log-in · MedVital</title>
+<link rel="icon" href="/body/icon-180.png">
+<link rel="stylesheet" href="/apps/shared/base.css">
+<style>
+  body { background: #0e1116; color: #eef2f7; min-height: 100vh; }
+  main { max-width: 1080px; margin: 0 auto; padding: 40px 24px 60px; }
+  a.back { color: #9aa7b8; text-decoration: none; }
+  h1 { font-size: clamp(34px, 5vw, 54px); font-weight: 600; letter-spacing: -0.02em; margin: 10px 0 6px; }
+  .lede { color: #9aa7b8; margin: 0 0 28px; font-size: 17px; }
+  h2 { font-size: 20px; font-weight: 600; margin: 0 0 14px; }
+  .crew { display: grid; gap: 12px; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); margin-bottom: 40px; }
+  .crew a { display: block; padding: 18px; border-radius: 14px; background: #171b22; border: 1px solid #262c36; text-decoration: none; color: inherit; }
+  .crew a:hover, .crew a:focus-visible { border-color: #ff5a8a; }
+  .crew b { display: block; font-size: 20px; font-weight: 600; }
+  .crew span { color: #9aa7b8; font-size: 14px; }
+  .signup { background: #171b22; border: 1px solid #262c36; border-radius: 14px; padding: 22px; }
+  .drop { border: 2px dashed #3a4250; border-radius: 12px; padding: 18px; text-align: center; color: #9aa7b8; margin-bottom: 18px; cursor: pointer; }
+  .drop.over { border-color: #ff5a8a; color: #eef2f7; }
+  .drop b { color: #eef2f7; }
+  form { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px 16px; }
+  label { display: grid; gap: 5px; font-size: 14px; color: #c3ccd8; }
+  input, select { width: 100%; min-width: 0; font: inherit; font-size: 17px; padding: 10px 12px; border-radius: 9px; border: 1px solid #343b47; background: #0f1319; color: #eef2f7; }
+  input.filled { border-color: #2fb37a; }
+  fieldset { grid-column: 1 / -1; border: 0; padding: 0; margin: 8px 0 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px 16px; }
+  legend { font-weight: 600; margin-bottom: 8px; color: #eef2f7; }
+  .actions { grid-column: 1 / -1; display: flex; align-items: center; gap: 14px; margin-top: 6px; }
+  .actions button { padding: 12px 22px; border: 0; border-radius: 999px; background: #ff5a8a; color: #fff; font-weight: 700; font-size: 17px; }
+  .msg { color: #9aa7b8; }
+  .msg.err { color: #ff8a8a; }
+  .found { grid-column: 1 / -1; color: #7ee2a8; font-size: 14px; margin: 0; min-height: 1.2em; }
+</style>
+</head>
+<body>
+<main>
+  <a class="back" href="/apps/">MedVital</a>
+  <h1>Astronaut</h1>
+  <p class="lede">Choose who you are. Your wearable starts sending as soon as you open your screen.</p>
+
+  <h2>Crew on this mission</h2>
+  <div class="crew" id="crew"></div>
+
+  <section class="signup" aria-labelledby="su">
+    <h2 id="su">New astronaut</h2>
+    <label class="drop" id="drop">
+      <input type="file" id="file" accept=".txt,.csv,.tsv,.json,.pdf" hidden>
+      <b>Upload your pre-flight report</b> (PDF, .txt, .csv or .json) or drop it here. It fills the form below; check the values, then join the mission.
+    </label>
+    <form id="form">
+      <label>Name<input name="name" required maxlength="60" autocomplete="name"></label>
+      <label>Role<input name="role" placeholder="Mission specialist"></label>
+      <label>Age<input name="age" type="number" min="18" max="80"></label>
+      <label>Sex<select name="sex"><option value="f">Female</option><option value="m">Male</option></select></label>
+      <label>Height (cm)<input name="height_cm" type="number" min="120" max="220"></label>
+      <label>Weight (kg)<input name="weight_kg" type="number" min="35" max="160" step="0.1"></label>
+      <label>Resting heart rate (bpm)<input name="resting_hr" type="number" min="30" max="120"></label>
+      <label>Blood oxygen, SpO2 (%)<input name="spo2" type="number" min="85" max="100" step="0.1"></label>
+      <fieldset>
+        <legend>More pre-flight values (optional; the rest is simulated from what you give)</legend>
+        <label>Blood pressure, systolic<input name="bp.sys" type="number"></label>
+        <label>Blood pressure, diastolic<input name="bp.dia" type="number"></label>
+        <label>Breathing rate (/min)<input name="resp.rate" type="number" step="0.1"></label>
+        <label>Body temperature (°C)<input name="temp.c" type="number" step="0.1"></label>
+        <label>Blood glucose (mg/dL)<input name="glucose.mgdl" type="number"></label>
+        <label>Hemoglobin (g/dL)<input name="hemoglobin.gdl" type="number" step="0.1"></label>
+        <label>Vitamin D (ng/mL)<input name="vitd.ngml" type="number" step="0.1"></label>
+        <label>Urine volume (L/day)<input name="urine.volumeL" type="number" step="0.1"></label>
+        <label>Urinary calcium (mg/day)<input name="urine.calciumMgDay" type="number"></label>
+        <label>Reaction time (ms)<input name="pvt.meanRtMs" type="number"></label>
+        <label>Sleep (hours)<input name="sleep.hours" type="number" step="0.1"></label>
+        <label>Career radiation dose (mSv)<input name="prior_career_msv" type="number" step="0.1"></label>
+      </fieldset>
+      <p class="found" id="found"></p>
+      <div class="actions"><button type="submit">Join the mission</button><span class="msg" id="msg" role="status"></span></div>
+    </form>
+  </section>
+</main>
+<script type="module">
+  import { api, el } from "/apps/shared/hub.js";
+  import { extract } from "/body/intake.mjs";
+
+  const $ = (id) => document.getElementById(id);
+  const form = $("form");
+  let reportText = null;
+
+  api("/hub/astronauts").then((crew) => {
+    $("crew").replaceChildren(...crew.map((a) => {
+      const l = el("a"); l.href = `/body/?astronaut=${encodeURIComponent(a.id)}`;
+      l.append(el("b", "", a.name), el("span", "", `${a.role} · resting heart rate ${a.profile.resting_hr} bpm`));
+      return l;
+    }));
+  }).catch(() => { $("crew").textContent = "Cannot reach the spacecraft hub. Is python start.py running?"; });
+
+  // ---------------------------------------------------------------- read a report into the form
+  const BASIC = [["name", /^\s*name\s*:\s*(.+)$/im], ["role", /^\s*role\s*:\s*(.+)$/im], ["age", /^\s*age\s*:\s*(\d+)/im],
+    ["height_cm", /^\s*height\s*:\s*([\d.]+)/im], ["weight_kg", /^\s*weight\s*:\s*([\d.]+)/im]];
+  function fill(name, value) {
+    const input = form.elements[name]; if (!input || value === undefined || value === null || value === "") return false;
+    input.value = value; input.classList.add("filled"); return true;
+  }
+  async function readFile(file) {
+    $("msg").className = "msg"; $("msg").textContent = `Reading ${file.name}…`;
+    let text;
+    try {
+      if (/\.pdf$/i.test(file.name) || file.type === "application/pdf") {
+        const r = await fetch("/hub/report/text", { method: "POST", body: await file.arrayBuffer(), headers: { "Content-Type": "application/pdf" } });
+        if (!r.ok) throw new Error((await r.json()).detail || `HTTP ${r.status}`);
+        text = (await r.json()).text;
+      } else text = await file.text();
+    } catch (e) { $("msg").className = "msg err"; $("msg").textContent = `Could not read the report: ${e.message}`; return; }
+    reportText = text;
+    let n = 0;
+    for (const [k, re] of BASIC) { const m = text.match(re); if (m && fill(k, m[1].trim())) n++; }
+    const sex = text.match(/^\s*sex\s*:\s*(\w+)/im); if (sex) { form.elements.sex.value = /^m/i.test(sex[1]) ? "m" : "f"; n++; }
+    const r = extract(text, file.name);
+    const map = { "hr.rest": "resting_hr", "spo2.pct": "spo2", "radiation.careerMsv": "prior_career_msv" };
+    for (const [k, v] of Object.entries(r.values)) if (fill(map[k] || k, v)) n++;
+    $("found").textContent = `Filled ${n} value(s) from ${file.name}. Check them, then join the mission.`;
+    $("msg").textContent = "";
+  }
+  $("file").onchange = (e) => e.target.files[0] && readFile(e.target.files[0]);
+  const drop = $("drop");
+  drop.ondragover = (e) => { e.preventDefault(); drop.classList.add("over"); };
+  drop.ondragleave = () => drop.classList.remove("over");
+  drop.ondrop = (e) => { e.preventDefault(); drop.classList.remove("over"); if (e.dataTransfer.files[0]) readFile(e.dataTransfer.files[0]); };
+
+  // ---------------------------------------------------------------- sign up
+  form.onsubmit = async (e) => {
+    e.preventDefault();
+    const f = form.elements, body = { baseline: {}, report: reportText };
+    for (const k of ["name", "role", "age", "sex", "height_cm", "weight_kg", "resting_hr", "spo2", "prior_career_msv"]) if (f[k].value !== "") body[k] = f[k].value;
+    for (const input of form.querySelectorAll("fieldset input")) if (input.value !== "" && input.name.includes(".")) body.baseline[input.name] = Number(input.value);
+    if (body.baseline["sleep.hours"]) body.sleep_target_h = body.baseline["sleep.hours"];
+    try {
+      const r = await api("/hub/astronauts", body);
+      $("msg").className = "msg"; $("msg").textContent = "Welcome aboard. Opening your screen…";
+      location.href = `/body/?astronaut=${encodeURIComponent(r.id)}`;
+    } catch (err) { $("msg").className = "msg err"; $("msg").textContent = err.message; }
+  };
+</script>
+</body>
+</html>

@@ -7,6 +7,7 @@ RR_INTERVAL = "cardiovascular.rr_interval"
 SYSTOLIC_BP = "cardiovascular.systolic_bp"
 DIASTOLIC_BP = "cardiovascular.diastolic_bp"
 STROKE_VOLUME = "cardiovascular.stroke_volume"
+SPO2 = "cardiovascular.spo2"
 
 METRICS = (
     MetricDefinition(
@@ -57,5 +58,13 @@ METRICS = (
         description="Stroke volume per beat from a named assessment method (context `method`).",
         non_negative=True,
         optional_context=("method", "device", "posture"),
+    ),
+    MetricDefinition(
+        metric=SPO2,
+        module=ModuleId.CARDIOVASCULAR,
+        unit="%",
+        description="Peripheral blood-oxygen saturation (pulse oximetry) from a wearable stream.",
+        non_negative=True,
+        optional_context=("device",),
     ),
 )

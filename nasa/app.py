@@ -1,7 +1,7 @@
 """
 app.py - MedVital, Spot 3 (NASA): the NASA receiver.
 
-Run it:   python app.py
+Run it:   python app.py          (or python start.py at the repo root, which starts everything)
 
 Endpoints
   POST /batch   the spacecraft sends {"records": [...]}, NASA answers {"saved": [ids]}
@@ -10,12 +10,24 @@ Endpoints
   GET  /link    the current state of the link: {"up": true|false}
   GET  /records everything the mission record screen draws, grouped per astronaut
   GET  /        the mission record screen (the view NASA's flight surgeon uses)
+  GET  /api/mission          crew overview, mission clock, upcoming events, recent alerts and batches
+  GET  /api/astronaut/<id>   one astronaut: pre-flight report, pre-flight vs. now, charts, alerts, summaries
+  GET  /reports/<file>       the pre-flight reports NASA keeps on Earth (repo folder reports/)
+
+Cloudflare mode (MEDVITAL_CLOUDFLARE_URL and MEDVITAL_CLOUDFLARE_KEY set): the spacecraft sends to the
+MedVital Worker (cloudflare/), which keeps every record in D1. This receiver pulls new records from the
+Worker every second (GET /pull with a saved cursor) into the same mission.db, and /link switches the
+Worker's link. /batch still works, so a spacecraft without Cloudflare can always send here directly.
 """
 
 import json
 import logging
 import os
 import sqlite3
+import threading
+import time
+import urllib.error
+import urllib.request
 from datetime import datetime, timezone
 
 from flask import Flask, jsonify, request, send_from_directory
@@ -25,10 +37,17 @@ import record_format as fmt   # the ONE place that knows the record shape
 # ---------------------------------------------------------------------------
 # Settings
 # ---------------------------------------------------------------------------
-HOST = "127.0.0.1"   # only this laptop; the Cloudflare Tunnel connects locally
-PORT = 5000          # the tunnel command in the README points at this port
+# start.py sets these; the defaults are for running this file on its own.
+HOST = os.environ.get("MEDVITAL_NASA_HOST", "127.0.0.1")   # 0.0.0.0 = reachable from the other laptops
+PORT = int(os.environ.get("MEDVITAL_NASA_PORT", "5000"))
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-DB_PATH = os.path.join(BASE_DIR, "mission.db")   # delete this file to start a clean mission
+# delete this file (or run start.py --fresh) to start a clean mission
+DB_PATH = os.environ.get("MEDVITAL_NASA_DB", os.path.join(BASE_DIR, "mission.db"))
+
+# The Cloudflare link (optional). The key comes from the environment only, never from the repo.
+CLOUDFLARE_URL = os.environ.get("MEDVITAL_CLOUDFLARE_URL", "").rstrip("/")
+CLOUDFLARE_KEY = os.environ.get("MEDVITAL_CLOUDFLARE_KEY", "")
+VIA_CLOUDFLARE = bool(CLOUDFLARE_URL and CLOUDFLARE_KEY)
 
 app = Flask(__name__)
 
@@ -72,6 +91,12 @@ def init_db():
                 )
                 """
             )
+            db.execute("CREATE INDEX IF NOT EXISTS records_by_astronaut ON records (astronaut_id, type)")
+            db.execute("CREATE INDEX IF NOT EXISTS records_by_type ON records (type)")
+            db.execute("CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT NOT NULL)")
+            # every refused pull and every retry while the link to NASA is down (shown on the NASA page)
+            db.execute("CREATE TABLE IF NOT EXISTS link_log (id INTEGER PRIMARY KEY AUTOINCREMENT, at TEXT NOT NULL,"
+                       " event TEXT NOT NULL, detail TEXT NOT NULL)")
     finally:
         db.close()
 
@@ -92,6 +117,13 @@ def receive_batch():
         log('batch refused: the body was not {"records": [...]} (400)')
         return jsonify({"error": 'expected JSON like {"records": [...]}'}), 400
 
+    saved, new_count = save_records(payload["records"])
+    log(f"batch: {len(payload['records'])} received, {len(saved)} confirmed, {new_count} new")
+    return jsonify({"saved": saved})
+
+
+def save_records(raws):
+    """Save records (from /batch or pulled from the Worker). Returns (ids NASA now has, how many were new)."""
     saved = []     # ids NASA has after this request (new ones AND ones it already had)
     new_count = 0  # how many of them were new
     received_at = datetime.now(timezone.utc).isoformat(timespec="milliseconds")
@@ -99,7 +131,7 @@ def receive_batch():
     db = open_db()
     try:
         with db:  # one transaction: everything is committed together, or nothing is
-            for raw in payload["records"]:
+            for raw in raws:
                 record = fmt.parse_record(raw)
                 if record is None:
                     continue  # no usable id: we cannot save it, so we do not confirm it
@@ -125,10 +157,153 @@ def receive_batch():
                     saved.append(record["id"])
     finally:
         db.close()
-
     # We only get here after the commit, so every id in "saved" really is on disk.
-    log(f"batch: {len(payload['records'])} received, {len(saved)} confirmed, {new_count} new")
-    return jsonify({"saved": saved})
+    return saved, new_count
+
+
+# ---------------------------------------------------------------------------
+# Cloudflare mode: pull what the spacecraft sent to the Worker
+# ---------------------------------------------------------------------------
+def worker(method, path, body=None, timeout=10):
+    """Call the MedVital Worker with the secret key. Returns (status, json) or (None, None)."""
+    data = json.dumps(body).encode() if body is not None else None
+    req = urllib.request.Request(CLOUDFLARE_URL + path, data=data, method=method,
+                                 headers={"Content-Type": "application/json", "x-medvital-key": CLOUDFLARE_KEY})
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as r:
+            return r.status, json.loads(r.read().decode() or "null")
+    except urllib.error.HTTPError as e:
+        try:
+            return e.code, json.loads(e.read().decode() or "null")
+        except ValueError:
+            return e.code, None
+    except (urllib.error.URLError, OSError, ValueError):
+        return None, None
+
+
+def meta(key, value=None):
+    db = open_db()
+    try:
+        if value is None:
+            row = db.execute("SELECT value FROM meta WHERE key = ?", (key,)).fetchone()
+            return row["value"] if row else None
+        with db:
+            db.execute("INSERT INTO meta (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+                       (key, str(value)))
+        return value
+    finally:
+        db.close()
+
+
+RETRY_S = float(os.environ.get("MEDVITAL_RETRY_S", "3"))   # demo: retry a cut link every 3 s
+HEARTBEAT_S = 3.0
+pull_state = {"lastPull": None, "lastError": None, "pulled": 0, "linkDown": False, "retries": 0,
+              "nextRetryAt": None, "waiting": 0, "downSince": None}
+checker_state = {}
+
+
+def now_iso():
+    return datetime.now(timezone.utc).isoformat(timespec="milliseconds")
+
+
+def log_link(event, detail):
+    db = open_db()
+    try:
+        with db:
+            db.execute("INSERT INTO link_log (at, event, detail) VALUES (?, ?, ?)", (now_iso(), event, detail))
+    finally:
+        db.close()
+
+
+def pull_once():
+    """Pull every record after our cursor. The cursor moves only after the records are saved here."""
+    total = 0
+    for _ in range(100):
+        after = int(meta("cloudflare_cursor") or 0)
+        status, ans = worker("GET", f"/pull?after={after}&limit=500")
+        pull_state["lastTry"] = now_iso()
+        if status == 503:  # the link to NASA is cut: everything waits in Cloudflare's D1
+            if not pull_state["linkDown"]:
+                pull_state.update(linkDown=True, retries=0, downSince=now_iso())
+                log_link("down", "Cloudflare refused: link to NASA is down. Retrying every %g s." % RETRY_S)
+                log("link to NASA is DOWN: records wait in Cloudflare, retrying every %g s" % RETRY_S)
+            else:
+                pull_state["retries"] += 1
+                log_link("retry", f"Retry {pull_state['retries']}: still down, "
+                                  f"{(ans or {}).get('waiting', '?')} record(s) waiting in Cloudflare")
+            pull_state["waiting"] = (ans or {}).get("waiting", pull_state["waiting"])
+            pull_state["lastError"] = "link to NASA down"
+            return total
+        if status != 200 or not isinstance(ans, dict):
+            pull_state["lastError"] = ("Worker refused the key (401)" if status == 401
+                                       else "Worker unreachable" if status is None else f"Worker answered HTTP {status}")
+            return total
+        if pull_state["linkDown"]:
+            log_link("restored", f"Link back after {pull_state['retries']} retries; receiving what waited")
+            log("link to NASA is UP again")
+            pull_state.update(linkDown=False, downSince=None)
+        records = ans.get("records") or []
+        if records:
+            _, new = save_records([r["record"] for r in records])
+            meta("cloudflare_cursor", ans["next"])
+            total += len(records)
+            if new:
+                log(f"pulled from Cloudflare: {len(records)} records, {new} new")
+        pull_state.update(lastPull=datetime.now(timezone.utc).isoformat(timespec="seconds"), lastError=None, waiting=0)
+        if not ans.get("more"):
+            break
+    pull_state["pulled"] += total
+    return total
+
+
+def pull_forever():
+    while True:
+        try:
+            pull_once()
+        except Exception as e:  # noqa: BLE001 - keep pulling; the cursor guarantees nothing is skipped
+            pull_state["lastError"] = str(e)
+        wait = RETRY_S if pull_state["linkDown"] else 1.0
+        pull_state["nextRetryAt"] = time.time() + wait if pull_state["linkDown"] else None
+        time.sleep(wait)
+
+
+def heartbeat_forever():
+    """Report to the Cloudflare checker every few seconds: what NASA holds and how pulling goes."""
+    while True:
+        try:
+            db = open_db()
+            try:
+                total = db.execute("SELECT COUNT(*) FROM records").fetchone()[0]
+            finally:
+                db.close()
+            status, ans = worker("POST", "/heartbeat", {"node": "nasa", "report": {
+                "total": total, "cursor": int(meta("cloudflare_cursor") or 0), "lastTry": pull_state.get("lastTry"),
+                "lastError": pull_state.get("lastError")}})
+            if status == 200 and isinstance(ans, dict):
+                checker_state.clear()
+                checker_state.update(ans)
+        except Exception:  # noqa: BLE001
+            pass
+        time.sleep(HEARTBEAT_S)
+
+
+def link_view():
+    """The link as NASA sees it, for the banner on the NASA page."""
+    if VIA_CLOUDFLARE:
+        nxt = pull_state.get("nextRetryAt")
+        return {"via": "cloudflare", "up": not pull_state["linkDown"], "retries": pull_state["retries"],
+                "retryEveryS": RETRY_S, "nextRetryS": max(0.0, round(nxt - time.time(), 1)) if nxt else None,
+                "waiting": pull_state.get("waiting", 0), "downSince": pull_state.get("downSince"),
+                "error": pull_state.get("lastError")}
+    return {"via": "direct", "up": link["up"]}
+
+
+def link_log_rows(limit=12):
+    db = open_db()
+    try:
+        return [dict(r) for r in db.execute("SELECT at, event, detail FROM link_log ORDER BY id DESC LIMIT ?", (limit,))]
+    finally:
+        db.close()
 
 
 @app.get("/stats")
@@ -169,7 +344,13 @@ def stats():
 # ---------------------------------------------------------------------------
 @app.route("/link", methods=["GET", "POST"])
 def link_switch():
-    """POST {"up": true|false} sets the link. GET just reads it."""
+    """POST {"up": true|false} sets the link. GET just reads it. In Cloudflare mode the switch is the Worker's."""
+    if VIA_CLOUDFLARE:
+        body = request.get_json(force=True, silent=True) if request.method == "POST" else None
+        status, ans = worker(request.method, "/link", body)
+        if status is None:
+            return jsonify({"error": "Cloudflare Worker unreachable"}), 502
+        return jsonify(ans), status
     if request.method == "POST":
         payload = request.get_json(force=True, silent=True)
         if not isinstance(payload, dict) or not isinstance(payload.get("up"), bool):
@@ -186,6 +367,12 @@ def link_switch():
 def mission_record_screen():
     """The page itself. It then asks /records, /stats and /link every few seconds."""
     return send_from_directory(BASE_DIR, "mission_record.html")
+
+
+@app.get("/vendor/<path:name>")
+def vendor(name):
+    """Chart.js, served locally so the screen works without internet."""
+    return send_from_directory(os.path.join(BASE_DIR, "vendor"), name)
 
 
 @app.get("/records")
@@ -208,22 +395,30 @@ def records_for_screen():
 
         astronaut = astronauts.setdefault(
             record["astronaut_id"],
-            {"id": record["astronaut_id"], "readings": [], "alerts": [], "summaries": [], "totalDose": None},
+            {"id": record["astronaut_id"], "readings": [], "alerts": [], "summaries": [], "labs": [],
+             "totalDose": None, "flagged": 0},
         )
         if record["type"] == fmt.TYPE_READING:
-            astronaut["readings"].append({"t": t, **fmt.reading_for_screen(record["data"])})
+            reading = fmt.reading_for_screen(record["data"])
+            if reading["quality"] != "valid":
+                astronaut["flagged"] += 1   # the spacecraft flagged it (sensor glitch?): kept, not charted
+                continue
+            astronaut["readings"].append({"t": t, **reading})
         elif record["type"] == fmt.TYPE_ALERT:
             astronaut["alerts"].append({"t": t, **fmt.alert_for_screen(record["data"])})
         elif record["type"] == fmt.TYPE_SUMMARY:
             astronaut["summaries"].append({"t": t, **fmt.summary_for_screen(record["data"])})
+        elif record["type"] == fmt.TYPE_LAB:
+            astronaut["labs"].append({"t": t, **fmt.lab_for_screen(record["data"])})
         # any other type is still saved and counted in /stats, just not drawn
 
     for astronaut in astronauts.values():
         # Sort by time. Records with the same time keep their arrival order.
-        for name in ("readings", "alerts", "summaries"):
+        for name in ("readings", "alerts", "summaries", "labs"):
             astronaut[name].sort(key=lambda item: item["t"])   # oldest first (the chart wants this)
         astronaut["alerts"].reverse()                          # newest first
         astronaut["summaries"].reverse()                       # newest first
+        astronaut["labs"].reverse()                            # newest first
         # Total radiation dose = the running total in the astronaut's latest reading.
         for reading in reversed(astronaut["readings"]):
             if reading["totalDose"] is not None:
@@ -234,11 +429,277 @@ def records_for_screen():
 
 
 # ---------------------------------------------------------------------------
+# STEP 6 - flight surgeon's views: mission overview and one astronaut
+# ---------------------------------------------------------------------------
+REPORTS_DIR = os.path.join(os.path.dirname(BASE_DIR), "reports")
+
+
+def load(where="", args=()):
+    """Records as dicts, oldest first. ``where`` filters on the stored columns (type, astronaut_id)."""
+    db = open_db()
+    try:
+        rows = db.execute(f"SELECT body, received_at FROM records {where} ORDER BY rowid", args).fetchall()
+    finally:
+        db.close()
+    out = []
+    for row in rows:
+        raw = json.loads(row["body"])
+        rec = fmt.parse_record(raw)
+        if rec is None:
+            continue
+        rec["mission"] = raw.get("mission") if isinstance(raw.get("mission"), dict) else {}
+        rec["received_at"] = row["received_at"]
+        out.append(rec)
+    return out
+
+
+def mission_now():
+    """The latest mission time NASA has heard about (NASA only knows what came over the link)."""
+    db = open_db()
+    try:
+        row = db.execute("SELECT body FROM records ORDER BY rowid DESC LIMIT 1").fetchone()
+    finally:
+        db.close()
+    return (json.loads(row["body"]).get("mission") or {}) if row else {}
+
+
+def latest_values(records):
+    """Latest value per measurement key, plus its origin, from test/lab/profile records."""
+    values, origin, pre = {}, {}, {}
+    for r in records:
+        d = r["data"]
+        if r["type"] == fmt.TYPE_PROFILE:
+            prof = d.get("profile") or {}
+            pre = dict(prof.get("baseline") or {})
+            pre.update({"hr.rest": prof.get("resting_hr"), "spo2.pct": prof.get("spo2"),
+                        "radiation.careerMsv": prof.get("prior_career_msv", 0)})
+            for k in ("mass.changePct", "strength.changePct", "bmd.hipPct"):
+                pre.setdefault(k, 0.0)
+        elif r["type"] in (fmt.TYPE_TEST, fmt.TYPE_LAB) and isinstance(d.get("values"), dict):
+            for k, v in d["values"].items():
+                values[k] = v
+                origin[k] = d.get("origin") or r["type"]
+    return pre, values, origin
+
+
+@app.get("/api/mission")
+def api_mission():
+    now = mission_now()
+    m = now.get("minute") or 0
+    profiles = {r["astronaut_id"]: r for r in load("WHERE type = ?", (fmt.TYPE_PROFILE,))}
+    crew = []
+    for aid, prof_rec in profiles.items():
+        recs = load("WHERE astronaut_id = ? AND type IN (?, ?, ?)", (aid, fmt.TYPE_READING, fmt.TYPE_ALERT, fmt.TYPE_SUMMARY))
+        readings = [r for r in recs if r["type"] == fmt.TYPE_READING and r["data"].get("quality", "valid") == "valid"]
+        alerts = [r for r in recs if r["type"] == fmt.TYPE_ALERT]
+        summaries = [r for r in recs if r["type"] == fmt.TYPE_SUMMARY]
+        prof = prof_rec["data"].get("profile") or {}
+        last = readings[-1]["data"] if readings else {}
+        crew.append({
+            "id": aid, "name": prof.get("name", aid), "role": prof.get("role", ""), "restingHr": prof.get("resting_hr"),
+            "heartRate": last.get("heartRate"), "spo2": last.get("spo2"), "state": last.get("state"),
+            "careerDose": round((prof.get("prior_career_msv") or 0) + (last.get("totalDose") or 0), 2),
+            "readings": len(readings), "alerts": len([a for a in alerts if a["data"].get("code") != "INFO"]),
+            "lastAlert": alerts[-1]["data"] if alerts else None,
+            "lastSummary": summaries[-1]["data"].get("text") if summaries else None,
+            "spark": [r["data"].get("heartRate") for r in readings[-60:]],
+        })
+    events = [r["data"] | {"astronaut_id": r["astronaut_id"]} for r in load("WHERE type = ?", (fmt.TYPE_EVENT,))]
+    upcoming = sorted((e for e in events if (e.get("m_end") or e.get("m_start") or 0) > m), key=lambda e: e["m_start"])
+    alerts = [{"astronaut_id": r["astronaut_id"], "mission": r["mission"], **r["data"]}
+              for r in load("WHERE type = ?", (fmt.TYPE_ALERT,)) if r["data"].get("code") != "INFO"][-12:][::-1]
+    consults = [{"astronaut_id": r["astronaut_id"], "received_at": r["received_at"], **r["data"]}
+                for r in load("WHERE type = ?", (fmt.TYPE_CONSULT,))][-8:][::-1]
+    return jsonify({"now": now, "crew": sorted(crew, key=lambda c: c["id"]), "upcoming": upcoming[:80],
+                    "alerts": alerts, "consults": consults, **status_view()})
+
+
+def status_view():
+    """Link banner, Cloudflare checker line and the latest day report: small, polled every second."""
+    db = open_db()
+    try:
+        row = db.execute("SELECT body, received_at FROM records WHERE type = ? ORDER BY rowid DESC LIMIT 1",
+                         (fmt.TYPE_SUMMARY,)).fetchone()
+    finally:
+        db.close()
+    last_summary = None
+    if row:
+        body = json.loads(row["body"])
+        last_summary = {"day": (body.get("data") or {}).get("missionDay"), "receivedAt": row["received_at"]}
+    checker = None
+    if checker_state:
+        checker = {"sentence": (checker_state.get("sentence") or {}).get("text"),
+                   "source": (checker_state.get("sentence") or {}).get("source"),
+                   "ok": (checker_state.get("db") or {}).get("ok"), "at": checker_state.get("at")}
+    db = open_db()
+    try:
+        c = db.execute("SELECT id FROM records WHERE type = ? ORDER BY rowid DESC LIMIT 1", (fmt.TYPE_CONSULT,)).fetchone()
+    finally:
+        db.close()
+    return {"link": link_view(), "linkLog": link_log_rows(), "checker": checker, "dayReport": last_summary,
+            "lastConsult": c["id"] if c else ""}
+
+
+@app.get("/api/status")
+def api_status():
+    return jsonify(status_view())
+
+
+@app.get("/api/astronaut/<aid>")
+def api_astronaut(aid):
+    recs = load("WHERE astronaut_id = ?", (aid,))
+    if not recs:
+        return jsonify({"error": "no records for this astronaut yet"}), 404
+    now = mission_now()
+    prof_rec = next((r for r in recs if r["type"] == fmt.TYPE_PROFILE), None)
+    prof = (prof_rec["data"].get("profile") if prof_rec else None) or {}
+    report_text = prof_rec["data"].get("report") if prof_rec else None
+    stem = prof.get("report")
+    pdf = f"/reports/{stem}.pdf" if stem and os.path.exists(os.path.join(REPORTS_DIR, f"{stem}.pdf")) else None
+    readings = [r for r in recs if r["type"] == fmt.TYPE_READING]
+    valid = [r for r in readings if r["data"].get("quality", "valid") == "valid"]
+    pre, values, origin = latest_values(recs)
+    sleep_hr = [r["data"]["heartRate"] for r in valid[-120:] if r["data"].get("state") == "asleep"]
+    live = {
+        "sleep_hr": round(sum(sleep_hr) / len(sleep_hr)) if sleep_hr else None,
+        "spo2": valid[-1]["data"].get("spo2") if valid else None,
+        "resp": valid[-1]["data"].get("respRate") if valid else None,
+        "dose": round((prof.get("prior_career_msv") or 0) + (valid[-1]["data"].get("totalDose") or 0), 2) if valid else None,
+    }
+    compare = []
+    for label, unit, key, live_key in fmt.COMPARE:
+        now_v = live.get(live_key) if live_key else values.get(key)
+        if now_v is None:
+            now_v = values.get(key)
+        before = pre.get(key)
+        compare.append({"label": label, "unit": unit, "preflight": before, "now": now_v,
+                        "change": round(now_v - before, 2) if isinstance(now_v, (int, float)) and isinstance(before, (int, float)) else None,
+                        "origin": "wearable" if live_key and live.get(live_key) is not None else origin.get(key, "")})
+    m = now.get("minute") or 0
+    events = [r["data"] for r in recs if r["type"] == fmt.TYPE_EVENT]
+    crew_events = [r["data"] for r in load("WHERE type = ? AND astronaut_id = ?", (fmt.TYPE_EVENT, "crew"))]
+    upcoming = sorted((e for e in events + crew_events if (e.get("m_end") or 0) > m), key=lambda e: e["m_start"])[:30]
+    tests = [{"mission": r["mission"], "text": fmt.lab_for_screen(r["data"])["text"], "origin": r["data"].get("origin"),
+              "source": r["data"].get("source")} for r in recs if r["type"] in (fmt.TYPE_TEST, fmt.TYPE_LAB)][-25:][::-1]
+    return jsonify({
+        "id": aid, "profile": prof, "report": report_text, "reportPdf": pdf, "now": now, "compare": compare,
+        "readings": [{"m": r["data"].get("missionMinute") or (r["mission"] or {}).get("minute"), "hr": r["data"].get("heartRate"),
+                      "spo2": r["data"].get("spo2"), "dose": r["data"].get("totalDose"), "state": r["data"].get("state")}
+                     for r in valid[-900:]],
+        "flagged": len(readings) - len(valid),
+        "alerts": [{"mission": r["mission"], **r["data"]} for r in recs if r["type"] == fmt.TYPE_ALERT][::-1][:30],
+        "summaries": [{"mission": r["mission"], **r["data"]} for r in recs if r["type"] == fmt.TYPE_SUMMARY][::-1][:20],
+        "tests": tests, "upcoming": upcoming,
+        "consults": [{"received_at": r["received_at"], **r["data"]} for r in recs if r["type"] == fmt.TYPE_CONSULT][::-1][:10],
+    })
+
+
+def record_minute(r):
+    """When a record happened in mission time: its own missionMinute, else when it was created."""
+    d = r["data"]
+    m = d.get("missionMinute") if isinstance(d, dict) else None
+    if not isinstance(m, (int, float)):
+        m = (r.get("mission") or {}).get("minute")
+    return m if isinstance(m, (int, float)) else None
+
+
+@app.get("/api/astronaut/<aid>/days")
+def api_days(aid):
+    days = set()
+    for r in load("WHERE astronaut_id = ? AND type != ?", (aid, fmt.TYPE_EVENT)):
+        m = record_minute(r)
+        if m is not None and m >= 0:
+            days.add(int(m // 1440) + 1)
+    return jsonify(sorted(days))
+
+
+@app.get("/api/astronaut/<aid>/day/<int:day>")
+def api_day(aid, day):
+    """One mission day's full report for one astronaut: vitals, sleep, tests, time outside, dose, alerts, summary."""
+    lo, hi = (day - 1) * 1440, day * 1440
+    recs = [r for r in load("WHERE astronaut_id = ?", (aid,)) if r["type"] != fmt.TYPE_EVENT]
+    in_day = [r for r in recs if (lambda m: m is not None and lo <= m < hi)(record_minute(r))]
+    readings = [r["data"] for r in in_day if r["type"] == fmt.TYPE_READING and r["data"].get("quality", "valid") == "valid"]
+    hr = [x["heartRate"] for x in readings if isinstance(x.get("heartRate"), (int, float))]
+    spo2 = [x["spo2"] for x in readings if isinstance(x.get("spo2"), (int, float))]
+    dose = [x["totalDose"] for x in readings if isinstance(x.get("totalDose"), (int, float))]
+    states = {}
+    for x in readings:
+        states[x.get("state") or "?"] = states.get(x.get("state") or "?", 0) + 1
+    # minutes each reading stands for: the usual spacing between readings (the spacecraft sends one per burst)
+    ms = sorted(x["missionMinute"] for x in readings if isinstance(x.get("missionMinute"), (int, float)))
+    gaps = sorted(b - a for a, b in zip(ms, ms[1:]) if b > a)
+    per = gaps[len(gaps) // 2] if gaps else 0
+    values = {}
+    for r in in_day:
+        if r["type"] in (fmt.TYPE_TEST, fmt.TYPE_LAB) and isinstance(r["data"].get("values"), dict):
+            for k, v in r["data"]["values"].items():
+                values.setdefault(k, []).append(v)
+    summary = next((r["data"] for r in recs if r["type"] == fmt.TYPE_SUMMARY and r["data"].get("missionDay") == day), None)
+    evas = [r["data"] for r in load("WHERE astronaut_id = ? AND type = ?", (aid, fmt.TYPE_EVENT))
+            if r["data"].get("kind") == "eva" and lo <= (r["data"].get("m_start") or -1) < hi]
+    return jsonify({
+        "day": day,
+        "readings": len(readings),
+        "heartRate": {"min": min(hr), "avg": round(sum(hr) / len(hr)), "max": max(hr)} if hr else None,
+        "spo2": {"min": min(spo2), "avg": round(sum(spo2) / len(spo2), 1)} if spo2 else None,
+        "doseMsv": round(dose[-1] - dose[0], 3) if len(dose) > 1 else None,
+        "hoursByState": {k: round(n * per / 60, 1) for k, n in states.items()} if per else {},
+        "values": {k: {"label": fmt.LAB_LABELS.get(k, (k, ""))[0], "unit": fmt.LAB_LABELS.get(k, (k, ""))[1], "values": v}
+                   for k, v in values.items()},
+        "spacewalks": evas,
+        "alerts": [r["data"] for r in in_day if r["type"] == fmt.TYPE_ALERT and r["data"].get("code") != "INFO"],
+        "complete": summary is not None,
+        "summary": summary,
+    })
+
+
+OSDR_FILE = os.path.join(os.path.dirname(BASE_DIR), "data", "nasa", "osdr_studies.json")
+OSDR_TOPICS = [("heart", "Heart and blood vessels"), ("bone", "Bone loss"), ("muscle", "Muscle"), ("radiation", "Radiation"),
+               ("immune", "Immune system"), ("eye", "Eyes (SANS)"), ("sleep", "Sleep and circadian rhythm")]
+
+
+@app.get("/api/osdr")
+def api_osdr():
+    """NASA OSDR study records behind each health risk (downloaded by tools/fetch_nasa_data.py)."""
+    if not os.path.exists(OSDR_FILE):
+        return jsonify({"topics": []})
+    with open(OSDR_FILE, encoding="utf-8") as fh:
+        data = json.load(fh)
+    topics = []
+    for key, label in OSDR_TOPICS:
+        t = data["topics"].get(key) or {}
+        studies = [s for s in t.get("studies", []) if s.get("accession")]
+        # human studies first, then the rest, three per risk
+        studies.sort(key=lambda s: 0 if "Homo sapiens" in str(s.get("organism")) else 1)
+        topics.append({"key": key, "label": label, "total": t.get("total"), "studies": [
+            {"accession": s["accession"], "title": s.get("title"), "organism": s.get("organism"), "link": s.get("link")}
+            for s in studies[:3]]})
+    return jsonify({"source": data.get("source"), "retrieved_at": data.get("retrieved_at"), "topics": topics})
+
+
+@app.get("/reports/<path:name>")
+def reports(name):
+    return send_from_directory(REPORTS_DIR, name)
+
+
+# ---------------------------------------------------------------------------
 # Start
 # ---------------------------------------------------------------------------
+@app.get("/cloudflare")
+def cloudflare_status():
+    """Is this receiver pulling from the Cloudflare Worker, and how is that going?"""
+    return jsonify({"enabled": VIA_CLOUDFLARE, "url": CLOUDFLARE_URL or None,
+                    "cursor": int(meta("cloudflare_cursor") or 0), **pull_state, "checker": checker_state or None})
+
+
 init_db()
 
 if __name__ == "__main__":
     log(f"NASA receiver running. Mission record screen: http://localhost:{PORT}   (Ctrl+C to stop)")
+    if VIA_CLOUDFLARE:
+        log(f"Cloudflare mode: pulling the spacecraft's records from {CLOUDFLARE_URL}")
+        threading.Thread(target=pull_forever, daemon=True, name="cloudflare-pull").start()
+        threading.Thread(target=heartbeat_forever, daemon=True, name="cloudflare-heartbeat").start()
     log(f"Mission record database: {DB_PATH}")
     app.run(host=HOST, port=PORT)

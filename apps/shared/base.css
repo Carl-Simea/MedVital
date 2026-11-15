@@ -1,0 +1,31 @@
+/* Shared tokens for the MedVital apps. Fonts are ones already on the laptops (no internet needed):
+   Bahnschrift ships with Windows 10+, DIN Alternate with macOS. */
+:root {
+  --font: "Bahnschrift", "DIN Alternate", "Barlow", "Roboto Condensed", "Segoe UI", system-ui, sans-serif;
+  --habitat: #eef1f4;   /* panel white of a habitat module */
+  --panel: #ffffff;
+  --ink: #1b2430;
+  --ink-soft: #5b6676;
+  --rule: #d5dbe2;
+  --heart: #d6336c;
+  --oxygen: #12917f;
+  --rad: #6b4fd8;
+  --sleep: #3b6fd1;
+  --bone: #a07b2c;
+  --return-now: #d62828;
+  --check-vitals: #e8730c;
+  --info: #2768d8;
+  --ok: #1f8a4c;
+}
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body { margin: 0; font-family: var(--font); color: var(--ink); font-variant-numeric: tabular-nums; }
+button { font: inherit; cursor: pointer; }
+button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible {
+  outline: 3px solid var(--info); outline-offset: 2px;
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition: none !important; }
+}
+[hidden] { display: none !important; }
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }

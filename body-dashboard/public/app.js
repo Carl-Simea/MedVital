@@ -264,7 +264,8 @@ function selectVital(id) {
 /* ---------- Past data + upcoming (right) ---------- */
 function renderPast() {
   const v = VITALS.find(x => x.id === state.vital), h = vitals[v.id].history;
-  $('pastSub').textContent = h.length ? `${v.label} · ${live.on && v.live ? 'live, last ' + h.length + ' s' : 'last ' + h.length + ' days'}` : v.label;
+  // window.MedVitalHistoryLabel (hub-bridge.js): the spacecraft says what each history point is
+  $('pastSub').textContent = h.length ? `${v.label} · ${(window.MedVitalHistoryLabel && window.MedVitalHistoryLabel(v.id, h.length)) || (live.on && v.live ? 'live, last ' + h.length + ' s' : 'last ' + h.length + ' days')}` : v.label;
   const chart = $('chart'), stats = $('stats');
   if (!h.length) { chart.textContent = 'No history yet'; stats.innerHTML = ''; return; }
   const mn = Math.min(...h), mx = Math.max(...h), pad = (mx - mn) * 0.15 || 1, lo = mn - pad, hi = mx + pad, W = 300, H = 110;
@@ -512,7 +513,8 @@ function actMenu(open) {
   const m = $('actMenu'); m.hidden = !open; if (!open) return; $('bodyPop').hidden = true; m.innerHTML = '';
   const row = (cls, title, note, fn, on) => { const b = el('button', 'tm ' + cls + (on ? ' on' : '')); b.type = 'button'; b.setAttribute('role', 'menuitem'); b.append(el('i'), el('b', '', title)); if (note) b.append(el('small', '', note)); b.onclick = () => { actMenu(false); fn(); }; m.append(b); };
   if (live.on) row('auto', 'Follow the test stream', 'A compressed day: rest, work, exercise, sleep', () => setActivity('auto'), live.mode === 'auto');
-  for (const id of ACTIVITY_IDS) row('a-' + id, ACTIVITIES[id].label, ACTIVITIES[id].note, () => setActivity(id), live.mode === id || (!live.on && M.activity === id));
+  // picking an activity by hand also tells the spacecraft (hub-bridge.js listens for medvital:activity)
+  for (const id of ACTIVITY_IDS) row('a-' + id, ACTIVITIES[id].label, ACTIVITIES[id].note, () => { setActivity(id); window.dispatchEvent(new CustomEvent('medvital:activity', { detail: id })); }, live.mode === id || (!live.on && M.activity === id));
   if (live.on) row('plainrow', 'Stop the live test stream', '', () => { stopLive(); });
   else if (state.sample) row('plainrow', 'Start the live test stream', 'Simulated wearable values, once per second', () => startLive());
   else row('plainrow', 'Clear the activity', '', () => setActivity(null));
@@ -616,6 +618,8 @@ function assistantStatus() {
 function ask(q) {
   q = String(q || '').trim(); if (!q) return; say('me', q);
   if (/^load test data$/i.test(q)) { loadSample('mixed'); say('bot', 'Loaded the "Borderline" test data: invented values for mission month 4 with a few findings to watch. The button under the body switches between the three test sets.'); chips(['What needs attention?', 'How am I doing?', 'Exercise score']); return; }
+  // Spacecraft mode (hub-bridge.js): the onboard AI agent answers everything except scores
+  if (window.MedVitalAsk && !/\bscores?\b/i.test(q)) { window.MedVitalAsk(q, { say, inMsg, chips, el }); return; }
   if (/\bscores?\b/i.test(q)) {
     const all = scoreAll(currentInput()), want = DOMAIN_IDS.filter(id => q.toLowerCase().includes(id)), ids = want.length ? want : DOMAIN_IDS;
     const lines = ids.map(id => { const sc = all[id]; if (sc.score === null) return `${sc.label}: no data yet.`;
@@ -661,6 +665,7 @@ function readSource(text, name) {
     const set = {}; list.querySelectorAll('input:checked').forEach(c => { set[c.dataset.key] = r.values[c.dataset.key]; });
     const n = Object.keys(set).length; if (!n) return;
     setMeasurements(set); if (set['hr.rest'] && lobby) lobby.setHeartRate(set['hr.rest']);
+    window.dispatchEvent(new CustomEvent('medvital:applied', { detail: set }));   // spacecraft mode saves it on board
     if (set['body.heightCm'] !== undefined || set['body.massKg'] !== undefined || set.sex) setBody({}, true, true);
     list.querySelectorAll('input').forEach(c => { c.disabled = true; }); act.replaceWith(el('p', 'done', `Applied ${n} value${n > 1 ? 's' : ''} · ${new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}`));
     chips(['What needs attention?', 'How am I doing?', 'Sleep score']);

@@ -1,0 +1,451 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MedVital mission record</title>
+<!-- Chart.js draws the line charts. No build step: a copy ships in vendor/ so the demo works offline. -->
+<script src="/vendor/chart.umd.js"></script>
+<style>
+  :root {
+    --font: "Bahnschrift", "DIN Alternate", "Segoe UI", system-ui, sans-serif;
+    --page: #eef1f5; --panel: #ffffff; --ink: #142033; --ink-soft: #566173; --line: #d8dee6;
+    --navy: #17325c; --navy-soft: #e5ecf6;
+    --up: #0a7d33; --down: #c62828;
+    --return-now: #c62828; --check-vitals: #d86a00; --info: #1f6fd0;
+    --heart: #d6336c; --oxygen: #12917f; --dose: #6250d6;
+  }
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  body { margin: 0; background: var(--page); color: var(--ink); font-family: var(--font); font-size: 16px; line-height: 1.4;
+         font-variant-numeric: tabular-nums; }
+  button { font: inherit; cursor: pointer; }
+  button:focus-visible, a:focus-visible { outline: 3px solid var(--info); outline-offset: 2px; }
+
+  .topbar { position: sticky; top: 0; z-index: 10; background: var(--navy); color: #fff; padding: 12px 22px;
+            display: flex; flex-wrap: wrap; align-items: center; gap: 12px 28px; }
+  .topbar h1 { margin: 0; font-size: 22px; font-weight: 600; }
+  .topbar p { margin: 0; opacity: .75; font-size: 14px; }
+  .clock { font-size: 22px; font-weight: 600; }
+  .clock small { display: block; font-size: 13px; font-weight: 400; opacity: .75; }
+  .link { display: flex; align-items: center; gap: 12px; margin-left: auto; }
+  .link-status { font-weight: 700; }
+  .link-status.up { color: #8be3a9; } .link-status.down { color: #ffb3b3; }
+  .link-button { padding: 10px 18px; border: 0; border-radius: 4px; color: #fff; font-weight: 700; }
+  .link-button.cut { background: var(--down); } .link-button.restore { background: var(--up); }
+  .count b { font-size: 22px; display: block; line-height: 1; } .count span { font-size: 13px; opacity: .75; }
+
+  .layout { display: grid; grid-template-columns: 250px 1fr; min-height: calc(100vh - 64px); }
+  nav.crew { background: var(--panel); border-right: 1px solid var(--line); padding: 14px 10px; }
+  nav.crew button { display: block; width: 100%; text-align: left; background: none; border: 0; border-radius: 4px;
+                    padding: 10px 12px; margin-bottom: 4px; color: var(--ink); }
+  nav.crew button[aria-current="true"] { background: var(--navy-soft); }
+  nav.crew button b { display: block; font-weight: 600; }
+  nav.crew button span { font-size: 13px; color: var(--ink-soft); }
+  nav.crew .sep { height: 1px; background: var(--line); margin: 8px 4px 12px; }
+  .dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; background: var(--up); margin-right: 6px; }
+  .dot.alert { background: var(--return-now); }
+
+  main { padding: 20px 24px 48px; min-width: 0; }
+  h2 { font-size: 26px; font-weight: 600; margin: 0 0 4px; }
+  h3 { font-size: 17px; font-weight: 600; margin: 0 0 10px; color: var(--ink-soft); }
+  .lede { color: var(--ink-soft); margin: 0 0 18px; }
+  .notice { padding: 12px 14px; background: #fff4e5; border: 1px solid #f0c98a; border-radius: 6px; margin-bottom: 16px; }
+  .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 16px 18px; margin-bottom: 16px; }
+  .grid2 { display: grid; grid-template-columns: 1.4fr 1fr; gap: 16px; }
+  .cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 14px; margin-bottom: 16px; }
+  .card { background: var(--panel); border: 1px solid var(--line); border-top: 4px solid var(--navy); border-radius: 6px;
+          padding: 14px 16px; cursor: pointer; text-align: left; color: inherit; }
+  .card.alerting { border-top-color: var(--return-now); }
+  .card h4 { margin: 0; font-size: 19px; font-weight: 600; } .card .role { color: var(--ink-soft); font-size: 14px; }
+  .nums { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin: 10px 0 6px; }
+  .nums b { display: block; font-size: 22px; font-weight: 600; } .nums span { font-size: 12px; color: var(--ink-soft); }
+  .card canvas { width: 100%; height: 40px; display: block; }
+
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
+  .chips button { border: 1px solid var(--line); background: #fff; border-radius: 999px; padding: 4px 12px; font-size: 14px; }
+  .chips button[aria-pressed="true"] { background: var(--navy); color: #fff; border-color: var(--navy); }
+  .timeline { list-style: none; margin: 0; padding: 0; max-height: 460px; overflow-y: auto; }
+  .timeline li { display: grid; grid-template-columns: 112px 1fr; gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--line); }
+  .timeline time { font-weight: 600; } .timeline .who { color: var(--ink-soft); font-size: 13px; }
+  .timeline .detail { color: var(--ink-soft); font-size: 14px; }
+  .timeline .src { font-size: 12px; color: var(--ink-soft); }
+  .tag { display: inline-block; font-size: 12px; padding: 1px 7px; border-radius: 3px; margin-right: 6px; background: var(--navy-soft); }
+  .tag.space_weather { background: #ece6ff; } .tag.blackout { background: #ffe1e1; } .tag.followup { background: #fff0d9; }
+  .tag.eva { background: #dff3ee; } .tag.test { background: #e6f0ff; }
+  a { color: var(--info); }
+
+  .list { list-style: none; margin: 0; padding: 0; max-height: 320px; overflow-y: auto; }
+  .list li { padding: 9px 12px; margin-bottom: 6px; border-radius: 6px; background: #f6f8fa; border-left: 6px solid var(--line); }
+  .list .when { color: var(--ink-soft); font-size: 13px; margin-left: 8px; }
+  .alert .code { font-weight: 700; }
+  .alert.RETURN_NOW { border-left-color: var(--return-now); background: #fdecec; } .alert.RETURN_NOW .code { color: var(--return-now); }
+  .alert.CHECK_VITALS { border-left-color: var(--check-vitals); background: #fff1e0; } .alert.CHECK_VITALS .code { color: #a85400; }
+  .alert.INFO { border-left-color: var(--info); background: #e9f2fd; } .alert.INFO .code { color: var(--info); }
+  .empty { color: var(--ink-soft); margin: 0; }
+
+  .head { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-end; gap: 12px; margin-bottom: 16px; }
+  .facts { color: var(--ink-soft); }
+  .btn { padding: 9px 14px; border: 1px solid var(--navy); border-radius: 4px; background: #fff; color: var(--navy); font-weight: 600;
+         text-decoration: none; display: inline-block; }
+  table { width: 100%; border-collapse: collapse; font-size: 15px; }
+  th, td { text-align: left; padding: 7px 8px; border-bottom: 1px solid var(--line); }
+  th { color: var(--ink-soft); font-weight: 500; font-size: 13px; }
+  td.num { text-align: right; } td.up { color: #a85400; } td.down { color: var(--info); }
+  td .origin { font-size: 12px; color: var(--ink-soft); }
+  .chart-box { position: relative; height: 340px; }
+  .strip { padding: 8px 22px; font-size: 14px; border-bottom: 1px solid var(--line); background: #fff; display: flex; gap: 10px; align-items: baseline; }
+  .strip b { font-weight: 600; white-space: nowrap; }
+  .strip.bad { background: #fdecec; border-color: #f2b8b8; }
+  .strip .src { color: var(--ink-soft); font-size: 12px; margin-left: auto; white-space: nowrap; }
+  .banner { padding: 12px 22px; background: var(--down); color: #fff; font-weight: 600; display: flex; gap: 14px; align-items: center; }
+  .banner .count-down { font-size: 22px; min-width: 3.5ch; text-align: center; background: rgba(255,255,255,.18); border-radius: 4px; padding: 2px 8px; }
+  .toast { position: fixed; right: 18px; bottom: 18px; background: var(--navy); color: #fff; padding: 12px 16px; border-radius: 6px;
+           box-shadow: 0 6px 20px rgba(0,0,0,.25); max-width: 340px; z-index: 30; }
+  .consult { border-left: 4px solid var(--down); background: #fff6f6; padding: 10px 14px; margin: 0 0 10px; border-radius: 4px; }
+  .consult h4 { margin: 0 0 6px; font-size: 15px; }
+  .consult .t { margin: 4px 0; font-size: 14px; } .consult .t b { display: inline-block; min-width: 82px; color: var(--ink-soft); font-weight: 600; }
+  .daypick { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
+  .daypick button { border: 1px solid var(--line); background: #fff; border-radius: 4px; padding: 4px 10px; min-width: 3ch; }
+  .daypick button[aria-pressed="true"] { background: var(--navy); color: #fff; border-color: var(--navy); }
+  .dl { display: grid; grid-template-columns: max-content 1fr; gap: 4px 16px; margin: 0; }
+  .dl dt { color: var(--ink-soft); } .dl dd { margin: 0; }
+  pre.report { white-space: pre-wrap; font: 14px/1.5 ui-monospace, Consolas, monospace; background: #f6f8fa; padding: 14px;
+               border-radius: 6px; max-height: 420px; overflow: auto; }
+
+  @media (max-width: 900px) { .layout { grid-template-columns: 1fr; } nav.crew { border-right: 0; border-bottom: 1px solid var(--line); }
+    .grid2 { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+<header class="topbar">
+  <div><h1>MedVital mission record</h1><p>NASA flight surgeon</p></div>
+  <div class="clock" id="clock">Waiting for the spacecraft…<small></small></div>
+  <div class="link">
+    <span id="link-status" class="link-status">Link: …</span>
+    <button id="link-button" class="link-button" disabled>…</button>
+  </div>
+  <div class="count"><b id="total">0</b><span>records received</span></div>
+</header>
+
+<div class="strip" id="checker" hidden></div>
+<div class="banner" id="banner" role="alert" hidden></div>
+<div class="toast" id="toast" role="status" hidden></div>
+
+<div class="layout">
+  <nav class="crew" id="nav" aria-label="Crew"></nav>
+  <main id="main"></main>
+</div>
+
+<script>
+// MedVital mission record: NASA's view. Everything here arrived over the link to Earth.
+const REFRESH_MS = 3000;
+let lastConsult = null, selectedDay = {}, dayCache = {}, lastReportDay = null, toastTimer = null, linkInfo = null;
+let view = "overview", linkUp = null, filter = "all", busy = false, chart = null, reportOpen = false, osdr = null;
+fetch("/api/osdr").then((r) => r.json()).then((d) => { osdr = d; }).catch(() => {});
+const $ = (id) => document.getElementById(id);
+
+function el(tag, cls, text) {
+  const n = document.createElement(tag);
+  if (cls) n.className = cls;
+  if (text !== undefined && text !== null) n.textContent = text;   // textContent: record text can never inject HTML
+  return n;
+}
+async function getJson(path) { const r = await fetch(path, { cache: "no-store" }); if (!r.ok) throw new Error(path + " " + r.status); return r.json(); }
+const mlabel = (m) => { if (m === null || m === undefined) return ""; const d = Math.floor(m / 1440) + 1, h = (m % 1440) / 60;
+  return `Day ${d} ${String(Math.floor(h)).padStart(2, "0")}:${String(Math.floor((h % 1) * 60)).padStart(2, "0")}`; };
+const kindLabel = { space_weather: "Space weather", blackout: "Link blackout", followup: "Follow-up", eva: "Spacewalk",
+                    test: "Onboard test", landing: "Landing", exercise: "Exercise", sleep: "Sleep" };
+
+// ---------- top bar ----------
+function drawLink(up) {
+  linkUp = up;
+  const what = linkInfo && linkInfo.via === "cloudflare" ? "Link Cloudflare → NASA" : "Link to spacecraft";
+  $("link-status").textContent = `${what}: ${up ? "UP" : "DOWN"}`;
+  $("link-status").className = "link-status " + (up ? "up" : "down");
+  $("link-button").textContent = up ? "Cut the link" : "Restore the link";
+  $("link-button").className = "link-button " + (up ? "cut" : "restore");
+  $("link-button").disabled = false;
+}
+$("link-button").onclick = async () => {
+  if (linkUp === null) return;
+  $("link-button").disabled = true;
+  const r = await fetch("/link", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ up: !linkUp }) });
+  drawLink((await r.json()).up);
+};
+
+function drawClock(now) {
+  if (!now || now.day === undefined) return;
+  $("clock").replaceChildren(document.createTextNode(`Mission day ${now.day}, ${now.time}`), el("small", "", `${now.phaseLabel} · as of the last record received`));
+}
+
+// ---------- Cloudflare checker line, link banner, day-report alert ----------
+function drawStatus(d) {
+  linkInfo = d.link;
+  const c = $("checker");
+  if (d.checker && d.checker.sentence) {
+    c.hidden = false; c.className = "strip" + (d.checker.ok === false ? " bad" : "");
+    c.replaceChildren(el("b", "", "Cloudflare checker"), el("span", "", d.checker.sentence),
+      el("span", "src", d.checker.source === "Workers AI" ? "worded by Workers AI" : "rule text"));
+  } else c.hidden = true;
+  const b = $("banner"), l = d.link || {};
+  if (l.via === "cloudflare" && !l.up) {
+    b.hidden = false;
+    const n = l.nextRetryS === null || l.nextRetryS === undefined ? "…" : Math.ceil(l.nextRetryS);
+    b.replaceChildren(el("span", "count-down", String(n)),
+      el("span", "", `Link from Cloudflare to NASA is down. Retrying in ${n} s (retry ${l.retries}). ${l.waiting} record(s) waiting safely in Cloudflare.`));
+  } else b.hidden = true;
+  const r = d.dayReport;
+  if (r && r.day && lastReportDay !== null && r.day !== lastReportDay) toast(`Mission day ${r.day} report received from the spacecraft.`);
+  if (d.lastConsult && lastConsult !== null && d.lastConsult !== lastConsult) toast("New message from the crew for the flight surgeon.");
+  if (d.lastConsult !== undefined) lastConsult = d.lastConsult;
+  if (r && r.day) lastReportDay = r.day; else if (lastReportDay === null) lastReportDay = 0;
+}
+function toast(text) {
+  const t = $("toast"); t.textContent = text; t.hidden = false;
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => { t.hidden = true; }, 5000);
+}
+
+// ---------- crew menu ----------
+function drawNav(crew) {
+  const nav = $("nav");
+  const items = [["overview", "Mission overview", `${crew.length} astronauts`, false]]
+    .concat(crew.map((c) => [c.id, c.name, `${c.role} · ${c.state || "no data"}`, !!(c.lastAlert && c.lastAlert.code !== "INFO" && c.alerts)]));
+  nav.replaceChildren(...items.map(([id, name, sub, alert], i) => {
+    const b = el("button"); b.setAttribute("aria-current", String(view === id));
+    const t = el("b"); if (i) t.append(el("span", "dot" + (alert ? " alert" : ""))); t.append(document.createTextNode(name));
+    b.append(t, el("span", "", sub)); b.onclick = () => { view = id; reportOpen = false; if (chart) { chart.destroy(); chart = null; } refresh(); };
+    const frag = document.createDocumentFragment(); frag.append(b); if (!i) frag.append(el("div", "sep")); return frag;
+  }));
+}
+
+// ---------- overview ----------
+function spark(canvas, values, color) {
+  const w = canvas.clientWidth, h = canvas.clientHeight; if (!w) return;
+  canvas.width = w * devicePixelRatio; canvas.height = h * devicePixelRatio;
+  const g = canvas.getContext("2d"); g.scale(devicePixelRatio, devicePixelRatio);
+  const v = values.filter((x) => typeof x === "number"); if (v.length < 2) return;
+  const lo = Math.min(...v) - 2, hi = Math.max(...v) + 2;
+  g.strokeStyle = color; g.lineWidth = 2; g.beginPath();
+  v.forEach((x, i) => { const px = (i / (v.length - 1)) * w, py = h - ((x - lo) / (hi - lo)) * h; i ? g.lineTo(px, py) : g.moveTo(px, py); });
+  g.stroke();
+}
+
+function timeline(events, withWho) {
+  const ul = el("ul", "timeline");
+  const shown = events.filter((e) => filter === "all" || e.kind === filter || (filter === "plan" && ["test", "eva", "landing"].includes(e.kind)));
+  if (!shown.length) ul.append(el("li", "empty", "Nothing coming up in this group."));
+  for (const e of shown.slice(0, 50)) {
+    const li = el("li"); const t = el("time", "", mlabel(e.m_start));
+    const body = el("div"); const tag = el("span", "tag " + e.kind, kindLabel[e.kind] || e.kind);
+    body.append(tag, document.createTextNode(e.title));
+    if (withWho && e.astronaut_id && e.astronaut_id !== "crew") body.append(el("span", "who", "  · " + e.astronaut_id));
+    if (e.detail) body.append(el("div", "detail", e.detail));
+    const src = el("div", "src", e.source || "");
+    if (e.link) { const a = el("a", "", " record"); a.href = e.link; a.target = "_blank"; a.rel = "noopener"; src.append(a); }
+    body.append(src); li.append(t, body); ul.append(li);
+  }
+  return ul;
+}
+
+function chips() {
+  const box = el("div", "chips");
+  for (const [id, label] of [["all", "All"], ["plan", "Mission plan"], ["space_weather", "Space weather"], ["blackout", "Link blackouts"], ["followup", "Follow-ups"]]) {
+    const b = el("button", "", label); b.setAttribute("aria-pressed", String(filter === id)); b.onclick = () => { filter = id; refresh(); }; box.append(b);
+  }
+  return box;
+}
+
+function alertList(alerts, withWho) {
+  const ul = el("ul", "list");
+  if (!alerts.length) ul.append(el("li", "empty", "No alerts received."));
+  for (const a of alerts) {
+    const li = el("li", "alert " + (a.code || ""));
+    li.append(el("span", "code", a.code), el("span", "when", `${mlabel(a.missionMinute ?? (a.mission || {}).minute)}${withWho ? " · " + a.astronaut_id : ""}`), el("div", "", a.message));
+    ul.append(li);
+  }
+  return ul;
+}
+
+function drawOverview(d) {
+  const main = $("main"); main.replaceChildren();
+  main.append(el("h2", "", "Mission overview"), el("p", "lede", "Everything the spacecraft has sent over the link: once a day in one batch, and right away for RETURN_NOW and CHECK_VITALS alerts."));
+  if (!d.crew.length) main.append(el("p", "notice", "No records yet. They arrive at the end of the first mission day (one minute after the spacecraft starts)."));
+  const cards = el("div", "cards");
+  for (const c of d.crew) {
+    const b = el("button", "card" + (c.lastAlert && c.lastAlert.code !== "INFO" && c.alerts ? " alerting" : ""));
+    b.onclick = () => { view = c.id; refresh(); };
+    const nums = el("div", "nums");
+    for (const [v, l] of [[c.heartRate ?? "–", `bpm (rest ${c.restingHr})`], [c.spo2 !== null && c.spo2 !== undefined ? Math.round(c.spo2) + "%" : "–", "blood oxygen"], [c.careerDose, "mSv career"]]) {
+      const x = el("div"); x.append(el("b", "", String(v)), el("span", "", l)); nums.append(x);
+    }
+    const cv = el("canvas");
+    b.append(el("h4", "", c.name), el("span", "role", `${c.role} · ${c.state || "–"} · ${c.alerts} alert(s)`), nums, cv);
+    cards.append(b); requestAnimationFrame(() => spark(cv, c.spark, "#d6336c"));
+  }
+  main.append(cards);
+  const grid = el("div", "grid2");
+  const up = el("section", "panel"); up.append(el("h3", "", "Upcoming"), chips(), timeline(d.upcoming, true));
+  if (d.consults && d.consults.length) main.append(consultPanel(d.consults.slice(0, 3), true));
+  const al = el("section", "panel"); al.append(el("h3", "", "Recent alerts"), alertList(d.alerts, true));
+  grid.append(up, al); main.append(grid);
+  if (d.linkLog && d.linkLog.length) {
+    const lg = el("section", "panel"); lg.append(el("h3", "", "Link log (Cloudflare → NASA)"));
+    const ul = el("ul", "list");
+    for (const x of d.linkLog) { const li = el("li"); li.append(el("b", "", x.event), el("span", "when", new Date(x.at).toLocaleTimeString()), el("div", "", x.detail)); ul.append(li); }
+    lg.append(ul); main.append(lg);
+  }
+}
+
+// ---------- one astronaut ----------
+function drawAstronaut(d) {
+  const main = $("main"); main.replaceChildren();
+  const p = d.profile || {};
+  const head = el("div", "head"); const left = el("div");
+  left.append(el("h2", "", p.name || d.id), el("div", "facts", `${p.role || ""} · ${p.age ?? "?"} years · ${p.sex === "m" ? "male" : "female"} · ${p.height_cm ?? "?"} cm · ${p.weight_kg ?? "?"} kg · ID ${d.id}`));
+  const right = el("div");
+  if (d.reportPdf) { const a = el("a", "btn", "Pre-flight report (PDF)"); a.href = d.reportPdf; a.target = "_blank"; right.append(a, document.createTextNode(" ")); }
+  if (d.report) { const b = el("button", "btn", reportOpen ? "Hide report text" : "Report text"); b.onclick = () => { reportOpen = !reportOpen; drawAstronaut(d); }; right.append(b); }
+  head.append(left, right); main.append(head);
+  if (reportOpen && d.report) { const s = el("section", "panel"); s.append(el("h3", "", "Pre-flight report"), el("pre", "report", d.report)); main.append(s); }
+  if (d.consults && d.consults.length) main.append(consultPanel(d.consults, false));
+
+  const grid = el("div", "grid2");
+  const cmp = el("section", "panel"); cmp.append(el("h3", "", "Pre-flight baseline vs. in flight"));
+  const t = el("table"); const hr = el("tr");
+  for (const h of ["Measurement", "Pre-flight", "Now", "Change", ""]) hr.append(el("th", "", h));
+  t.append(hr);
+  for (const r of d.compare) {
+    const tr = el("tr"); const fmtv = (v) => (v === null || v === undefined ? "–" : `${+v.toFixed ? +(+v).toFixed(2) : v} ${r.unit}`);
+    const ch = r.change === null ? "" : (r.change > 0 ? "+" : "") + r.change;
+    const o = el("td"); o.append(el("span", "origin", r.origin || ""));
+    tr.append(el("td", "", r.label), el("td", "num", fmtv(r.preflight)), el("td", "num", r.now === null || r.now === undefined ? "not tested in flight yet" : fmtv(r.now)), el("td", "num " + (r.change > 0 ? "up" : r.change < 0 ? "down" : ""), ch), o);
+    t.append(tr);
+  }
+  cmp.append(t, el("p", "empty", "Resting heart rate in flight = average while asleep. Values marked simulated come from the demo's crew simulator; career dose uses real Curiosity RAD dose rates."));
+  const chartP = el("section", "panel"); chartP.append(el("h3", "", "Heart rate, blood oxygen and radiation over the mission"));
+  const box = el("div", "chart-box"); const canvas = el("canvas"); box.append(canvas); chartP.append(box);
+  if (d.flagged) chartP.append(el("p", "empty", `${d.flagged} reading(s) flagged by the spacecraft's double-check (possible sensor glitch): saved, not charted.`));
+  grid.append(chartP, cmp); main.append(grid);
+
+  const g2 = el("div", "grid2");
+  const al = el("section", "panel"); al.append(el("h3", "", `Alerts (${d.alerts.length})`), alertList(d.alerts, false));
+  const up = el("section", "panel"); up.append(el("h3", "", "Upcoming for this astronaut"), timeline(d.upcoming, false));
+  g2.append(al, up); main.append(g2);
+  main.append(dayPanel(d));
+  const g3 = el("div", "grid2");
+  const su = el("section", "panel"); su.append(el("h3", "", "Daily summaries"));
+  const sl = el("ul", "list"); if (!d.summaries.length) sl.append(el("li", "empty", "None yet."));
+  for (const s of d.summaries) { const li = el("li"); li.append(el("b", "", `Mission day ${s.missionDay ?? ""}`), el("span", "when", s.wordedBy ? `worded by ${s.wordedBy}` : ""), el("div", "", s.text)); sl.append(li); }
+  su.append(sl);
+  const te = el("section", "panel"); te.append(el("h3", "", "Onboard tests and results"));
+  const tl = el("ul", "list"); if (!d.tests.length) tl.append(el("li", "empty", "None yet."));
+  for (const x of d.tests) { const li = el("li"); li.append(el("b", "", x.source || ""), el("span", "when", `${mlabel((x.mission || {}).minute)} · ${x.origin || ""}`), el("div", "", x.text)); tl.append(li); }
+  te.append(tl); g3.append(su, te); main.append(g3);
+  if (osdr && osdr.topics.length) {
+    const os = el("section", "panel");
+    os.append(el("h3", "", "NASA spaceflight research behind each risk (OSDR)"),
+      el("p", "empty", "Study records from NASA's Open Science Data Repository. They are the evidence for what MedVital watches; they are not this astronaut's data."));
+    const grid = el("div", "cards");
+    for (const t of osdr.topics) {
+      const c = el("div", "panel"); c.style.margin = "0";
+      c.append(el("b", "", `${t.label}`), el("div", "empty", `${t.total ?? "?"} studies in OSDR`));
+      const ul = el("ul", "list");
+      for (const s of t.studies) { const li = el("li"); const a = el("a", "", s.accession); a.href = s.link; a.target = "_blank"; a.rel = "noopener";
+        li.append(a, el("div", "", s.title || ""), el("span", "when", Array.isArray(s.organism) ? s.organism.join(", ") : (s.organism || ""))); ul.append(li); }
+      if (!t.studies.length) ul.append(el("li", "empty", "No study found for this search."));
+      c.append(ul); grid.append(c);
+    }
+    os.append(grid); main.append(os);
+  }
+  drawChart(canvas, d);
+}
+
+function consultPanel(list, withName) {
+  const sec = el("section", "panel"); sec.append(el("h3", "", "Messages sent to the flight surgeon"));
+  for (const c of list) {
+    const box = el("div", "consult");
+    box.append(el("h4", "", `${withName ? (c.astronaut_id + " · ") : ""}${c.missionTime || ""}${c.symptoms && c.symptoms.length ? " · " + c.symptoms.join(", ") : ""}`));
+    const n = c.numbers || {};
+    box.append(el("div", "t", `At the time: heart rate ${n.heartRate ?? "–"} bpm (resting ${n.restingBaseline ?? "–"}), blood oxygen ${n.spo2 ?? "–"}%, temperature ${n.temperature ?? "–"} °C, state ${n.state ?? "–"}.`));
+    for (const m of c.transcript || []) { const t = el("div", "t"); t.append(el("b", "", m.who === "astronaut" ? "Astronaut" : "Assistant"), document.createTextNode(m.text)); box.append(t); }
+    sec.append(box);
+  }
+  return sec;
+}
+
+function dayPanel(d) {
+  const sec = el("section", "panel"); sec.append(el("h3", "", "Day report"));
+  const days = d.days || [];
+  if (!days.length) { sec.append(el("p", "empty", "No complete day received yet.")); return sec; }
+  const pick = el("div", "daypick");
+  const cur = (d.dayReport && d.dayReport.day) ?? days[days.length - 1];
+  for (const n of days) {
+    const b = el("button", "", `Day ${n}`); b.setAttribute("aria-pressed", String(n === cur));
+    b.onclick = async () => { selectedDay[d.id] = n; dayCache[d.id + ":" + n] = await getJson(`/api/astronaut/${encodeURIComponent(d.id)}/day/${n}`); drawAstronaut(d); };
+    pick.append(b);
+  }
+  sec.append(pick);
+  const r = d.dayReport;
+  if (!r) { sec.append(el("p", "empty", "Loading…")); return sec; }
+  const dl = el("dl", "dl");
+  const row = (k, v) => { dl.append(el("dt", "", k), el("dd", "", v)); };
+  row("Readings received", String(r.readings));
+  if (r.heartRate) row("Heart rate", `${r.heartRate.min}–${r.heartRate.max} bpm (average ${r.heartRate.avg})`);
+  if (r.spo2) row("Blood oxygen", `lowest ${r.spo2.min}%, average ${r.spo2.avg}%`);
+  if (r.doseMsv !== null && r.doseMsv !== undefined) row("Radiation this day", `${r.doseMsv} mSv`);
+  const hrs = Object.entries(r.hoursByState || {}).map(([k, v]) => `${k} ${v} h`).join(" · ");
+  if (hrs) row("Time by activity", hrs);
+  for (const w of r.spacewalks || []) row("Spacewalk", `${mlabel(w.m_start)}: ${w.detail || w.title}`);
+  for (const [, v] of Object.entries(r.values || {})) row(v.label, v.values.map((x) => `${+(+x).toFixed(3)}`).join(", ") + (v.unit ? ` ${v.unit}` : ""));
+  for (const a of r.alerts || []) row(a.code.replace("_", " ").toLowerCase(), a.message);
+  row("Summary", r.summary ? r.summary.text : "day still in progress: the summary comes with the day-end batch");
+  sec.append(dl);
+  return sec;
+}
+
+function drawChart(canvas, d) {
+  if (!window.Chart) { canvas.parentNode.replaceChildren(el("p", "empty", "The chart library did not load.")); return; }
+  const pts = (k) => d.readings.filter((r) => typeof r[k] === "number" && typeof r.m === "number").map((r) => ({ x: r.m, y: r[k] }));
+  const line = (label, color, axis, data) => ({ label, yAxisID: axis, data, borderColor: color, backgroundColor: color, borderWidth: 1.5, pointRadius: 0, tension: 0 });
+  const rest = (d.profile || {}).resting_hr;
+  const datasets = [line("Heart rate (bpm)", "#d6336c", "heart", pts("hr")), line("Blood oxygen (%)", "#12917f", "oxygen", pts("spo2")), line("Mission dose (mSv)", "#6250d6", "dose", pts("dose"))];
+  if (rest) datasets.push({ ...line("Pre-flight resting HR", "#d6336c88", "heart", pts("hr").map((p) => ({ x: p.x, y: rest }))), borderDash: [5, 5] });
+  const band = (title) => ({ stack: "bands", offset: true, title: { display: true, text: title }, ticks: { maxTicksLimit: 4 } });
+  if (chart) chart.destroy();
+  chart = new Chart(canvas, { type: "line", data: { datasets }, options: { responsive: true, maintainAspectRatio: false, animation: false, parsing: false,
+    interaction: { mode: "index", intersect: false },
+    scales: { x: { type: "linear", ticks: { callback: (v) => mlabel(v), maxRotation: 0, maxTicksLimit: 6 } },
+              dose: band("mSv"), oxygen: band("SpO2 %"), heart: band("bpm") },
+    plugins: { legend: { position: "bottom", labels: { boxWidth: 12, boxHeight: 3 } }, tooltip: { callbacks: { title: (i) => (i.length ? mlabel(i[0].parsed.x) : "") } } } } });
+}
+
+// ---------- refresh ----------
+async function refresh() {
+  if (busy) return; busy = true;
+  try {
+    const [link, stats, mission] = await Promise.all([getJson("/link"), getJson("/stats"), getJson("/api/mission")]);
+    drawStatus(mission);
+    drawLink(link.up); $("total").textContent = stats.total; drawClock(mission.now); drawNav(mission.crew);
+    if (view === "overview") drawOverview(mission);
+    else {
+      const d = await getJson(`/api/astronaut/${encodeURIComponent(view)}`);
+      d.days = await getJson(`/api/astronaut/${encodeURIComponent(view)}/days`);
+      // open on the latest finished day (its summary has arrived); a day still in progress is one click away
+      const n = selectedDay[view] ?? (d.summaries.length ? d.summaries[0].missionDay : d.days[d.days.length - 1]);
+      if (n !== undefined) d.dayReport = await getJson(`/api/astronaut/${encodeURIComponent(view)}/day/${n}`);
+      if (chart && document.body.contains(chart.canvas)) {   // keep the page, just update the numbers and chart
+        drawAstronaut(d);
+      } else drawAstronaut(d);
+    }
+  } catch (e) {
+    $("main").replaceChildren(el("p", "notice", "Cannot reach the NASA receiver, or no records for this astronaut yet. Retrying every few seconds."));
+  } finally { busy = false; }
+}
+refresh();
+setInterval(refresh, REFRESH_MS);
+// the retry countdown needs a faster tick than the page refresh
+setInterval(() => { if (linkInfo && linkInfo.via === "cloudflare" && !linkInfo.up) getJson("/api/status").then(drawStatus).catch(() => {}); }, 1000);
+</script>
+</body>
+</html>
