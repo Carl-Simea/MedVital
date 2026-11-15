@@ -15,12 +15,13 @@ import os
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.responses import RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
 from medvital.config import Settings
 from medvital.db.sqlite import SqliteObservationRepository
+from medvital.hub import settings as S
 from medvital.hub.routes import router as hub_router
 from medvital.hub.service import Hub
 from medvital.hub.store import HubStore
@@ -71,11 +72,21 @@ def create_hub_app(
 
     app.router.lifespan_context = lifespan
 
+    # The 3D astronaut screen lives at an address that changes with every version (/body-<commit>/), so a
+    # browser can never mix old cached scripts or styles with new ones. /body/?astronaut=... redirects there.
+    body_url = f"/body-{S.git_commit() if S.git_commit() != '?' else S.VERSION}"
+
+    @app.get("/body", include_in_schema=False)
+    @app.get("/body/{path:path}", include_in_schema=False)
+    def body_redirect(request: Request, path: str = "") -> RedirectResponse:
+        q = request.url.query
+        return RedirectResponse(f"{body_url}/{path}" + (f"?{q}" if q else ""), status_code=307)
+
     for url, folder in (
         ("/astronaut", REPO / "apps" / "astronaut"),
         ("/cloudflare", REPO / "apps" / "cloudflare"),
         ("/shared", REPO / "apps" / "shared"),
-        ("/body", REPO / "body-dashboard" / "public"),
+        (body_url, REPO / "body-dashboard" / "public"),
         ("/reports", REPO / "reports"),
     ):
         if folder.is_dir():

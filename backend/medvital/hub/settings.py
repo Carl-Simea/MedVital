@@ -25,7 +25,7 @@ REPORTS = REPO / "reports"
 # so one burst covers 24 mission minutes and a mission day has 60 bursts.
 DAY_SECONDS = float(os.environ.get("MEDVITAL_DAY_SECONDS", "60"))
 
-VERSION = "v4.3"
+VERSION = "v4.4"
 
 
 def git_commit() -> str:
