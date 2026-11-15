@@ -262,7 +262,7 @@ function drawAstronaut(d) {
     const tr = el("tr"); const fmtv = (v) => (v === null || v === undefined ? "–" : `${+v.toFixed ? +(+v).toFixed(2) : v} ${r.unit}`);
     const ch = r.change === null ? "" : (r.change > 0 ? "+" : "") + r.change;
     const o = el("td"); o.append(el("span", "origin", r.origin || ""));
-    tr.append(el("td", "", r.label), el("td", "num", fmtv(r.preflight)), el("td", "num", fmtv(r.now)), el("td", "num " + (r.change > 0 ? "up" : r.change < 0 ? "down" : ""), ch), o);
+    tr.append(el("td", "", r.label), el("td", "num", fmtv(r.preflight)), el("td", "num", r.now === null || r.now === undefined ? "not tested in flight yet" : fmtv(r.now)), el("td", "num " + (r.change > 0 ? "up" : r.change < 0 ? "down" : ""), ch), o);
     t.append(tr);
   }
   cmp.append(t, el("p", "empty", "Resting heart rate in flight = average while asleep. Values marked simulated come from the demo's crew simulator; career dose uses real Curiosity RAD dose rates."));
