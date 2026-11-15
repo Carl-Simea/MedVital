@@ -35,6 +35,7 @@
   <section class="col center">
     <div class="head">
       <input id="crewName" class="crew" type="text" value="Crew member" maxlength="28" spellcheck="false" aria-label="Crew member name">
+      <button class="bodypill" id="bodyBtn" type="button" title="Height and body mass">Body size</button>
       <span class="dot" id="dot"></span>
       <span class="sub" id="sSub">Loading anatomy …</span>
     </div>
@@ -42,6 +43,13 @@
       <div class="cam" id="cam">
         <canvas id="gl" aria-label="3D body. Drag to rotate, scroll to zoom, click a part to select it."></canvas>
         <div class="tip glass" id="tip" hidden></div>
+        <div class="bodypop glass" id="bodyPop" hidden>
+          <div class="bprow"><label for="rH">Height</label><b id="vH"></b></div>
+          <input id="rH" type="range" min="150" max="195" step="1" value="166">
+          <div class="bprow"><label for="rW">Body mass</label><b id="vW"></b></div>
+          <input id="rW" type="range" min="45" max="110" step="1" value="62">
+          <p>Approximate: the model is stretched, not re-shaped. <button type="button" id="bodyReset">Reset</button></p>
+        </div>
         <div class="camMsg" id="camMsg"><div id="camTxt">Loading anatomy …</div></div>
         <div class="tools">
           <button class="tool glass" id="bBody" aria-label="Whole body" title="Whole body"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="5" r="2.4"/><path d="M12 8v7M7 10.5h10M12 15l-3 6M12 15l3 6"/></svg></button>
@@ -49,7 +57,7 @@
           <button class="tool glass" id="bRotR" aria-label="Rotate right" title="Rotate right">›</button>
           <button class="tool glass" id="bReset" aria-label="Reset view" title="Reset view"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M20 11a8 8 0 0 0-14.3-4.9L4 8"/><path d="M4 4v4h4"/></svg></button>
         </div>
-        <div class="hint glass" id="hint">Drag to rotate · click a part</div>
+        <div class="hint glass" id="hint">Drag to rotate · click a bone or muscle</div>
       </div>
     </div>
     <div class="attn" id="attn"></div>
@@ -60,7 +68,8 @@
       <button data-layer="all">All</button>
     </div>
     <div class="bar">
-      <button class="primary" id="sampleBtn">Load sample data</button>
+      <div class="tmenu" id="testMenu" hidden role="menu"></div>
+      <button class="primary" id="sampleBtn" aria-haspopup="menu" aria-expanded="false">Test data</button>
     </div>
     
   </section>
@@ -69,7 +78,6 @@
   <section class="col right">
     <div class="head">
       <span class="clock" id="clock"></span>
-      <button class="round" id="asBtn" aria-label="Assistant" title="Assistant"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v3M8 21h8M5 9a7 7 0 0 1 14 0v3a7 7 0 0 1-14 0z"/><circle cx="9.5" cy="10" r=".6" fill="currentColor"/><circle cx="14.5" cy="10" r=".6" fill="currentColor"/></svg></button>
       <button class="round" id="fbBtn" aria-label="Feedback" title="Feedback"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M20 12a8 8 0 0 1-11.6 7.1L4 20l1-4.1A8 8 0 1 1 20 12Z"/></svg></button>
       <button class="round" id="setBtn" aria-label="Settings"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h9M17 7h3M4 17h3M11 17h9"/><circle cx="15" cy="7" r="2"/><circle cx="9" cy="17" r="2"/></svg></button>
     </div>
@@ -79,35 +87,25 @@
       <div class="stats" id="stats"></div>
     </div>
     <div class="panel upcoming">
-      <div class="ptitle"><b>Upcoming</b><span class="chip" id="sampleChip" hidden>Sample data</span></div>
+      <div class="ptitle"><b>Upcoming</b><span class="chip" id="sampleChip" hidden>Test data</span></div>
       <div class="two">
         <div class="cell"><div class="ctitle">Environment</div><ul id="envList"></ul></div>
         <div class="cell"><div class="ctitle">Predictions</div><ul id="predList"></ul></div>
       </div>
     </div>
     <div class="panel dock" id="dock">
-      <div class="dtabs" role="tablist">
-        <button role="tab" data-dock="input" aria-selected="true">Data input</button>
-        <button role="tab" data-dock="assistant" aria-selected="false">Assistant</button>
-        <span class="dsub" id="asSub"></span>
-      </div>
-      <div class="dpane" id="inPane">
-        <div class="alog" id="inLog"></div>
-        <form class="ain multi" id="inForm">
-          <label class="micb" title="Attach a report (.txt, .csv, .json)"><input type="file" id="inFile" multiple accept=".txt,.csv,.tsv,.json,.md,.log,.xml,.html,.pdf,image/*" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5 12.6 19.9a5 5 0 0 1-7.1-7.1l8.4-8.4a3.3 3.3 0 0 1 4.7 4.7l-8.4 8.4a1.7 1.7 0 0 1-2.4-2.4l7.8-7.8"/></svg></label>
-          <textarea id="inText" rows="1" placeholder="Paste a report or values, or drop a file …"></textarea>
-          <button class="send" type="submit">Read</button>
-        </form>
-      </div>
-      <div class="dpane" id="asPane" hidden>
-        <div class="alog" id="alog"></div>
-        <div class="achips" id="achips"></div>
-        <form class="ain" id="asForm">
-          <button type="button" id="asMic" class="micb" aria-label="Speak"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg></button>
-          <input id="asIn" placeholder="Ask about your health data …" autocomplete="off">
-          <button class="send" type="submit">Send</button>
-        </form>
-      </div>
+      <div class="dhead"><b>Assistant</b><span class="dsub" id="asSub"></span></div>
+      <div class="alog" id="alog" aria-live="polite"></div>
+      <div class="achips" id="achips"></div>
+      <form class="composer" id="chatForm">
+        <textarea id="chatIn" rows="1" placeholder="Ask a question or paste a report" aria-label="Message"></textarea>
+        <div class="crow">
+          <label class="cbtn" title="Add a report file (.txt, .csv, .json)" aria-label="Add a file"><input type="file" id="chatFile" multiple accept=".txt,.csv,.tsv,.json,.md,.log,.xml,.html,.pdf,image/*" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></label>
+          <span class="cnote">Reads text, CSV and JSON</span>
+          <button type="button" id="chatMic" class="cbtn" aria-label="Speak" title="Speak"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg></button>
+          <button class="csend" type="submit" id="chatSend" aria-label="Send" title="Send" disabled><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M6 11l6-6 6 6"/></svg></button>
+        </div>
+      </form>
       <div class="drop" id="drop" hidden>Drop the report to read it</div>
     </div>
   </section>

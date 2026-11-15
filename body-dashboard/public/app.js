@@ -1,11 +1,12 @@
 import { createLobby } from './lobby.js';
-import { PARTS, PAIRED, SRC, BASIS, LEVEL, LEVEL_NAME, LEVEL_LABEL, INDICATORS, SAMPLE, evaluate, bodyColors, summarize } from './parts.mjs';
+import { PARTS, PAIRED, SRC, BASIS, LEVEL, LEVEL_NAME, LEVEL_LABEL, INDICATORS, evaluate, bodyColors, summarize } from './parts.mjs';
 import { answer as assistantAnswer, SUGGESTIONS } from './assistant.mjs';
-import { DOMAIN_IDS, SCORE_KEYS, SCORE_SRC, SCORE_SAMPLE, SCORE_INPUTS, scoreAll, scoreColor, scoreWord } from './scores.mjs';
+import { DOMAIN_IDS, SCORE_KEYS, SCORE_SRC, SCORE_INPUTS, scoreAll, scoreColor, scoreWord } from './scores.mjs';
 import { extract, READABLE } from './intake.mjs';
+import { SCENARIOS, SCENARIO_IDS, reportText } from './testdata.mjs';
 const ALL_SRC = { ...SRC, ...SCORE_SRC };
 
-const BUILD = 'v3.6 · 14 Nov 2026';
+const BUILD = 'v3.7 · 14 Nov 2026';
 const errLog = [];
 const logErr = m => { errLog.push(new Date().toISOString().slice(11, 19) + ' ' + String(m).slice(0, 200)); if (errLog.length > 20) errLog.shift(); };
 addEventListener('error', e => logErr(e.message + ' @' + (e.filename || '').split('/').pop() + ':' + e.lineno));
@@ -212,6 +213,10 @@ function renderAttention() {
 const sideName = s => (s === 'left' ? 'Left ' : s === 'right' ? 'Right ' : '');
 const SINGULAR = { lung: 'lung', kidney: 'kidney', eye: 'eye', mUpperArm: 'upper-arm muscles', mForearm: 'forearm muscles', mThigh: 'thigh muscles', mShin: 'lower-leg muscles', tendon: 'tendons', shoulder: 'shoulder girdle', arm: 'arm bones', hand: 'hand bones', femur: 'thigh bone (femur)', shin: 'lower-leg bones', foot: 'foot bones' };
 const partName = (group, side) => (PAIRED.includes(group) && side && SINGULAR[group] ? sideName(side) + SINGULAR[group] : PARTS[group].label);
+const cap = t => t.charAt(0).toUpperCase() + t.slice(1);
+/** Display name of a single bone or muscle: the BodyParts3D name, with the side in front when the name does not carry it. */
+const singleName = i => { const n = i.name.replace(/\bsecondary /, ''); return cap(/\b(left|right)\b/.test(n) || !i.named ? n : i.named + ' ' + n); };
+const selName = sel => (sel.name ? singleName(sel) : partName(sel.group, sel.side));
 function srcLink(key) {
   const s = ALL_SRC[key]; if (!s) return null;
   const a = document.createElement('a'); a.href = s.url; a.target = '_blank'; a.rel = 'noopener'; a.textContent = s.title; return a;
@@ -223,8 +228,20 @@ function renderCard() {
   card.hidden = false; $('tiles').hidden = true; $('scores').hidden = true; card.innerHTML = '';
   const top = el('div', 'top'); const back = el('button', 'back', '‹'); back.setAttribute('aria-label', 'Back'); back.onclick = () => deselect();
   const pill = el('span', 'st ' + st.status); pill.append(el('i'), document.createTextNode(st.statusLabel));
-  top.append(back, el('h2', '', partName(sel.group, sel.side)), pill); card.append(top);
-  card.append(el('p', 'does', def.does));
+  top.append(back, el('h2', '', selName(sel)), pill); card.append(top);
+  if (sel.name) {                                                  // a single bone or muscle: it is rated with its group
+    const row = el('div', 'partof'); row.append(el('span', '', (sel.layer === 'bone' ? 'Bone' : 'Muscle') + ' · part of'));
+    const g = el('button', '', partName(sel.group, sel.side)); g.type = 'button'; g.title = 'Select the whole group'; g.onclick = () => selectPart(sel.group, sel.side); row.append(g); card.append(row);
+    card.append(el('p', 'does', `${def.does} The status and the facts below apply to the whole group: the data entered is not specific to a single ${sel.layer === 'bone' ? 'bone' : 'muscle'}.`));
+  } else {
+    card.append(el('p', 'does', def.does));
+    const list = lobby && sel.group !== 'body' ? lobby.partsOf(sel.group, PAIRED.includes(sel.group) ? sel.side : null) : [];
+    if (list.length > 1) {
+      const d = el('details', 'plist'); d.append(el('summary', '', `${list.length} single ${list[0].layer === 'bone' ? 'bones and joints' : 'muscles'} in this group`));
+      const box = el('div', 'pchips'); for (const i of list.sort((a, b) => b.center.y - a.center.y)) { const b = el('button', '', singleName(i)); b.type = 'button'; b.onclick = () => lobby.select(i.pid, true); box.append(b); }
+      d.append(box); card.append(d);
+    }
+  }
   if (st.warnings.length) {
     card.append(el('h3', '', 'Warnings'));
     for (const w of st.warnings) {
@@ -263,15 +280,17 @@ function selectPart(group, side) {
 function deselect() { state.sel = null; if (lobby) lobby.select(-1); renderCard(); }
 function onPick(i) {
   if (!i) { state.sel = null; renderCard(); return; }
-  state.sel = { group: i.group, side: PAIRED.includes(i.group) ? i.side : null, pid: i.pid }; $('hint').classList.add('gone'); renderCard();
+  state.sel = { group: i.group, side: PAIRED.includes(i.group) ? i.side : null, pid: i.pid };
+  if (i.name) Object.assign(state.sel, { name: i.name, named: i.named, layer: i.layer });
+  $('hint').classList.add('gone'); renderCard();
 }
 const tip = $('tip');
 function onHover(i, x, y) {
   if (!i) { tip.hidden = true; return; }
   const r = $('cam').getBoundingClientRect(), st = parts[i.group];
   tip.hidden = false; tip.style.left = (x - r.left) + 'px'; tip.style.top = (y - r.top) + 'px';
-  tip.textContent = partName(i.group, i.side);
-  const s = document.createElement('small'); s.textContent = st.statusLabel; tip.append(s);
+  tip.textContent = i.name ? singleName(i) : partName(i.group, i.side);
+  const s = document.createElement('small'); s.textContent = (i.name ? PARTS[i.group].label + ' · ' : '') + st.statusLabel; tip.append(s);
 }
 
 /* ---------- Layer and look ---------- */
@@ -299,23 +318,63 @@ function syncTiles(withHistory) {
   renderTiles(); renderPast();
 }
 function setMeasurements(obj, opts = {}) {
+  if (obj['body.heightCm'] !== undefined || obj['body.massKg'] !== undefined) setBody({ heightCm: obj['body.heightCm'], massKg: obj['body.massKg'] });
   for (const k in obj) {
     if (k === 'mission.month' || k === 'sex' || k === 'pvt.confirmed' || k === 'pvt.meanRtMs' || INDICATORS[k] || SCORE_KEYS.includes(k)) M[k] = obj[k];
   }
   recompute(); syncTiles(!!opts.history); return true;
 }
-function loadSample() {
-  M = {}; state.sample = true; setMeasurements({ ...SAMPLE, ...SCORE_SAMPLE }, { history: true });
-  envItems = [{ text: 'Radiation background nominal', note: 'Sample' }, { text: 'Cabin CO₂ within limits', note: 'Sample' }, { text: 'Space weather quiet', note: 'Sample' }];
-  predItems = [{ text: 'Hip and lumbar bone density on track for month 4 (model)', note: 'Sample' }, { text: 'Watch urine volume: stone risk', note: 'Sample' }];
-  renderUpcoming(); $('sampleChip').hidden = false; $('sampleBtn').textContent = 'Clear sample data';
+/** Loads one of the invented test scenarios (testdata.mjs): 'nominal', 'mixed' or 'critical'. */
+function loadSample(id = 'mixed') {
+  const sc = SCENARIOS[id] || SCENARIOS.mixed; id = SCENARIOS[id] ? id : 'mixed';
+  M = {}; resetVitals(); state.sample = id; setBody(sc.body); setMeasurements(sc.data, { history: true });
+  envItems = sc.environment.map(text => ({ text, note: 'Test data' })); predItems = sc.predictions.map(text => ({ text, note: 'Test data' }));
+  renderUpcoming(); $('sampleChip').hidden = false; $('sampleChip').textContent = 'Test data · ' + sc.label; $('sampleBtn').textContent = 'Test data · ' + sc.label;
   if (lobby) lobby.setHeartRate(M['hr.rest']);
+  return true;
 }
 function clearSample() {
-  M = {}; state.sample = false; resetVitals(); envItems = []; predItems = [];
-  $('sampleChip').hidden = true; $('sampleBtn').textContent = 'Load sample data';
+  M = {}; state.sample = false; resetVitals(); envItems = []; predItems = []; setBody(null);
+  $('sampleChip').hidden = true; $('sampleBtn').textContent = 'Test data';
   recompute(); renderTiles(); renderPast(); renderUpcoming();
 }
+/* Test-data menu above the button */
+function testMenu(open) {
+  const m = $('testMenu'); m.hidden = !open; $('sampleBtn').setAttribute('aria-expanded', String(open)); if (!open) return;
+  m.innerHTML = '';
+  for (const id of SCENARIO_IDS) { const sc = SCENARIOS[id], b = el('button', 'tm ' + id + (state.sample === id ? ' on' : '')); b.type = 'button'; b.setAttribute('role', 'menuitem');
+    b.append(el('i'), el('b', '', sc.label), el('small', '', sc.note)); b.onclick = () => { testMenu(false); loadSample(id); }; m.append(b); }
+  const rp = el('button', 'tm plainrow'); rp.type = 'button'; rp.append(el('b', '', 'Paste as a report'), el('small', '', 'Puts the borderline data into the message box as text'));
+  rp.onclick = () => { testMenu(false); const t = $('chatIn'); t.value = reportText('mixed'); fitIn(); t.focus(); }; m.append(rp);
+  if (state.sample) { const c = el('button', 'tm plainrow'); c.type = 'button'; c.append(el('b', '', 'Clear test data')); c.onclick = () => { testMenu(false); clearSample(); }; m.append(c); }
+}
+addEventListener('pointerdown', e => { if (!$('testMenu').hidden && !e.target.closest('#testMenu,#sampleBtn')) testMenu(false); if (!$('bodyPop').hidden && !e.target.closest('#bodyPop,#bodyBtn')) $('bodyPop').hidden = true; });
+
+/* ---------- Body size: height and mass stretch the model (approximate, the anatomy is not re-shaped) ---------- */
+// The BodyParts3D skeleton spans 164 cm from sole to skull top; with scalp and heel pad that is taken as a stature of 166 cm.
+// Breadth follows the body-mass index relative to 22.5 kg/m², damped, because a frame does not widen as fast as mass grows.
+const REF_BODY = { heightCm: 166, massKg: 62 };
+const body = { heightCm: null, massKg: null };
+try { const b = JSON.parse(localStorage.getItem('medvital.body') || 'null'); if (b && num(b.heightCm) && num(b.massKg)) Object.assign(body, b); } catch (e) {}
+function bodyScale(h, m) {
+  const sy = h / REF_BODY.heightCm, bmi = m / (h / 100) ** 2, f = Math.max(.9, Math.min(1.16, Math.pow(bmi / 22.5, .4)));
+  return { sx: sy * f, sy, bmi };
+}
+function setBody(b, save) {
+  if (!b) { body.heightCm = body.massKg = null; }
+  else { if (num(b.heightCm)) body.heightCm = Math.max(150, Math.min(195, Math.round(b.heightCm))); if (num(b.massKg)) body.massKg = Math.max(45, Math.min(110, Math.round(b.massKg))); }
+  const h = body.heightCm || REF_BODY.heightCm, m = body.massKg || REF_BODY.massKg, sc = bodyScale(h, m), set = body.heightCm || body.massKg;
+  if (lobby) lobby.setBody(sc.sx, sc.sy);
+  $('rH').value = h; $('rW').value = m; $('vH').textContent = h + ' cm'; $('vW').textContent = `${m} kg · BMI ${sc.bmi.toFixed(1)}`;
+  $('bodyBtn').textContent = set ? `${h} cm · ${m} kg` : 'Body size';
+  if (save) { try { set ? localStorage.setItem('medvital.body', JSON.stringify(body)) : localStorage.removeItem('medvital.body'); } catch (e) {} }
+  return { ...body, ...sc };
+}
+$('bodyBtn').onclick = () => { $('bodyPop').hidden = !$('bodyPop').hidden; };
+$('rH').oninput = () => setBody({ heightCm: +$('rH').value, massKg: +$('rW').value }, true);
+$('rW').oninput = $('rH').oninput;
+$('bodyReset').onclick = () => setBody(null, true);
+
 /** Tile values from health.mjs and other callers. */
 function setVital(id, d) {
   const v = VITALS.find(x => x.id === id); if (!v) return false;
@@ -333,7 +392,7 @@ function setSystemStatus(id, status) { const g = SYSTEM_GROUPS[id]; if (!g) retu
 document.querySelectorAll('#seg button').forEach(b => b.onclick = () => setLayer(b.dataset.layer));
 document.querySelectorAll('#segLook button').forEach(b => b.onclick = () => setLook(b.dataset.look));
 document.querySelectorAll('#segRot button').forEach(b => b.onclick = () => { document.querySelectorAll('#segRot button').forEach(x => x.classList.toggle('on', x === b)); if (lobby) lobby.setAutoRotate(b.dataset.rot === '1'); });
-$('sampleBtn').onclick = () => (state.sample ? clearSample() : loadSample());
+$('sampleBtn').onclick = () => testMenu($('testMenu').hidden);
 $('bBody').onclick = () => selectPart('body');
 $('bReset').onclick = () => { deselect(); if (lobby) lobby.resetView(); };
 const openSheet = o => { $('ov').hidden = !o; }; $('setBtn').onclick = () => openSheet(true); $('setDone').onclick = () => openSheet(false);
@@ -343,7 +402,7 @@ addEventListener('keydown', e => {
   if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
   const m = { '1': 'bone', '2': 'organ', '3': 'muscle', '4': 'all' }[e.key]; if (m) setLayer(m);
   if (e.key === 'x') setLook(state.look === 'xray' ? 'solid' : 'xray');
-  if (e.key === 'Escape') deselect();
+  if (e.key === 'Escape') { deselect(); testMenu(false); $('bodyPop').hidden = true; }
   if (e.key === 'r') { deselect(); if (lobby) lobby.resetView(); }
 });
 
@@ -385,21 +444,34 @@ $('fbForm').onsubmit = async e => {
   btn.disabled = false;
 };
 
-/* ---------- Assistant (rule-based, reads the crew member's own data) ---------- */
-const asst = { greeted: false, rec: null };
+/* ---------- Assistant and data input in one conversation (right) ----------
+   A question goes to the rule-based assistant; a pasted report or a dropped file goes to the reader (intake.mjs), which
+   shows what it found and changes nothing until "Apply" is pressed. */
+const asst = { rec: null };
 const log = $('alog');
-function say(who, text) {
-  const d = el('div', 'msg ' + who); for (const [i, line] of String(text).split('\n').entries()) { if (i) d.append(document.createElement('br')); d.append(document.createTextNode(line)); }
-  log.append(d); log.scrollTop = log.scrollHeight;
+const START_CHIPS = ['How am I doing?', 'What needs attention?', 'Sleep score', 'Load test data'];
+function hello() {
+  log.innerHTML = ''; const h = el('div', 'hello');
+  h.append(el('b', '', 'How can I help?'), el('span', '', 'Ask about your health data, or paste a medical report, lab results or a device export. I show what I found before anything changes.'));
+  log.append(h); chips(START_CHIPS);
 }
+function push(who, node) {
+  const h = log.querySelector('.hello'); if (h) h.remove();
+  const d = el('div', 'msg ' + who); d.append(node); log.append(d); log.scrollTop = log.scrollHeight; return d;
+}
+function say(who, text) {
+  const f = document.createDocumentFragment(); for (const [i, line] of String(text).split('\n').entries()) { if (i) f.append(document.createElement('br')); f.append(document.createTextNode(line)); }
+  push(who, f);
+}
+const inMsg = (who, node) => push(who, typeof node === 'string' ? document.createTextNode(node) : node);
 function chips(list) { const c = $('achips'); c.innerHTML = ''; for (const t of list || []) { const b = el('button', '', t); b.type = 'button'; b.onclick = () => ask(t); c.append(b); } }
 function assistantStatus() {
   const { counts, attention } = summarize(parts), total = Object.keys(parts).length;
   $('asSub').textContent = counts.nodata === total ? 'No data yet' : attention.length ? `${attention.length} need attention` : 'All in range';
-  $('asBtn').classList.toggle('dotted', attention.some(a => a.level >= 2));
 }
 function ask(q) {
-  q = String(q || '').trim(); if (!q) return; showDock('assistant'); say('me', q); $('asIn').value = '';
+  q = String(q || '').trim(); if (!q) return; say('me', q);
+  if (/^load test data$/i.test(q)) { loadSample('mixed'); say('bot', 'Loaded the "Borderline" test data: invented values for mission month 4 with a few findings to watch. The button under the body switches between the three test sets.'); chips(['What needs attention?', 'How am I doing?', 'Exercise score']); return; }
   if (/\bscores?\b/i.test(q)) {
     const all = scoreAll(currentInput()), want = DOMAIN_IDS.filter(id => q.toLowerCase().includes(id)), ids = want.length ? want : DOMAIN_IDS;
     const lines = ids.map(id => { const sc = all[id]; if (sc.score === null) return `${sc.label}: no data yet.`;
@@ -417,24 +489,12 @@ function ask(q) {
   say('bot', r.text); chips(r.chips || SUGGESTIONS.slice(0, 3));
   if (r.focus && PARTS[r.focus]) selectPart(r.focus);
 }
-/* ---------- Right dock: data input and assistant ---------- */
-function showDock(tab) {
-  document.querySelectorAll('[data-dock]').forEach(b => b.setAttribute('aria-selected', String(b.dataset.dock === tab)));
-  $('inPane').hidden = tab !== 'input'; $('asPane').hidden = tab !== 'assistant';
-  if (tab === 'assistant') {
-    if (!asst.greeted) { asst.greeted = true; say('bot', 'I read your own health data and explain it with sources. Type, or tap the microphone.'); const r = assistantAnswer('how am i doing', { parts, M: currentInput() }); say('bot', r.text); chips(r.chips); }
-    setTimeout(() => $('asIn').focus(), 30);
-  } else setTimeout(() => $('inText').focus(), 30);
-}
-document.querySelectorAll('[data-dock]').forEach(b => b.onclick = () => showDock(b.dataset.dock));
-$('asBtn').onclick = () => showDock('assistant');
+/** Kept for callers of the old two-tab dock: both tabs are one conversation now. */
+function showDock() { setTimeout(() => $('chatIn').focus(), 30); }
 
-const KEY_LABEL = { 'mission.month': ['Mission month', ''], 'pvt.meanRtMs': ['Mean reaction time', 'ms'] };
+const KEY_LABEL = { 'mission.month': ['Mission month', ''], 'pvt.meanRtMs': ['Mean reaction time', 'ms'], 'body.heightCm': ['Height', 'cm'], 'body.massKg': ['Body mass', 'kg'] };
 const keyInfo = k => KEY_LABEL[k] || (INDICATORS[k] ? [INDICATORS[k].label, INDICATORS[k].unit] : SCORE_INPUTS[k] ? [SCORE_INPUTS[k].label, SCORE_INPUTS[k].unit] : [k, '']);
 const fmtVal = (k, v) => (typeof v === 'boolean' ? (v ? 'yes' : 'no') : `${v}${keyInfo(k)[1] ? ' ' + keyInfo(k)[1] : ''}`);
-const inLog = $('inLog');
-function inMsg(who, node) { const d = el('div', 'msg ' + who); if (typeof node === 'string') d.textContent = node; else d.append(node); inLog.append(d); inLog.scrollTop = inLog.scrollHeight; return d; }
-inMsg('bot', 'Paste a medical report, lab results or a device export (text, CSV or JSON), or drop the file here. I show what I found before anything changes.');
 function readSource(text, name) {
   const me = el('div'); if (name) me.append(el('b', 'file', name)); const prev = text.trim().replace(/\s+/g, ' '); if (!name || prev) me.append(el('span', 'prev', prev.length > 140 ? prev.slice(0, 140) + ' …' : prev));
   inMsg('me', me);
@@ -457,7 +517,9 @@ function readSource(text, name) {
     const set = {}; list.querySelectorAll('input:checked').forEach(c => { set[c.dataset.key] = r.values[c.dataset.key]; });
     const n = Object.keys(set).length; if (!n) return;
     setMeasurements(set); if (set['hr.rest'] && lobby) lobby.setHeartRate(set['hr.rest']);
+    if (set['body.heightCm'] !== undefined || set['body.massKg'] !== undefined) setBody({}, true);
     list.querySelectorAll('input').forEach(c => { c.disabled = true; }); act.replaceWith(el('p', 'done', `Applied ${n} value${n > 1 ? 's' : ''} · ${new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}`));
+    chips(['What needs attention?', 'How am I doing?', 'Sleep score']);
   };
   no.onclick = () => { list.querySelectorAll('input').forEach(c => { c.disabled = true; c.checked = false; }); act.replaceWith(el('p', 'done', 'Discarded')); };
   act.append(no, ok); box.append(act); inMsg('bot', box);
@@ -470,38 +532,45 @@ async function readFiles(files) {
     } else inMsg('bot', `${f.name}: PDFs and images cannot be read yet. Open the file, copy its text and paste it here.`);
   }
 }
-$('inForm').onsubmit = e => { e.preventDefault(); const t = $('inText').value; if (!t.trim()) return; $('inText').value = ''; fitIn(); readSource(t); };
-const fitIn = () => { const t = $('inText'); t.style.height = 'auto'; t.style.height = Math.min(t.scrollHeight, 140) + 'px'; };
-$('inText').oninput = fitIn;
-$('inText').onkeydown = e => { e.stopPropagation(); if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); $('inForm').requestSubmit(); } };
-$('inFile').onchange = e => { readFiles([...e.target.files]); e.target.value = ''; };
+/** A message is a report when the reader finds values in it and it is not phrased as a question or a one-line statement. */
+const QUESTION = /\?\s*$|^(what|how|why|is|are|am|should|can|could|do|does|which|when|where|show|tell|explain|help)\b/i;
+function route(text) {
+  const t = text.trim(); if (!t) return;
+  const n = QUESTION.test(t) ? 0 : extract(t, '').found.length;
+  if (n >= 2 || (n === 1 && (t.length > 60 || /\n/.test(t)))) readSource(t); else ask(t);
+}
+const fitIn = () => { const t = $('chatIn'); t.style.height = 'auto'; t.style.height = Math.min(t.scrollHeight, 150) + 'px'; $('chatSend').disabled = !t.value.trim(); };
+$('chatForm').onsubmit = e => { e.preventDefault(); const t = $('chatIn').value; if (!t.trim()) return; $('chatIn').value = ''; fitIn(); route(t); };
+$('chatIn').oninput = fitIn;
+$('chatIn').onkeydown = e => { e.stopPropagation(); if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) { e.preventDefault(); $('chatForm').requestSubmit(); } };
+$('chatFile').onchange = e => { readFiles([...e.target.files]); e.target.value = ''; };
 { const dock = $('dock'), drop = $('drop'); let depth = 0;
-  dock.addEventListener('dragenter', e => { if (![...e.dataTransfer.types].includes('Files')) return; e.preventDefault(); depth++; drop.hidden = false; showDock('input'); });
+  dock.addEventListener('dragenter', e => { if (![...e.dataTransfer.types].includes('Files')) return; e.preventDefault(); depth++; drop.hidden = false; });
   dock.addEventListener('dragover', e => { if ([...e.dataTransfer.types].includes('Files')) e.preventDefault(); });
   dock.addEventListener('dragleave', () => { if (--depth <= 0) { depth = 0; drop.hidden = true; } });
   dock.addEventListener('drop', e => { e.preventDefault(); depth = 0; drop.hidden = true; readFiles([...e.dataTransfer.files]); }); }
-$('asForm').onsubmit = e => { e.preventDefault(); ask($('asIn').value); };
 const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-if (!SR) $('asMic').hidden = true;
-$('asMic').onclick = () => {
+if (!SR) $('chatMic').hidden = true;
+$('chatMic').onclick = () => {
   if (asst.rec) { asst.rec.stop(); return; }
   const r = new SR(); asst.rec = r; r.lang = 'en-US'; r.interimResults = false; r.maxAlternatives = 1;
-  $('asMic').classList.add('rec');
-  r.onresult = e => { const t = e.results[0][0].transcript; $('asIn').value = t; ask(t); };
+  $('chatMic').classList.add('rec');
+  r.onresult = e => { ask(e.results[0][0].transcript); };
   r.onerror = e => { say('bot', e.error === 'not-allowed' ? 'Microphone access was denied. Allow it in the browser settings.' : 'Voice input failed (' + e.error + '). Browsers send speech to an online service, so it needs an internet connection.'); };
-  r.onend = () => { asst.rec = null; $('asMic').classList.remove('rec'); };
-  try { r.start(); } catch (e) { asst.rec = null; $('asMic').classList.remove('rec'); }
+  r.onend = () => { asst.rec = null; $('chatMic').classList.remove('rec'); };
+  try { r.start(); } catch (e) { asst.rec = null; $('chatMic').classList.remove('rec'); }
 };
+hello();
 
 /* ---------- Start ---------- */
 renderTiles(); renderPast(); renderUpcoming(); renderAttention();
 try {
   lobby = await createLobby($('gl'), { paired: PAIRED, onPick, onHover });
-  lobby.setLook(state.look); lobby.setLayer(state.layer); lobby.setOpacity(+$('rOp').value / 100);
+  lobby.setLook(state.look); lobby.setLayer(state.layer); lobby.setOpacity(+$('rOp').value / 100); setBody({});
   $('camMsg').classList.add('hide'); setSub(BUILD); setDot('ok');
   recompute();
   setTimeout(() => $('hint').classList.add('gone'), 9000);
-  if (location.hash === '#sample') loadSample();
+  { const m = /^#sample(?:=(\w+))?$/.exec(location.hash); if (m) loadSample(m[1] || 'mixed'); }
 } catch (e) {
   console.error(e); setDot('bad'); setSub('Error'); $('camTxt').textContent = 'Anatomy or 3D could not be loaded. Serve the page from a local server (see README) and use a browser with WebGL.';
 }
@@ -520,7 +589,10 @@ window.AstroBody = {
   select: selectPart, deselect,
   /** Evaluated state for every part: {status, level, warnings, notes, indicators} */
   getParts: () => parts,
-  loadSample, clearSample,
+  /** loadSample('nominal' | 'mixed' | 'critical') loads invented test data; AstroBody.scenarios lists them. */
+  loadSample, clearSample, scenarios: SCENARIO_IDS,
+  /** setBody({heightCm: 178, massKg: 74}) stretches the model (150 to 195 cm, 45 to 110 kg); setBody(null) resets it. */
+  setBody,
   /** Sleep / Exercise / Nutrition scores: {sleep:{score,coverage,items}, ...}. Inputs: AstroBody.scoreInputs */
   getScores: () => scoreAll(currentInput()), scoreInputs: SCORE_KEYS, setView,
   _state: state, _lobby: () => lobby

@@ -3,7 +3,7 @@
    and rejects anything outside a plausible range. Nothing is guessed: unknown lines are reported as unread. */
 
 const N = '([-+−]?\\d+(?:[.,]\\d+)?)';
-const UNIT = '\\s*(mmol\\s*/\\s*l|mg\\s*/\\s*dl|nmol\\s*/\\s*l|ng\\s*/\\s*ml|g\\s*/\\s*dl|g\\s*/\\s*l|g\\s*/\\s*kg|°\\s*[cf]|deg\\s*[cf]|msv|ms|ml|l\\b|%|bpm|/min|h\\b|hours?|hrs?|min(?:utes)?|days?|d\\b|kcal)?';
+const UNIT = '\\s*(mmol\\s*/\\s*l|mg\\s*/\\s*dl|nmol\\s*/\\s*l|ng\\s*/\\s*ml|g\\s*/\\s*dl|g\\s*/\\s*l|g\\s*/\\s*kg|kg|cm|°\\s*[cf]|deg\\s*[cf]|msv|ms|ml|l\\b|%|bpm|/min|h\\b|hours?|hrs?|min(?:utes)?|days?|d\\b|kcal)?';
 
 /** [key, label regex (most specific first), plausible range, unit converter] */
 const conv = {
@@ -12,6 +12,7 @@ const conv = {
   vitd: (v, u) => (/nmol/.test(u) ? Math.round(v / 2.5) : v),
   hgb: (v, u) => (/g\s*\/\s*l/.test(u) && !/dl/.test(u) || v > 30 ? Math.round(v / 10 * 10) / 10 : v),
   urineL: (v, u) => (/ml/.test(u) || v > 20 ? Math.round(v) / 1000 : v),
+  height: v => (v < 3 ? Math.round(v * 100) : v),
   hours: (v, u) => (/min/.test(u) ? Math.round(v / 60 * 10) / 10 : v)
 };
 const NUMERIC = [
@@ -35,6 +36,8 @@ const NUMERIC = [
   ['hemoglobin.gdl',        /ha?emoglobin|\bhgb\b|\bhb\b/],
   ['vitd.ngml',             /(?:25[- ]?(?:\(oh\)|oh|hydroxy)\s*)?vitamin\s*d(?:3)?|25[- ]?oh[- ]?d/],
   ['mass.changePct',        /(?:body\s*)?(?:mass|weight)\s*change/],
+  ['body.massKg',           /body\s*(?:mass|weight)|\bweight\b/],
+  ['body.heightCm',         /(?:body\s*)?height|stature/],
   ['strength.changePct',    /(?:muscle\s*)?strength(?:\s*change)?/],
   ['aerobic.changePct',     /vo2\s*(?:peak|max)(?:\s*change)?|aerobic(?:\s*(?:capacity|fitness))?(?:\s*change)?/],
   ['sans.hyperopicShiftD',  /hyperopic shift|refractive shift/],
@@ -53,9 +56,9 @@ export const RANGES = Object.freeze({
   'radiation.careerMsv': [0, 2000], 'radiation.eventMsv': [0, 2000], 'bmd.hipPct': [-40, 20], 'bmd.lumbarPct': [-40, 20], 'bmd.wholeBodyPct': [-40, 20],
   'strength.changePct': [-80, 50], 'aerobic.changePct': [-80, 50], 'sans.hyperopicShiftD': [-5, 5],
   'exercise.minPerWeek': [0, 1500], 'exercise.resistiveDays': [0, 7], 'nutrition.energyPct': [0, 200], 'nutrition.proteinGkg': [0, 4], 'nutrition.fluidL': [0, 8],
-  'mission.month': [0, 36], 'bp.sys': [50, 260], 'bp.dia': [30, 160]
+  'mission.month': [0, 36], 'body.heightCm': [140, 210], 'body.massKg': [35, 160], 'bp.sys': [50, 260], 'bp.dia': [30, 160]
 });
-const CONVERT = { 'temp.c': conv.temp, 'glucose.mgdl': conv.glucose, 'vitd.ngml': conv.vitd, 'hemoglobin.gdl': conv.hgb, 'urine.volumeL': conv.urineL, 'sleep.hours': conv.hours, 'nutrition.fluidL': conv.urineL };
+const CONVERT = { 'temp.c': conv.temp, 'glucose.mgdl': conv.glucose, 'vitd.ngml': conv.vitd, 'hemoglobin.gdl': conv.hgb, 'urine.volumeL': conv.urineL, 'sleep.hours': conv.hours, 'nutrition.fluidL': conv.urineL, 'body.heightCm': conv.height };
 
 /** Yes/no and categorical findings. */
 const YES = /\b(yes|present|positive|detected|reported|true)\b/, NO = /\b(no|none|absent|negative|not detected|normal|false)\b/;

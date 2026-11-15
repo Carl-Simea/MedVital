@@ -11,7 +11,8 @@ mem=collections.defaultdict(set)
 for k,v in SYS.items():
     for p in comp[v]: mem[p].add(k)
 ids=sorted(f[:-4] for f in os.listdir(D+'/stl'))
-BUDGET={'bone':95000,'organ':75000,'muscle':105000}
+BUDGET={'bone':175000,'organ':75000,'muscle':300000}
+MINF={'bone':140,'organ':48,'muscle':160}
 SEG=['pelvis','chest','head','uaL','faL','haL','uaR','faR','haR','thL','shL','ftL','thR','shR','ftR']
 SI={n:i for i,n in enumerate(SEG)}
 GROUPS=['skull','spineC','spineT','spineL','ribs','shoulder','arm','hand','pelvis','femur','shin','foot',
@@ -179,36 +180,40 @@ for p in parts:
 print(stats); print(collections.Counter(p['g'] for p in parts))
 print('bridge:',sorted({p['name'] for p in parts if p.get('bridge')}))
 # decimate
-out={}
+out={}; plist=[]
 allv=np.vstack([p['v'] for p in parts]); bmin=allv.min(0)-1; bmax=allv.max(0)+1
 for layer in ('bone','organ','muscle'):
     ps=[p for p in parts if p['layer']==layer]
     wts=np.array([p['area']*(0.35 if p['g']=='brain' else 1.6 if p['g'] in('hand','foot','heart','skull') else 1) for p in ps]); wts/=wts.sum()
-    V=[];F=[];S=[];G=[];off=0
+    V=[];F=[];G=[];PI=[];off=0
     for p,w in zip(ps,wts):
-        tgt=int(max(48,min(len(p['f']),BUDGET[layer]*w)))
+        tgt=int(max(MINF[layer],min(len(p['f']),BUDGET[layer]*w)))
         v,f=p['v'],p['f']
         if len(f)>tgt*1.1:
             try:
-                v2,f2,col=fs.simplify(v.astype(np.float32),f.astype(np.int32),target_count=tgt,agg=6,return_collapses=True)
-                idx=fs.replay_simplification(v.astype(np.float32),f.astype(np.int32),col)[2]
-                Wn=np.zeros((len(v2),15)); np.add.at(Wn,idx,p['W']); Wn/=np.maximum(Wn.sum(1,keepdims=True),1e-9)
+                v2,f2=v.astype(np.float32),f.astype(np.int32)
+                for agg in (2,3,4,5,6,7):          # gentle passes first: they pick better collapses and keep thin sheets intact
+                    if len(f2)>tgt*1.05: v2,f2=fs.simplify(v2,f2,target_count=tgt,agg=agg)
+                if layer=='muscle' and len(f2)>300:
+                    m=trimesh.Trimesh(v2,f2,process=False); trimesh.smoothing.filter_taubin(m,lamb=0.5,nu=-0.53,iterations=6); v2=np.asarray(m.vertices)
             except Exception as e:
-                print('simplify fail',p['name'],e); v2,f2,Wn=v,f,p['W']
-        else: v2,f2,Wn=v,f,p['W']
-        o=np.argsort(-Wn,1)[:,:2]; w0=np.take_along_axis(Wn,o[:,:1],1)[:,0]; w1=np.take_along_axis(Wn,o[:,1:2],1)[:,0]
-        w0=w0/np.maximum(w0+w1,1e-9)
+                print('simplify fail',p['name'],e); v2,f2=v,f
+        else: v2,f2=v,f
         V.append(v2); F.append(f2+off); off+=len(v2)
-        S.append(np.stack([o[:,0],o[:,1],np.round(w0*255)],1).astype(np.uint8)); G.append(np.full(len(v2),GI[p['g']],np.uint8))
-    V=np.vstack(V);F=np.vstack(F);S=np.vstack(S);G=np.concatenate(G)
+        G.append(np.full(len(v2),GI[p['g']],np.uint8)); PI.append(np.full(len(v2),len(plist),np.uint16))
+        c=v-v.mean(0); ev,evec=np.linalg.eigh(c.T@c/len(c)); ax=evec[:,2]
+        if abs(ax[1])>0.3 and ax[1]<0: ax=-ax
+        plist.append({'n':p['name'],'g':GI[p['g']],'s':p['side'] or '','l':layer[0],'id':p['id'],'a':[round(float(x),2) for x in ax],'e':round(float(np.sqrt(ev[2]/max(ev[1],1e-9))),1)})
+    V=np.vstack(V);F=np.vstack(F);G=np.concatenate(G);PI=np.concatenate(PI)
     q=np.round((V-bmin)/(bmax-bmin)*65535).astype('<u2')
-    out[layer]=(q,S,G,F.astype('<u4')); print(layer,'verts',len(V),'faces',len(F))
-blob=b''; meta={'bmin':bmin.tolist(),'bmax':bmax.tolist(),'seg':SEG,'groups':GROUPS,'layers':{},'J':{k:v.round(2).tolist() for k,v in J.items()},
+    out[layer]=(q,G,PI.astype('<u2'),F.astype('<u4')); print(layer,'verts',len(V),'faces',len(F))
+blob=b''; meta={'v':2,'parts':plist,'bmin':bmin.tolist(),'bmax':bmax.tolist(),'seg':SEG,'groups':GROUPS,'layers':{},'J':{k:v.round(2).tolist() for k,v in J.items()},
  'heartC':np.vstack([p['v'] for p in parts if p['name']=='wall of heart']).mean(0).round(1).tolist(),
  'lungC':np.vstack([p['v'] for p in parts if p['g']=='lung']).mean(0).round(1).tolist(),
  'credit':'BodyParts3D, (c) The Database Center for Life Science licensed under CC Attribution-Share Alike 2.1 Japan'}
-for layer,(q,S,G,F) in out.items():
+# per layer: positions u16*3, group u8 (+pad to 2), part index u16 (+pad to 4), faces u32*3
+for layer,(q,G,PI,F) in out.items():
     meta['layers'][layer]={'nv':len(q),'nf':len(F),'off':len(blob)}
-    blob+=q.tobytes()+S.tobytes()+G.tobytes()+b'\0'*((-(len(q)*6+len(S)*3+len(G)))%4)+F.tobytes()
-open(OUT+'/anatomy.bin','wb').write(blob); json.dump(meta,open(OUT+'/anatomy.json','w'))
+    b=q.tobytes()+G.tobytes(); b+=b'\0'*(len(b)%2); b+=PI.tobytes(); b+=b'\0'*((-len(b))%4); blob+=b+F.tobytes()
+open(OUT+'/anatomy.bin','wb').write(blob); json.dump(meta,open(OUT+'/anatomy.json','w'),separators=(',',':'))
 gz=gzip.compress(blob,9); open(OUT+'/anatomy.bin.gz','wb').write(gz); print('bin',len(blob)/1e6,'gz',len(gz)/1e6)
