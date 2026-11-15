@@ -149,13 +149,13 @@ h1{font-size:22px;font-weight:700;letter-spacing:-.02em;margin:0}
 .hint.gone{opacity:0}
 .tip{position:absolute;pointer-events:none;border-radius:12px;padding:6px 10px;font-size:13px;font-weight:600;white-space:nowrap;transform:translate(14px,14px);z-index:3}
 .tip small{display:block;font-weight:500;opacity:.8;font-size:11.5px}
-.tile .td.watch{background:#e8b900;opacity:1}
+.tile .td.watch{background:#ffe94d;opacity:1}
 .attn{display:flex;flex-wrap:nowrap;gap:6px;flex:none;height:32px;overflow-x:auto;scrollbar-width:none;align-items:center}
 .attn::-webkit-scrollbar{display:none}
 .attn button,.attn>span{flex:none;white-space:nowrap;background:var(--fill);border-radius:999px;padding:5px 11px;font-size:12.5px;font-weight:600;display:inline-flex;gap:6px;align-items:center}
 .attn>span{color:var(--muted);font-weight:500}
 .attn i{width:8px;height:8px;border-radius:50%;display:inline-block;background:var(--muted)}
-.attn i.watch,.card .st.watch i{background:#e8b900}.attn i.warn,.card .st.warn i{background:var(--warn)}.attn i.alert,.card .st.alert i{background:var(--bad)}.card .st.ok i{background:var(--ok)}
+.attn i.watch,.card .st.watch i{background:#ffe94d}.attn i.warn,.card .st.warn i{background:var(--warn)}.attn i.alert,.card .st.alert i{background:var(--bad)}.card .st.ok i{background:var(--ok)}
 
 /* Part card (left column) */
 .card{background:var(--card);border-radius:var(--r);padding:16px;display:flex;flex-direction:column;gap:12px;flex:1;min-height:0;overflow:auto}
@@ -169,7 +169,7 @@ h1{font-size:22px;font-weight:700;letter-spacing:-.02em;margin:0}
 .card ul li{font-size:13.5px;line-height:1.4;padding:7px 0}
 .card ul li + li{border-top:.5px solid var(--line)}
 .card .warnli{border-left:3px solid var(--warn);padding-left:10px;margin:4px 0}
-.card .warnli.lv1{border-color:#e8b900}.card .warnli.lv3{border-color:var(--bad)}
+.card .warnli.lv1{border-color:#ffe94d}.card .warnli.lv3{border-color:var(--bad)}
 .card .meta{display:block;color:var(--muted);font-size:11.5px;margin-top:2px}
 .card .meta a{color:inherit;text-decoration:underline}
 .card .ind{display:grid;grid-template-columns:1fr auto;gap:2px 10px;font-size:13px}
@@ -457,21 +457,33 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--brand-teal);out
 @media (prefers-reduced-motion:reduce){.actpill.live i{animation:none}}
 .tm.plainrow i{display:none}
 
-/* v3.9 — warning markers with lines */
+/* v3.9 — warning markers: holographic labels with lines (yellow = watch, orange = warning, red = alert) */
 .callSvg{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:4;overflow:visible}
 .callBox{position:absolute;inset:0;pointer-events:none;z-index:5}
-.cl{fill:none;stroke-width:1.4;stroke-linejoin:round;stroke-linecap:round;opacity:.9}
-.cd{stroke:#0b1a30;stroke-width:1.5}
-.cl.watch{stroke:#f5c542}.cd.watch{fill:#f5c542}
-.cl.warn{stroke:#ff9f0a}.cd.warn{fill:#ff9f0a}
-.cl.alert{stroke:#ff453a}.cd.alert{fill:#ff453a}
-.call{position:absolute;left:0;top:0;pointer-events:auto;display:flex;align-items:center;gap:7px;height:30px;padding:0 12px 0 8px;border-radius:999px;border:1px solid rgba(255,255,255,.14);background:rgba(11,17,26,.78);-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);color:var(--ink,#eaf3f4);font-size:12.5px;font-weight:600;white-space:nowrap;cursor:pointer}
-.call:hover{border-color:rgba(255,255,255,.35)}
-.call svg{width:17px;height:17px;flex:none;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}
-.call svg path:first-child{stroke:none}
-.call svg path:last-child{stroke:#10161e;fill:none}
-.call.watch svg path:first-child{fill:#f5c542}
-.call.warn svg path:first-child{fill:#ff9f0a}
-.call.alert svg path:first-child{fill:#ff453a}
-.call.alert{border-color:rgba(255,69,58,.5)}
+.attn[hidden]{display:none}
+.callSvg .watch{--c:#ffe94d}.callSvg .warn{--c:#ff6a14}.callSvg .alert{--c:#ff2348}
+.cl{fill:none;stroke:var(--c);stroke-width:1.2;stroke-linejoin:round;stroke-linecap:round;stroke-dasharray:3 4;opacity:.85;filter:drop-shadow(0 0 3px var(--c));animation:clFlow 1.4s linear infinite}
+.cd{fill:var(--c);filter:drop-shadow(0 0 4px var(--c))}
+.cr{fill:none;stroke:var(--c);stroke-width:1;opacity:.7;transform-box:fill-box;transform-origin:center;animation:crPulse 2.2s ease-out infinite}
+@keyframes clFlow{to{stroke-dashoffset:-14}}
+@keyframes crPulse{0%{transform:scale(.5);opacity:.9}100%{transform:scale(1.7);opacity:0}}
+.call{--c:#ffe94d;--g:255,233,77;position:absolute;left:0;top:0;pointer-events:auto;display:flex;align-items:center;gap:9px;padding:6px 14px 6px 9px;border:1px solid rgba(var(--g),.55);border-radius:3px;
+  background:linear-gradient(90deg,rgba(var(--g),.16),rgba(8,22,34,.55) 55%,rgba(8,22,34,.35)),repeating-linear-gradient(0deg,rgba(255,255,255,.035) 0 1px,transparent 1px 3px);
+  -webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px);box-shadow:0 0 14px rgba(var(--g),.25),inset 0 0 12px rgba(var(--g),.12);
+  color:#eafcff;font:600 12px/1.15 ui-monospace,"SF Mono",Menlo,monospace;letter-spacing:.02em;white-space:nowrap;cursor:pointer;will-change:transform;
+  clip-path:polygon(0 0,calc(100% - 9px) 0,100% 9px,100% 100%,9px 100%,0 calc(100% - 9px));animation:callIn .5s ease-out both}
+.call::before{content:"";position:absolute;inset:0;pointer-events:none;background:linear-gradient(180deg,transparent 40%,rgba(var(--g),.18) 50%,transparent 60%);background-size:100% 300%;animation:scan 3.5s linear infinite;opacity:.6}
+.call.warn{--c:#ff6a14;--g:255,106,20}.call.alert{--c:#ff2348;--g:255,35,72}
+.call.alert{animation:callIn .5s ease-out both,alertBlink 1.6s ease-in-out infinite}
+.call:hover{background:linear-gradient(90deg,rgba(var(--g),.28),rgba(8,22,34,.7))}
+.call svg{width:17px;height:17px;flex:none;filter:drop-shadow(0 0 4px var(--c))}
+.call svg path:first-child{fill:var(--c);stroke:none}
+.call svg path:last-child{stroke:#071019;stroke-width:2.2;stroke-linecap:round;fill:none}
+.call .ct{display:flex;flex-direction:column;gap:2px;text-align:left}
+.call .ct b{font-weight:600;text-shadow:0 0 6px rgba(var(--g),.45)}
+.call .ct em{font-style:normal;font-size:9px;letter-spacing:.18em;text-transform:uppercase;color:var(--c);opacity:.95}
+@keyframes scan{from{background-position:0 100%}to{background-position:0 -200%}}
+@keyframes callIn{from{opacity:0;filter:blur(3px)}to{opacity:1;filter:none}}
+@keyframes alertBlink{50%{box-shadow:0 0 22px rgba(var(--g),.55),inset 0 0 16px rgba(var(--g),.25)}}
 #bWarn[aria-pressed="false"]{opacity:.45}
+@media (prefers-reduced-motion:reduce){.cl,.cr,.call,.call::before{animation:none}}

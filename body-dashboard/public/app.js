@@ -7,7 +7,7 @@ import { SCENARIOS, SCENARIO_IDS, reportText } from './testdata.mjs';
 import { createLive, ACTIVITIES, ACTIVITY_IDS } from './live.mjs';
 const ALL_SRC = { ...SRC, ...SCORE_SRC };
 
-const BUILD = 'v3.9 · 15 Nov 2026';
+const BUILD = 'v3.10 · 15 Nov 2026';
 const errLog = [];
 const logErr = m => { errLog.push(new Date().toISOString().slice(11, 19) + ' ' + String(m).slice(0, 200)); if (errLog.length > 20) errLog.shift(); };
 addEventListener('error', e => logErr(e.message + ' @' + (e.filename || '').split('/').pop() + ':' + e.lineno));
@@ -94,50 +94,86 @@ function callTitle(w, In) {
   if (k === 'bp.sys' && num(In['bp.dia'])) return `${name} ${v}/${In['bp.dia']}`;
   return `${name} ${v > 0 && /Pct$|Um$/.test(k) ? '+' : ''}${Math.round(v * 10) / 10}${ind.unit && ind.unit.length <= 6 ? (ind.unit === '%' ? '' : ' ') + ind.unit : ''}`;
 }
+const CALL_TAG = ['', 'Watch', 'Warning', 'Alert'];
+const callMap = new Map();                                  // group → marker, kept across updates so nothing flickers
 function buildCallouts() {
   const In = currentInput(), items = [];
   for (const g in parts) {
     const st = parts[g]; if (!st || st.level < 1) continue;
     const ws = st.warnings.filter(w => w.level >= 1).sort((a, b) => b.level - a.level); if (!ws.length) continue;
-    items.push({ group: g, anchorGroup: CALL_ANCHOR[g] || g, level: st.level, title: callTitle(ws[0], In), more: ws.length - 1 });
+    items.push({ group: g, anchorGroup: CALL_ANCHOR[g] || g, level: st.level, title: callTitle(ws[0], In), base: callTitle({ ...ws[0], key: ws[0].key }, {}), more: ws.length - 1 });
   }
   items.sort((a, b) => b.level - a.level);
-  const seen = new Set(); for (let i = 0; i < items.length; i++) { const t = items[i].title; if (seen.has(t)) items.splice(i--, 1); else seen.add(t); }   // one marker per finding (e.g. pelvis and femur share the hip finding)
-  const sig = JSON.stringify(items.map(i => [i.group, i.level, i.title, i.more]));
-  if (sig === callSig) return; callSig = sig; callItems = items;
-  const box = $('callBox'), svg = $('callSvg'); box.innerHTML = ''; svg.innerHTML = '';
+  const seen = new Set(); for (let i = 0; i < items.length; i++) { const t = items[i].base; if (seen.has(t)) items.splice(i--, 1); else seen.add(t); }   // one marker per finding (pelvis and femur share the hip finding)
+  const box = $('callBox'), svg = $('callSvg'), keep = new Set(items.map(i => i.group));
+  for (const [g, m] of callMap) if (!keep.has(g)) { m.el.remove(); m.ln.remove(); m.dot.remove(); m.ring.remove(); callMap.delete(g); }
   for (const it of items) {
-    const b = document.createElement('button'); b.type = 'button'; b.className = 'call ' + LEVEL_NAME[it.level];
-    b.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 22 20.5H2z"/><path d="M12 9.5v5.2M12 17.4v.2"/></svg><span></span>';
-    b.lastChild.textContent = it.title + (it.more ? ` +${it.more}` : ''); b.title = `${PARTS[it.group].label}: ${LEVEL_LABEL[it.level]}`;
-    b.onclick = () => selectPart(it.group);
-    const ln = document.createElementNS('http://www.w3.org/2000/svg', 'polyline'); ln.setAttribute('class', 'cl ' + LEVEL_NAME[it.level]);
-    const dot = document.createElementNS('http://www.w3.org/2000/svg', 'circle'); dot.setAttribute('r', 4); dot.setAttribute('class', 'cd ' + LEVEL_NAME[it.level]);
-    svg.append(ln, dot); it.el = b; it.ln = ln; it.dot = dot; box.append(b);
+    let m = callMap.get(it.group);
+    if (!m) {
+      const b = document.createElement('button'); b.type = 'button';
+      b.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 22 20.5H2z"/><path d="M12 9.5v5.2M12 17.4v.2"/></svg><span class="ct"><b></b><em></em></span>';
+      b.onclick = () => selectPart(it.group);
+      const NS = 'http://www.w3.org/2000/svg';
+      const ln = document.createElementNS(NS, 'polyline'), dot = document.createElementNS(NS, 'circle'), ring = document.createElementNS(NS, 'circle');
+      dot.setAttribute('r', 3.2); ring.setAttribute('r', 7);
+      svg.append(ln, ring, dot); box.append(b);
+      m = { group: it.group, el: b, ln, dot, ring, y: null, x: null, side: null, akey: null, w: 0, h: 0 }; callMap.set(it.group, m);
+    }
+    const lv = LEVEL_NAME[it.level];
+    if (m.level !== it.level) { m.level = it.level; m.el.className = 'call ' + lv; m.ln.setAttribute('class', 'cl ' + lv); m.dot.setAttribute('class', 'cd ' + lv); m.ring.setAttribute('class', 'cr ' + lv); m.el.querySelector('em').textContent = CALL_TAG[it.level]; }
+    const txt = it.title + (it.more ? `  +${it.more}` : '');
+    if (m.txt !== txt) { m.txt = txt; m.el.querySelector('b').textContent = txt; m.w = 0; }
+    m.anchorGroup = it.anchorGroup; m.el.title = `${PARTS[it.group].label}: ${LEVEL_LABEL[it.level]}`;
   }
+  callItems = items.map(i => callMap.get(i.group));
 }
-function layoutCallouts() {
+let callT = 0;
+function layoutCallouts(now) {
   requestAnimationFrame(layoutCallouts);
   const box = $('callBox'), svg = $('callSvg'); if (!lobby || !box) return;
   const show = callOn && !state.sel && callItems.length > 0; box.style.display = svg.style.display = show ? '' : 'none';
-  if (!show) return;
+  if (!show) { for (const m of callItems) m.y = null; return; }
   const W = box.clientWidth, H = box.clientHeight; if (!W) return;
-  const L = [], R = [], mid = lobby.anchor('ribs'), cx = mid ? mid.x : W / 2;
-  for (const it of callItems) {
-    const p = lobby.anchor(it.anchorGroup); it.p = p; it.vis = !!(p && p.front);
-    it.el.style.display = it.vis ? '' : 'none'; it.ln.style.display = it.dot.style.display = it.vis ? '' : 'none';
-    if (it.vis) { const dx = p.x - cx; (Math.abs(dx) < 14 ? (L.length <= R.length ? L : R) : dx < 0 ? L : R).push(it); }
+  const dt = Math.min(.1, ((now || 0) - callT) / 1000) || .016; callT = now || 0;
+  const k = 1 - Math.pow(.0005, dt);                         // smoothing: labels glide, they do not jump
+  const mid = lobby.anchor('ribs'), cx = mid ? mid.x : W / 2;
+  const L = [], R = [], vis = [];
+  for (const m of callItems) {
+    const c = lobby.anchors(m.anchorGroup);               // all candidates (both sides of paired parts)
+    let p = c.find(q => q.key === m.akey);
+    const best = c.reduce((a, q) => (!a || q.d < a.d ? q : a), null);
+    if (!p || (best && best.key !== p.key && best.d < p.d * .9)) p = best;   // switch side only when clearly nearer (hysteresis)
+    m.akey = p && p.key; m.p = p; m.vis = !!(p && p.front);
+    m.show = false; if (!m.vis) { m.y = null; continue; }
+    if (!m.side) m.side = p.x < cx ? 'L' : 'R';
+    else if (m.side === 'L' && p.x > cx + 70) m.side = 'R'; else if (m.side === 'R' && p.x < cx - 70) m.side = 'L';
+    m.dx = Math.abs(p.x - cx); m.want = m.side;
+    vis.push(m);
   }
+  // Balance both columns: move the markers nearest the body's midline to the shorter side; the side a marker had keeps a bonus (no flip-flop)
+  const cnt = s => vis.filter(m => m.want === s).length;
+  for (let guard = 0; guard < 40; guard++) {
+    const nL = cnt('L'), nR = cnt('R'); if (Math.abs(nL - nR) <= 1) break;
+    const big = nL > nR ? 'L' : 'R', cand = vis.filter(m => m.want === big).sort((x, y) => (x.dx - (x.placed && x.placed !== big ? 80 : 0)) - (y.dx - (y.placed && y.placed !== big ? 80 : 0)));
+    cand[0].want = big === 'L' ? 'R' : 'L';
+  }
+  const rowH = (vis[0] && vis[0].h) || 38, cap = Math.max(3, Math.floor((H - 72) / (rowH + 8)));
+  for (const m of vis) { m.placed = m.want; const arr = m.want === 'L' ? L : R; if (arr.length < cap) { arr.push(m); m.show = true; } else m.y = null; }   // most severe first, the rest stays in the part card
+  for (const m of callItems) { const disp = m.show ? '' : 'none'; if (m.disp !== disp) { m.disp = disp; m.el.style.display = m.ln.style.display = m.dot.style.display = m.ring.style.display = disp; } }
   for (const [side, arr] of [['L', L], ['R', R]]) {
-    arr.sort((a, b) => a.p.y - b.p.y); let prev = 52;
-    for (const it of arr) {
-      const w = it.el.offsetWidth, h = it.el.offsetHeight;
-      const y = Math.min(H - 20 - h / 2, Math.max(prev + h / 2 + 6, it.p.y)); prev = y + h / 2;
-      const x = side === 'L' ? 10 : W - 10 - w;
-      it.el.style.transform = `translate(${x}px,${y - h / 2}px)`;
-      const ex = side === 'L' ? x + w : x, kx = ex + (side === 'L' ? 16 : -16);
-      it.ln.setAttribute('points', `${it.p.x},${it.p.y} ${kx},${y} ${ex},${y}`);
-      it.dot.setAttribute('cx', it.p.x); it.dot.setAttribute('cy', it.p.y);
+    arr.sort((a, b) => (a.order ?? a.p.y) - (b.order ?? b.p.y));
+    let prev = 48;
+    for (const m of arr) {
+      if (!m.w) { m.w = m.el.offsetWidth; m.h = m.el.offsetHeight; }
+      const ty = Math.min(H - 24 - m.h / 2, Math.max(prev + m.h / 2 + 8, m.p.y)); prev = ty + m.h / 2;
+      const tx = side === 'L' ? 14 : W - 62 - m.w;              // keep clear of the tool column on the right
+      if (m.y === null) { m.y = ty; m.x = tx; } else { m.y += (ty - m.y) * k; m.x += (tx - m.x) * k; }
+      m.order = m.order === undefined ? m.p.y : m.order + (m.p.y - m.order) * Math.min(1, dt * 1.5);   // ordering follows slowly, so labels do not swap back and forth
+      m.el.style.transform = `translate3d(${m.x.toFixed(1)}px,${(m.y - m.h / 2).toFixed(1)}px,0)`;
+      const ex = side === 'L' ? m.x + m.w : m.x, kx = ex + (side === 'L' ? 22 : -22);
+      const f = v => v.toFixed(1);
+      m.ln.setAttribute('points', `${f(m.p.x)},${f(m.p.y)} ${f(kx)},${f(m.y)} ${f(ex)},${f(m.y)}`);
+      m.dot.setAttribute('cx', f(m.p.x)); m.dot.setAttribute('cy', f(m.p.y)); m.ring.setAttribute('cx', f(m.p.x)); m.ring.setAttribute('cy', f(m.p.y));
     }
   }
 }
@@ -285,18 +321,7 @@ function renderList(el, items) {
 const renderUpcoming = () => { renderList($('envList'), envItems); renderList($('predList'), predItems); };
 
 /* ---------- Attention chips (centre) ---------- */
-function renderAttention() {
-  const box = $('attn'), { counts, attention } = summarize(parts);
-  const sig = counts.nodata + '|' + attention.map(a => a.id + a.level).join(); if (box.dataset.sig === sig) return;
-  box.dataset.sig = sig; box.innerHTML = '';
-  if (counts.nodata === Object.keys(parts).length) return;
-  if (!attention.length) { const s = document.createElement('span'); s.textContent = 'Nothing needs attention in the data entered.'; box.appendChild(s); return; }
-  for (const a of attention.slice(0, 6)) {
-    const b = document.createElement('button'); b.innerHTML = '<i></i><span></span>'; b.firstChild.className = LEVEL_NAME[a.level];
-    b.lastChild.textContent = `${a.label} · ${LEVEL_LABEL[a.level]}`; b.title = a.text; b.onclick = () => selectPart(a.id); box.appendChild(b);
-  }
-  if (attention.length > 6) { const s = document.createElement('span'); s.textContent = `+${attention.length - 6} more`; box.appendChild(s); }
-}
+function renderAttention() { const box = $('attn'); if (box) box.hidden = true; }   // the list under the body is replaced by the markers on the body
 
 /* ---------- Part card (left) ---------- */
 const sideName = s => (s === 'left' ? 'Left ' : s === 'right' ? 'Right ' : '');
@@ -448,8 +473,9 @@ addEventListener('pointerdown', e => { if (!$('testMenu').hidden && !e.target.cl
 const REF_BODY = { heightCm: 166, massKg: 62 }, BODY_MAX = { heightCm: [150, 205], massKg: [45, 130] };
 function storedBody() { try { const b = JSON.parse(localStorage.getItem('medvital.body') || 'null'); return b && typeof b === 'object' ? b : null; } catch (e) { return null; } }
 function bodyScale(h, m) {
-  const sy = h / REF_BODY.heightCm, bmi = m / (h / 100) ** 2, f = Math.max(.9, Math.min(1.22, Math.pow(bmi / 22.5, .4)));
-  return { sx: sy * f, sy, bmi };
+  // Same mass spread over a taller body makes it narrower: volume ~ breadth² · height, so breadth ~ sqrt(mass / height).
+  const sy = h / REF_BODY.heightCm, bmi = m / (h / 100) ** 2, sx = Math.sqrt((m / REF_BODY.massKg) / sy);
+  return { sx, sy, bmi };
 }
 /** setBody({heightCm, massKg, sex}) changes what is given; setBody(null) clears everything. `quiet` skips the re-rating (the caller does it). */
 function setBody(b, save, quiet) {

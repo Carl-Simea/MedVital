@@ -9,7 +9,7 @@ const PAL = { skull: '#e9f1ff', spineC: '#e9f1ff', spineT: '#e9f1ff', spineL: '#
   mHead: '#b8463f', mChest: '#ab3b36', mAbdomen: '#a83f35', mUpperArm: '#b5413a', mForearm: '#ae4338', mThigh: '#a83934', mShin: '#b24038', tendon: '#efe4cc' };
 const BASE_GLOW = { brain: .28, lung: .5, heart: 1.7, artery: 1.3, vein: 1.3, intestine: .6, liver: .8, eye: .5 };
 /** Status tints that replace a group's own colour. 'watch' = amber, 'warn' = orange, 'alert' = red. */
-const TINT = { ok: null, watch: '#ffd23f', warn: '#ff8a1f', alert: '#ff2d3d' };
+const TINT = { ok: null, watch: '#ffe94d', warn: '#ff6a14', alert: '#ff2348' };
 const PART0 = 100;                               // first id of a single-part selection unit
 const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
 
@@ -426,6 +426,16 @@ export async function createLobby(canvas, { paired = [], onPick = () => {}, onHo
     snapshot() { try { renderer.render(scene, camera); const c = document.createElement('canvas'); c.width = canvas.width; c.height = canvas.height; const x = c.getContext('2d'); x.fillStyle = '#0b1a30'; x.fillRect(0, 0, c.width, c.height); x.drawImage(canvas, 0, 0); return c.toDataURL('image/jpeg', .8); } catch (e) { return ''; } },
     pickAt: pick,
     /** Screen position (px, canvas coordinates) of a group's centre; for paired groups the side nearer to the camera. */
+    anchors(group) {
+      let cand = Object.values(info).filter(i => i.group === group && i.pid < PART0);
+      if (!cand.length) cand = Object.values(info).filter(i => i.group === group);
+      const bySide = {};                                         // one candidate per side (centre of its parts)
+      for (const i of cand) { const s = i.side || 'c'; (bySide[s] = bySide[s] || []).push(worldC(i)); }
+      return Object.entries(bySide).map(([key, ws]) => {
+        const w = ws.reduce((a, b) => a.add(b), new THREE.Vector3()).multiplyScalar(1 / ws.length), d = camera.position.distanceTo(w), v = w.clone().project(camera);
+        return { key, x: (v.x * .5 + .5) * canvas.clientWidth, y: (-v.y * .5 + .5) * canvas.clientHeight, d, front: v.z < 1 };
+      });
+    },
     anchor(group) {
       let best = null;
       const cand = Object.values(info).filter(i => i.group === group && i.pid < PART0);
