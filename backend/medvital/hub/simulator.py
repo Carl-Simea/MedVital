@@ -48,6 +48,8 @@ class Wearer:
     last_m: float | None = None
     exercise_log: dict[int, float] = field(default_factory=dict)  # mission day -> minutes
     replay_until: float = 0.0  # demo solar-event replay (mission minute)
+    manual: str | None = None  # "asleep" or "spacewalk": set by the astronaut's own buttons, until released
+    manual_since: float = 0.0  # mission minute the manual state began
 
 
 class CrewSimulator:
@@ -88,6 +90,8 @@ class CrewSimulator:
             w.last_m = m
 
     def state(self, w: Wearer, m: float) -> str:
+        if w.manual:  # the astronaut's own Sleep / Leave the spacecraft button wins over the plan
+            return w.manual
         if w.scenario != "auto":
             if m < w.scenario_until:
                 forced = S.SCENARIOS[w.scenario].get("state")
@@ -178,6 +182,12 @@ class CrewSimulator:
         if int(m0 // M.DAY_MIN) != int(m1 // M.DAY_MIN):
             self.record(w, m1, self.bone_values(m1), "modeled", "bone loss model (Sibonga et al. 2015 rates)")
             self.record(w, m1, self.nutrition_values(w), SIM, "food and water log")
+            if not self.hub.store.one(  # crew members who did not tap a mood today get a simulated one
+                "SELECT 1 FROM tests WHERE astronaut_id=? AND key='mood.score' AND mission_minute>?",
+                (aid, m1 - M.DAY_MIN),
+            ):
+                self.record(w, m1, {"mood.score": max(1, min(5, round(4 + w.rng.gauss(0, 0.6))))}, SIM,
+                            "daily mood check-in (simulated)")
 
     def record(self, w: Wearer, m: float, values: dict[str, float], origin: str, source: str) -> None:
         if values:
@@ -277,6 +287,7 @@ def preflight_values(profile: dict[str, Any]) -> dict[str, float]:
         }
     )
     b.setdefault("sleep.hours", profile.get("sleep_target_h", 7.0))
+    b.setdefault("mood.score", 4)
     # pre-flight training and diet plan (simulated) so the Sleep / Exercise / Nutrition scores start with data
     for k, v in (
         ("sleep.quality", 4),

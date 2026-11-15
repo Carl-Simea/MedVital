@@ -212,7 +212,7 @@ def main() -> None:
     if cf_url:
         status = worker_call(cf_url, cf_key, "GET", "/link")
         if status == 200:
-            say(f"link to Earth: Cloudflare Worker {cf_url}")
+            say(f"link to NASA: Cloudflare Worker {cf_url}")
             if args.fresh and args.role in ("all", "spacecraft"):
                 # a clean mission on Earth too, or NASA would pull the last mission's records
                 worker_call(cf_url, cf_key, "POST", "/reset", {"confirm": "new mission"})
@@ -276,7 +276,7 @@ def main() -> None:
         say("  Demo clock: 1 real minute = 1 mission day. Data goes to NASA at the end of each day.")
         pages += [f"{urls['hub']}/", f"{urls['hub']}/cloudflare/", f"{urls['hub']}/body/?astronaut=astro-1"]
     if cf_url:
-        say(f"  Link to Earth    Cloudflare Worker + D1  {cf_url}")
+        say(f"  Cloudflare       Worker + D1 + checker  {cf_url}")
     if "nasa" in urls:
         say(f"  NASA             {urls['nasa'].replace('localhost', ip)}/")
         pages.append(urls["nasa"] + "/")

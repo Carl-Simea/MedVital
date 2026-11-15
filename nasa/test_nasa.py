@@ -146,3 +146,38 @@ def test_unreachable_worker_does_not_move_the_cursor(nasa, monkeypatch):
     assert app_module.pull_once() == 0
     assert app_module.meta("cloudflare_cursor") is None
     assert app_module.pull_state["lastError"] == "Worker refused the key (401)"
+
+
+def test_cut_link_to_nasa_retries_and_logs_then_catches_up(nasa, monkeypatch):
+    """Cloudflare answers 503 while the link to NASA is cut: NASA logs each retry, then receives what waited."""
+    _, app_module = nasa
+    app_module.pull_state.update(linkDown=False, retries=0)
+    d1 = [reading(f"w{i}") for i in range(1, 4)]
+    down = {"v": True}
+
+    def fake_worker(method, path, body=None, timeout=10):
+        if down["v"]:
+            return 503, {"error": "link to NASA down", "waiting": len(d1)}
+        after = int(path.split("after=")[1].split("&")[0])
+        page = [{"seq": i + 1, "record": r} for i, r in enumerate(d1) if i + 1 > after]
+        return 200, {"records": page, "next": page[-1]["seq"] if page else after, "more": False}
+
+    monkeypatch.setattr(app_module, "worker", fake_worker)
+    app_module.pull_once()
+    app_module.pull_once()
+    assert app_module.pull_state["linkDown"] and app_module.pull_state["retries"] == 1
+    assert app_module.pull_state["waiting"] == 3
+    down["v"] = False
+    assert app_module.pull_once() == 3
+    events = [r["event"] for r in app_module.link_log_rows()]
+    assert events[:3] == ["restored", "retry", "down"]
+
+
+def test_day_report(nasa):
+    client, _ = nasa
+    r = reading("d1")
+    r["data"]["missionMinute"] = 1500.0  # mission day 2
+    client.post("/batch", json={"records": [r]})
+    assert client.get("/api/astronaut/astro-1/days").get_json() == [2]
+    day = client.get("/api/astronaut/astro-1/day/2").get_json()
+    assert day["readings"] == 1 and day["heartRate"]["avg"] == 62

@@ -400,6 +400,12 @@ function assistantStatus() {
 }
 function ask(q) {
   q = String(q || '').trim(); if (!q) return; showDock('assistant'); say('me', q); $('asIn').value = '';
+  // Hub mode: the spacecraft's onboard AI agent answers (hub-bridge.js sets this hook); local answer if it fails
+  if (window.MedVitalAsk && !/\bscores?\b/i.test(q)) {
+    window.MedVitalAsk(q).then(a => { say('bot', `${a.answer}\n(${a.source})`); chips(SUGGESTIONS.slice(0, 3)); })
+      .catch(() => { const r = assistantAnswer(q, { parts, M: currentInput() }); say('bot', r.text); chips(r.chips || SUGGESTIONS.slice(0, 3)); });
+    return;
+  }
   if (/\bscores?\b/i.test(q)) {
     const all = scoreAll(currentInput()), want = DOMAIN_IDS.filter(id => q.toLowerCase().includes(id)), ids = want.length ? want : DOMAIN_IDS;
     const lines = ids.map(id => { const sc = all[id]; if (sc.score === null) return `${sc.label}: no data yet.`;

@@ -94,6 +94,9 @@ def init_db():
             db.execute("CREATE INDEX IF NOT EXISTS records_by_astronaut ON records (astronaut_id, type)")
             db.execute("CREATE INDEX IF NOT EXISTS records_by_type ON records (type)")
             db.execute("CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT NOT NULL)")
+            # every refused pull and every retry while the link to NASA is down (shown on the NASA page)
+            db.execute("CREATE TABLE IF NOT EXISTS link_log (id INTEGER PRIMARY KEY AUTOINCREMENT, at TEXT NOT NULL,"
+                       " event TEXT NOT NULL, detail TEXT NOT NULL)")
     finally:
         db.close()
 
@@ -192,7 +195,24 @@ def meta(key, value=None):
         db.close()
 
 
-pull_state = {"lastPull": None, "lastError": None, "pulled": 0}
+RETRY_S = float(os.environ.get("MEDVITAL_RETRY_S", "3"))   # demo: retry a cut link every 3 s
+HEARTBEAT_S = 3.0
+pull_state = {"lastPull": None, "lastError": None, "pulled": 0, "linkDown": False, "retries": 0,
+              "nextRetryAt": None, "waiting": 0, "downSince": None}
+checker_state = {}
+
+
+def now_iso():
+    return datetime.now(timezone.utc).isoformat(timespec="milliseconds")
+
+
+def log_link(event, detail):
+    db = open_db()
+    try:
+        with db:
+            db.execute("INSERT INTO link_log (at, event, detail) VALUES (?, ?, ?)", (now_iso(), event, detail))
+    finally:
+        db.close()
 
 
 def pull_once():
@@ -201,10 +221,27 @@ def pull_once():
     for _ in range(100):
         after = int(meta("cloudflare_cursor") or 0)
         status, ans = worker("GET", f"/pull?after={after}&limit=500")
+        pull_state["lastTry"] = now_iso()
+        if status == 503:  # the link to NASA is cut: everything waits in Cloudflare's D1
+            if not pull_state["linkDown"]:
+                pull_state.update(linkDown=True, retries=0, downSince=now_iso())
+                log_link("down", "Cloudflare refused: link to NASA is down. Retrying every %g s." % RETRY_S)
+                log("link to NASA is DOWN: records wait in Cloudflare, retrying every %g s" % RETRY_S)
+            else:
+                pull_state["retries"] += 1
+                log_link("retry", f"Retry {pull_state['retries']}: still down, "
+                                  f"{(ans or {}).get('waiting', '?')} record(s) waiting in Cloudflare")
+            pull_state["waiting"] = (ans or {}).get("waiting", pull_state["waiting"])
+            pull_state["lastError"] = "link to NASA down"
+            return total
         if status != 200 or not isinstance(ans, dict):
             pull_state["lastError"] = ("Worker refused the key (401)" if status == 401
                                        else "Worker unreachable" if status is None else f"Worker answered HTTP {status}")
             return total
+        if pull_state["linkDown"]:
+            log_link("restored", f"Link back after {pull_state['retries']} retries; receiving what waited")
+            log("link to NASA is UP again")
+            pull_state.update(linkDown=False, downSince=None)
         records = ans.get("records") or []
         if records:
             _, new = save_records([r["record"] for r in records])
@@ -212,7 +249,7 @@ def pull_once():
             total += len(records)
             if new:
                 log(f"pulled from Cloudflare: {len(records)} records, {new} new")
-        pull_state.update(lastPull=datetime.now(timezone.utc).isoformat(timespec="seconds"), lastError=None)
+        pull_state.update(lastPull=datetime.now(timezone.utc).isoformat(timespec="seconds"), lastError=None, waiting=0)
         if not ans.get("more"):
             break
     pull_state["pulled"] += total
@@ -225,7 +262,48 @@ def pull_forever():
             pull_once()
         except Exception as e:  # noqa: BLE001 - keep pulling; the cursor guarantees nothing is skipped
             pull_state["lastError"] = str(e)
-        time.sleep(1)
+        wait = RETRY_S if pull_state["linkDown"] else 1.0
+        pull_state["nextRetryAt"] = time.time() + wait if pull_state["linkDown"] else None
+        time.sleep(wait)
+
+
+def heartbeat_forever():
+    """Report to the Cloudflare checker every few seconds: what NASA holds and how pulling goes."""
+    while True:
+        try:
+            db = open_db()
+            try:
+                total = db.execute("SELECT COUNT(*) FROM records").fetchone()[0]
+            finally:
+                db.close()
+            status, ans = worker("POST", "/heartbeat", {"node": "nasa", "report": {
+                "total": total, "cursor": int(meta("cloudflare_cursor") or 0), "lastTry": pull_state.get("lastTry"),
+                "lastError": pull_state.get("lastError")}})
+            if status == 200 and isinstance(ans, dict):
+                checker_state.clear()
+                checker_state.update(ans)
+        except Exception:  # noqa: BLE001
+            pass
+        time.sleep(HEARTBEAT_S)
+
+
+def link_view():
+    """The link as NASA sees it, for the banner on the NASA page."""
+    if VIA_CLOUDFLARE:
+        nxt = pull_state.get("nextRetryAt")
+        return {"via": "cloudflare", "up": not pull_state["linkDown"], "retries": pull_state["retries"],
+                "retryEveryS": RETRY_S, "nextRetryS": max(0.0, round(nxt - time.time(), 1)) if nxt else None,
+                "waiting": pull_state.get("waiting", 0), "downSince": pull_state.get("downSince"),
+                "error": pull_state.get("lastError")}
+    return {"via": "direct", "up": link["up"]}
+
+
+def link_log_rows(limit=12):
+    db = open_db()
+    try:
+        return [dict(r) for r in db.execute("SELECT at, event, detail FROM link_log ORDER BY id DESC LIMIT ?", (limit,))]
+    finally:
+        db.close()
 
 
 @app.get("/stats")
@@ -431,7 +509,32 @@ def api_mission():
     alerts = [{"astronaut_id": r["astronaut_id"], "mission": r["mission"], **r["data"]}
               for r in load("WHERE type = ?", (fmt.TYPE_ALERT,)) if r["data"].get("code") != "INFO"][-12:][::-1]
     return jsonify({"now": now, "crew": sorted(crew, key=lambda c: c["id"]), "upcoming": upcoming[:80],
-                    "alerts": alerts, "link": link})
+                    "alerts": alerts, **status_view()})
+
+
+def status_view():
+    """Link banner, Cloudflare checker line and the latest day report: small, polled every second."""
+    db = open_db()
+    try:
+        row = db.execute("SELECT body, received_at FROM records WHERE type = ? ORDER BY rowid DESC LIMIT 1",
+                         (fmt.TYPE_SUMMARY,)).fetchone()
+    finally:
+        db.close()
+    last_summary = None
+    if row:
+        body = json.loads(row["body"])
+        last_summary = {"day": (body.get("data") or {}).get("missionDay"), "receivedAt": row["received_at"]}
+    checker = None
+    if checker_state:
+        checker = {"sentence": (checker_state.get("sentence") or {}).get("text"),
+                   "source": (checker_state.get("sentence") or {}).get("source"),
+                   "ok": (checker_state.get("db") or {}).get("ok"), "at": checker_state.get("at")}
+    return {"link": link_view(), "linkLog": link_log_rows(), "checker": checker, "dayReport": last_summary}
+
+
+@app.get("/api/status")
+def api_status():
+    return jsonify(status_view())
 
 
 @app.get("/api/astronaut/<aid>")
@@ -482,6 +585,66 @@ def api_astronaut(aid):
     })
 
 
+def record_minute(r):
+    """When a record happened in mission time: its own missionMinute, else when it was created."""
+    d = r["data"]
+    m = d.get("missionMinute") if isinstance(d, dict) else None
+    if not isinstance(m, (int, float)):
+        m = (r.get("mission") or {}).get("minute")
+    return m if isinstance(m, (int, float)) else None
+
+
+@app.get("/api/astronaut/<aid>/days")
+def api_days(aid):
+    days = set()
+    for r in load("WHERE astronaut_id = ? AND type != ?", (aid, fmt.TYPE_EVENT)):
+        m = record_minute(r)
+        if m is not None and m >= 0:
+            days.add(int(m // 1440) + 1)
+    return jsonify(sorted(days))
+
+
+@app.get("/api/astronaut/<aid>/day/<int:day>")
+def api_day(aid, day):
+    """One mission day's full report for one astronaut: vitals, sleep, tests, time outside, dose, alerts, summary."""
+    lo, hi = (day - 1) * 1440, day * 1440
+    recs = [r for r in load("WHERE astronaut_id = ?", (aid,)) if r["type"] != fmt.TYPE_EVENT]
+    in_day = [r for r in recs if (lambda m: m is not None and lo <= m < hi)(record_minute(r))]
+    readings = [r["data"] for r in in_day if r["type"] == fmt.TYPE_READING and r["data"].get("quality", "valid") == "valid"]
+    hr = [x["heartRate"] for x in readings if isinstance(x.get("heartRate"), (int, float))]
+    spo2 = [x["spo2"] for x in readings if isinstance(x.get("spo2"), (int, float))]
+    dose = [x["totalDose"] for x in readings if isinstance(x.get("totalDose"), (int, float))]
+    states = {}
+    for x in readings:
+        states[x.get("state") or "?"] = states.get(x.get("state") or "?", 0) + 1
+    # minutes each reading stands for: the usual spacing between readings (the spacecraft sends one per burst)
+    ms = sorted(x["missionMinute"] for x in readings if isinstance(x.get("missionMinute"), (int, float)))
+    gaps = sorted(b - a for a, b in zip(ms, ms[1:]) if b > a)
+    per = gaps[len(gaps) // 2] if gaps else 0
+    values = {}
+    for r in in_day:
+        if r["type"] in (fmt.TYPE_TEST, fmt.TYPE_LAB) and isinstance(r["data"].get("values"), dict):
+            for k, v in r["data"]["values"].items():
+                values.setdefault(k, []).append(v)
+    summary = next((r["data"] for r in recs if r["type"] == fmt.TYPE_SUMMARY and r["data"].get("missionDay") == day), None)
+    evas = [r["data"] for r in load("WHERE astronaut_id = ? AND type = ?", (aid, fmt.TYPE_EVENT))
+            if r["data"].get("kind") == "eva" and lo <= (r["data"].get("m_start") or -1) < hi]
+    return jsonify({
+        "day": day,
+        "readings": len(readings),
+        "heartRate": {"min": min(hr), "avg": round(sum(hr) / len(hr)), "max": max(hr)} if hr else None,
+        "spo2": {"min": min(spo2), "avg": round(sum(spo2) / len(spo2), 1)} if spo2 else None,
+        "doseMsv": round(dose[-1] - dose[0], 3) if len(dose) > 1 else None,
+        "hoursByState": {k: round(n * per / 60, 1) for k, n in states.items()} if per else {},
+        "values": {k: {"label": fmt.LAB_LABELS.get(k, (k, ""))[0], "unit": fmt.LAB_LABELS.get(k, (k, ""))[1], "values": v}
+                   for k, v in values.items()},
+        "spacewalks": evas,
+        "alerts": [r["data"] for r in in_day if r["type"] == fmt.TYPE_ALERT and r["data"].get("code") != "INFO"],
+        "complete": summary is not None,
+        "summary": summary,
+    })
+
+
 OSDR_FILE = os.path.join(os.path.dirname(BASE_DIR), "data", "nasa", "osdr_studies.json")
 OSDR_TOPICS = [("heart", "Heart and blood vessels"), ("bone", "Bone loss"), ("muscle", "Muscle"), ("radiation", "Radiation"),
                ("immune", "Immune system"), ("eye", "Eyes (SANS)"), ("sleep", "Sleep and circadian rhythm")]
@@ -518,7 +681,7 @@ def reports(name):
 def cloudflare_status():
     """Is this receiver pulling from the Cloudflare Worker, and how is that going?"""
     return jsonify({"enabled": VIA_CLOUDFLARE, "url": CLOUDFLARE_URL or None,
-                    "cursor": int(meta("cloudflare_cursor") or 0), **pull_state})
+                    "cursor": int(meta("cloudflare_cursor") or 0), **pull_state, "checker": checker_state or None})
 
 
 init_db()
@@ -528,5 +691,6 @@ if __name__ == "__main__":
     if VIA_CLOUDFLARE:
         log(f"Cloudflare mode: pulling the spacecraft's records from {CLOUDFLARE_URL}")
         threading.Thread(target=pull_forever, daemon=True, name="cloudflare-pull").start()
+        threading.Thread(target=heartbeat_forever, daemon=True, name="cloudflare-heartbeat").start()
     log(f"Mission record database: {DB_PATH}")
     app.run(host=HOST, port=PORT)

@@ -172,6 +172,24 @@ What is imported:
 Licence and terms of use for OSDR and PDS files: **still not verified**. Raw files therefore stay git-ignored under
 `data/raw/`.
 
+## 8. Urine test for bone loss: which measures (2026-11-14)
+
+The astronaut's "Urine test (bone loss)" form asks for the measures NASA's nutritional biochemistry studies of
+spaceflight bone loss report from 24-hour urine: urinary calcium and the collagen breakdown markers N-telopeptide
+(NTX), pyridinoline (PYD), deoxypyridinoline (DPD) and C-telopeptide (CTX), plus volume and creatinine.
+
+| Source | What it supports |
+|---|---|
+| Smith SM, *Calcium and bone metabolism during spaceflight*, NASA JSC, NTRS 20100030546 | Urinary calcium is the oldest resorption marker and rises in and after flight; collagen crosslinks appear in urine during resorption. |
+| Smith SM et al., *Bone markers, calcium metabolism, and calcium kinetics during extended-duration space flight on Mir*, NTRS 20050184836 (JBMR) | After flight: urinary calcium, NTX, pyridinoline and deoxypyridinoline all rose. |
+| Smith SM et al., *Collagen cross-link excretion during space flight and bed rest*, NTRS 20040142218 | NTX, pyridinoline and deoxypyridinoline as the urinary collagen breakdown products. |
+| Caillot-Augusseau A et al., Clin Chem 2000;46:1136 (PubMed 10926894) | Urinary CTX rose from flight day 8 in two cosmonauts. |
+| Zwart SR et al., NCT01713634 (NASA JSC) | 24-hour urinary NTX and 24-hour urinary calcium as in-flight outcome measures. |
+
+What the form does **not** carry: reference ranges or "normal" labels. No NASA source for crew reference ranges was
+read, so values are stored as typed (`origin: entered`) and compared only with the astronaut's own earlier results.
+The simulator does not invent NTX/PYD/DPD/CTX values; those tiles stay empty until someone enters a result.
+
 ## Rules for adding a source
 1. Record exact URL/DOI/accession, retrieval date, licence and any access agreement.
 2. Confirm redistribution rights before committing files; prefer a download script + checksum.

@@ -31,6 +31,8 @@ from medvital.core.module_spec import ModuleRegistry
 from medvital.hub import ai, donki, rules
 from medvital.hub import mission as M
 from medvital.hub import settings as S
+from medvital.hub.actions import CrewActions
+from medvital.hub.checker import CheckerLink
 from medvital.hub.simulator import CrewSimulator, preflight_values
 from medvital.hub.store import HubStore, now_iso
 from medvital.telemetry import ingest_telemetry
@@ -69,7 +71,7 @@ class NetworkLog:
             return [e for e in self._events if e["seq"] > seq][-limit:]
 
 
-class Hub:
+class Hub(CrewActions, CheckerLink):
     def __init__(
         self,
         store: HubStore,
@@ -103,6 +105,8 @@ class Hub:
             "history": [],
         }
         self.donki_state: dict[str, Any] = {"lastFetch": None, "source": None, "error": None}
+        self.evas: dict[str, dict[str, Any]] = {}  # astronauts outside right now (actions.py)
+        self.checker: dict[str, Any] = {"via": None, "ok": False, "at": None}  # checker.py
         self._stop = threading.Event()
         self._threads: list[threading.Thread] = []
         start = store.meta("mission_start_real")
@@ -207,6 +211,7 @@ class Hub:
             (self.tick, S.BURST_SECONDS),
             (self.sync_tick, 1.0),
             (self.refresh_space_weather, 1800.0),
+            (self.heartbeat, S.HEARTBEAT_S),
         ):
             t = threading.Thread(target=loop, args=(fn, every), daemon=True, name=f"hub-{fn.__name__}")
             t.start()
@@ -220,6 +225,7 @@ class Hub:
         m = self.clock.minute()
         last = float(self.store.meta("last_tick_minute") or m)
         self.sim.tick(m)
+        self.eva_tick()
         if int(last // M.DAY_MIN) != int(m // M.DAY_MIN):
             self.end_of_day(int(last // M.DAY_MIN) + 1)
         self.store.meta("last_tick_minute", repr(m))
@@ -525,6 +531,7 @@ class Hub:
             w = self.sim.wearers.get(row["astronaut_id"])
             if w is not None:  # "heading back inside": end the spacewalk now
                 w.scenario, w.scenario_until = "auto", 0.0
+                self.end_eva(row["astronaut_id"], forced=True)
                 self.store.run(
                     "UPDATE events SET m_end=? WHERE astronaut_id=? AND kind='eva' AND m_start<=? AND m_end>?",
                     (self.clock.minute(), row["astronaut_id"], self.clock.minute(), self.clock.minute()),
@@ -541,8 +548,16 @@ class Hub:
                 self.daily_summary(a["id"], day)
             except Exception as exc:  # noqa: BLE001
                 self.net.add("error", ["worker"], "failed", f"summary {a['id']}: {exc}")
+            self.check_sleep_mood(a["id"])
         self.sync_state["lastDayEnd"] = {"day": day, "at": now_iso()}
-        self.sync_all(f"end of day {day}")
+        r = self.sync_all(f"end of day {day}")
+        self.sync_state["dayReport"] = {
+            "day": day,
+            "at": now_iso(),
+            "sent": r["sent"],
+            "confirmed": r["confirmed"],
+            "delivered": not self.sync_state.get("pendingDayEnd"),
+        }
 
     def daily_summary(self, aid: str, day: int | None = None) -> dict[str, Any] | None:
         astronaut = self.store.astronaut(aid)
@@ -595,17 +610,19 @@ class Hub:
 
     # ================================================================== agent
     def ask(self, aid: str, question: str) -> dict[str, Any]:
-        self.net.add(
-            "agent", [aid, "tunnel", "agent"], "info", f"{aid} asks the onboard agent", astronaut=aid
-        )
+        """The onboard agent. The hub screen draws the question's path: astronaut, hub, agent and back."""
+        self.net.add("ask", [aid, "net", "hub", "agent"], "info", f"{aid} asks the onboard agent", astronaut=aid)
+        label = ai.agent_label()
+        if label == "Workers AI":  # the agent asks Workers AI (through Cloudflare) to word its answer
+            self.net.add("ask", ["agent", "hub", "net", "cloudflare", "checker"], "info", "Agent asks Workers AI")
         text, source = ai.answer(question, self.astronaut_view(aid))
+        if label == "Workers AI":
+            self.net.add("ask", ["checker", "cloudflare", "net", "hub", "agent"], "info", "Workers AI answered")
         self.store.run(
             "INSERT INTO agent_log (time, astronaut_id, question, answer, source) VALUES (?,?,?,?,?)",
             (now_iso(), aid, question[:500], text[:2000], source),
         )
-        self.net.add(
-            "agent", ["agent", "tunnel", aid], "ok", f"Agent answered {aid} ({source})", astronaut=aid
-        )
+        self.net.add("ask", ["agent", "hub", "net", aid], "ok", f"Agent answered {aid} ({source})", astronaut=aid)
         return {"answer": text, "source": source}
 
     # ================================================================== space weather
@@ -632,7 +649,27 @@ class Hub:
         return {"id": rid, "event": eid, "activeUntil": until, "summary": summary, "link": link}
 
     def refresh_space_weather(self) -> None:
-        """Pull recent DONKI records (real time) for the hub's space-weather panel. Offline is fine."""
+        """Live DONKI records for the space-weather panels: from Cloudflare (which fetches DONKI on a
+        schedule) when configured, otherwise straight from NASA. Offline is fine: the replay still works."""
+        if self.cf_url:
+            status, ans = self._nasa("GET", "/donki", timeout=60)
+            if status == 200 and isinstance(ans, dict) and not ans.get("error"):
+                for e in ans.get("events") or []:
+                    summary = e["summary"] + (f" (ended {e['end']})" if e.get("end") else "")
+                    self.store.run(
+                        "INSERT OR IGNORE INTO space_weather (id, kind, event_time, received_at,"
+                        " active_until, summary, link, source, replay) VALUES (?,?,?,?,NULL,?,?,?,0)",
+                        (e["id"], e["type"], e["start"], now_iso(), summary, e.get("link"),
+                         "NASA DONKI (live, through Cloudflare)"),
+                    )
+                self.donki_state = {"lastFetch": now_iso(), "source": "Cloudflare", "error": None}
+                self.net.add("donki", ["donki", "cloudflare", "net", "hub"], "ok",
+                             f"Space weather from Cloudflare: {len(ans.get('events') or [])} live DONKI events")
+                return
+            err = (ans or {}).get("error") if isinstance(ans, dict) else None
+            self.donki_state = {"lastFetch": now_iso(), "source": "Cloudflare", "error": err or f"HTTP {status}"}
+            self.net.add("donki", ["donki", "cloudflare"], "failed", "Cloudflare could not reach DONKI. Replay still works.")
+            return
         try:
             for kind in donki.KINDS:
                 recs, base = donki.fetch(kind)
@@ -647,15 +684,18 @@ class Hub:
                         (eid, kind, etime, now_iso(), summary, link, "NASA DONKI (live)"),
                     )
             self.donki_state = {"lastFetch": now_iso(), "source": base, "error": None}
-            self.net.add("donki", ["donki", "link", "d1"], "ok", f"DONKI pulled ({base})")
+            self.net.add("donki", ["donki", "cloudflare", "net", "hub"], "ok", f"DONKI pulled ({base})")
         except Exception as exc:  # noqa: BLE001
             self.donki_state = {"lastFetch": now_iso(), "source": None, "error": str(exc)[:200]}
-            self.net.add(
-                "donki",
-                ["d1", "link", "donki"],
-                "failed",
-                "DONKI unreachable (offline?). Replay still works.",
-            )
+            self.net.add("donki", ["donki", "cloudflare"], "failed", "DONKI unreachable (offline?). Replay still works.")
+
+    def live_space_weather(self, limit: int = 8) -> list[dict[str, Any]]:
+        """Today's real DONKI events (not the 2024 replay), newest first."""
+        return self.store.all(
+            "SELECT id, kind, event_time, summary, link, source FROM space_weather WHERE replay=0 "
+            "ORDER BY event_time DESC LIMIT ?",
+            (limit,),
+        )
 
     # ================================================================== link to Earth
     def blackout(self, m: float | None = None) -> dict[str, Any] | None:
@@ -668,6 +708,10 @@ class Hub:
     def earth_url(self) -> str | None:
         """Where the outbox goes: the Cloudflare Worker when configured, otherwise NASA directly."""
         return self.cf_url or self.nasa_url
+
+    def _earth_path(self) -> list[str]:
+        """The hops the hub screen draws for a send to Earth: through Cloudflare, or direct to NASA."""
+        return ["hub", "net", "cloudflare"] if self.cf_url else ["hub", "net", "cloudflare", "nasa"]
 
     @property
     def via(self) -> str:
@@ -720,7 +764,7 @@ class Hub:
             )[:20]
             self.net.add(
                 "dayend",
-                ["outbox", "link", "nasa"],
+                self._earth_path(),
                 "ok" if delivered else "failed",
                 f"{reason}: {total['sent']} records sent, NASA confirmed {total['confirmed']}",
                 count=total["sent"],
@@ -728,9 +772,9 @@ class Hub:
             if total["confirmed"]:
                 self.net.add(
                     "ack",
-                    ["nasa", "link", "outbox"],
+                    self._earth_path()[::-1],
                     "ok",
-                    f"NASA confirmed {total['confirmed']} records",
+                    f"{'Cloudflare' if self.cf_url else 'NASA'} confirmed {total['confirmed']} records",
                     count=total["confirmed"],
                 )
         return total
@@ -771,7 +815,7 @@ class Hub:
             )
             self.net.add(
                 "sync",
-                ["outbox", "link", "nasa"],
+                self._earth_path(),
                 "failed",
                 f"{len(records)} record(s) not delivered: {problem}. Kept in the outbox.",
                 ms=ms,
@@ -789,12 +833,12 @@ class Hub:
         if urgent_only:
             self.net.add(
                 "sync",
-                ["outbox", "link", "nasa"],
+                self._earth_path(),
                 "alert",
                 f"Urgent: {len(records)} alert(s) sent to NASA now ({reason})",
                 ms=ms,
             )
-            self.net.add("ack", ["nasa", "link", "outbox"], "ok", f"NASA confirmed {len(confirmed)}")
+            self.net.add("ack", self._earth_path()[::-1], "ok", f"{'Cloudflare' if self.cf_url else 'NASA'} confirmed {len(confirmed)}")
         return {"linkUp": True, "sent": len(records), "confirmed": len(confirmed)}
 
     def link(self, up: bool | None = None) -> dict[str, Any]:
@@ -803,7 +847,7 @@ class Hub:
         else:
             status, ans = self._nasa("POST", "/link", {"up": bool(up)})
             self.net.add(
-                "link", ["link"], "ok" if up else "failed", f"Link to Earth switched {'UP' if up else 'DOWN'}"
+                "link", ["cloudflare"], "ok" if up else "failed", f"Link to NASA switched {'UP' if up else 'DOWN'}"
             )
             if up:
                 self.sync_state["pendingDayEnd"] = True
@@ -887,6 +931,16 @@ class Hub:
         for r in rows:
             r["when"] = M.clock_label(r["m_start"])
             r["inMinutes"] = round(r["m_start"] - m, 1)
+            if r["kind"] == "space_weather":
+                r["utc"] = M.utc_label(r["m_start"])
+                reported = r.get("sw_type") == "FLR" and r["m_end"] > r["m_start"]
+                r["durationMin"] = round(r["m_end"] - r["m_start"]) if reported else None
+                r["durationNote"] = (
+                    None
+                    if reported
+                    else "duration not reported by NASA"
+                    + (" (radiation shelter window 12 h, demo)" if r.get("sw_type") == "SEP" else "")
+                )
             r["realSeconds"] = round(self.clock.real_seconds_until(r["m_start"]), 1)
         return rows
 

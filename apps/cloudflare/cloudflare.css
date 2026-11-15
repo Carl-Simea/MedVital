@@ -97,3 +97,31 @@ a.open { color: #9ad0ff; }
   .bar { grid-template-columns: 1fr; } .link-box { justify-items: start; }
   .main { grid-template-columns: 1fr; } .panel { border-left: 0; border-top: 1px solid #2c5d8c; max-height: none; }
 }
+
+/* ---- the tree (v3) ---- */
+.pn-zone { fill: rgba(86, 180, 233, 0.04); stroke: #56B4E9; stroke-width: 1.2; stroke-dasharray: 4 6; }
+.zone-label.pn { fill: #8fd0f5; font-size: 13.5px; }
+.node.pnode rect { stroke: #8fd0f5; }
+.node.checker rect { stroke: #CC79A7; }
+.node.agent rect { stroke: #F0E442; }
+.node.astro.outside rect { stroke: #E69F00; stroke-width: 2.6; }
+.node.dim rect { stroke-dasharray: 5 5; opacity: .75; }
+.node.bad rect { stroke: var(--bad); fill: #3e1d2a; stroke-width: 3; }
+.edge { stroke-linejoin: round; }
+.check-ring { fill: none; stroke-width: 3; }
+.check-ring.ok { stroke: var(--good); } .check-ring.bad { stroke: var(--bad); }
+.packet { stroke: rgba(0, 0, 0, .35); stroke-width: 1; }
+.packet.batch { stroke: #fff; stroke-width: 2; }
+.packet.alert { stroke: #ff4d6d; stroke-width: 3; }
+.packet.blocked { fill: var(--bad) !important; }
+.packet.checkdot { stroke: #fff; stroke-width: 1.5; }
+.countdown circle { fill: #3e1d2a; stroke: var(--bad); stroke-width: 3; }
+.countdown .cdn { fill: #fff; font: 700 22px var(--font); text-anchor: middle; }
+.countdown .cdl { fill: var(--bad); font: 600 12px var(--font); text-anchor: middle; }
+.legend { list-style: none; margin: 8px 0 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 6px 18px; font-size: 13.5px; color: var(--chalk-soft); }
+.legend li { display: flex; gap: 8px; align-items: center; }
+.legend i { width: 14px; height: 14px; border-radius: 50%; flex: none; box-shadow: 0 0 0 2px rgba(255, 255, 255, .15); }
+.legend li.down i { border-radius: 0; height: 0; border-top: 3px dashed var(--bad); box-shadow: none; }
+.alertbar { background: #c62828; color: #fff; font-weight: 600; padding: 10px 14px; border-radius: 6px; margin-bottom: 8px; }
+.panel .said { font-size: 16px; line-height: 1.45; margin: 0 0 6px; padding: 10px 12px; border-left: 4px solid #CC79A7; background: rgba(204, 121, 167, .12); }
+.node text.c { text-anchor: end; }

@@ -181,8 +181,9 @@ def space_weather_events() -> list[dict[str, Any]]:
         except ValueError:
             big = False
         if big:  # X-class and strong M-class flares only (the window has 200+ weaker ones)
+            end = to_minute(f.get("endTime") or "")  # NASA reports begin and end for flares
             add(
-                to_minute(f.get("peakTime") or f.get("beginTime") or ""),
+                to_minute(f.get("beginTime") or f.get("peakTime") or ""),
                 "FLR",
                 f"Class {cls} solar flare",
                 f"Active region {f.get('activeRegionNum') or 'n/a'}, {f.get('sourceLocation') or ''}".strip(
@@ -190,6 +191,7 @@ def space_weather_events() -> list[dict[str, Any]]:
                 ),
                 f.get("flrID"),
                 f.get("link"),
+                end=end,
             )
     for c in ev.get("CME", []):
         speed = max([a.get("speed") or 0 for a in c.get("cmeAnalyses") or []] or [0])
@@ -242,6 +244,13 @@ def space_weather_events() -> list[dict[str, Any]]:
 
 def clock_label(m: float | None) -> str:
     return f"day {day_of(m)} {clock_text(m)}" if m is not None else "?"
+
+
+def utc_label(m: float | None) -> str:
+    """The real date of a mission minute: mission minute 0 is DONKI_EPOCH (the replayed 2024 window)."""
+    if m is None:
+        return "?"
+    return (EPOCH + timedelta(minutes=m)).strftime("%Y-%m-%d %H:%M UTC")
 
 
 @lru_cache(maxsize=1)

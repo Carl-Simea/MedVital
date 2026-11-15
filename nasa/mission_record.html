@@ -94,6 +94,19 @@
   td.num { text-align: right; } td.up { color: #a85400; } td.down { color: var(--info); }
   td .origin { font-size: 12px; color: var(--ink-soft); }
   .chart-box { position: relative; height: 340px; }
+  .strip { padding: 8px 22px; font-size: 14px; border-bottom: 1px solid var(--line); background: #fff; display: flex; gap: 10px; align-items: baseline; }
+  .strip b { font-weight: 600; white-space: nowrap; }
+  .strip.bad { background: #fdecec; border-color: #f2b8b8; }
+  .strip .src { color: var(--ink-soft); font-size: 12px; margin-left: auto; white-space: nowrap; }
+  .banner { padding: 12px 22px; background: var(--down); color: #fff; font-weight: 600; display: flex; gap: 14px; align-items: center; }
+  .banner .count-down { font-size: 22px; min-width: 3.5ch; text-align: center; background: rgba(255,255,255,.18); border-radius: 4px; padding: 2px 8px; }
+  .toast { position: fixed; right: 18px; bottom: 18px; background: var(--navy); color: #fff; padding: 12px 16px; border-radius: 6px;
+           box-shadow: 0 6px 20px rgba(0,0,0,.25); max-width: 340px; z-index: 30; }
+  .daypick { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
+  .daypick button { border: 1px solid var(--line); background: #fff; border-radius: 4px; padding: 4px 10px; min-width: 3ch; }
+  .daypick button[aria-pressed="true"] { background: var(--navy); color: #fff; border-color: var(--navy); }
+  .dl { display: grid; grid-template-columns: max-content 1fr; gap: 4px 16px; margin: 0; }
+  .dl dt { color: var(--ink-soft); } .dl dd { margin: 0; }
   pre.report { white-space: pre-wrap; font: 14px/1.5 ui-monospace, Consolas, monospace; background: #f6f8fa; padding: 14px;
                border-radius: 6px; max-height: 420px; overflow: auto; }
 
@@ -112,6 +125,10 @@
   <div class="count"><b id="total">0</b><span>records received</span></div>
 </header>
 
+<div class="strip" id="checker" hidden></div>
+<div class="banner" id="banner" role="alert" hidden></div>
+<div class="toast" id="toast" role="status" hidden></div>
+
 <div class="layout">
   <nav class="crew" id="nav" aria-label="Crew"></nav>
   <main id="main"></main>
@@ -120,6 +137,7 @@
 <script>
 // MedVital mission record: NASA's view. Everything here arrived over the link to Earth.
 const REFRESH_MS = 3000;
+let selectedDay = {}, dayCache = {}, lastReportDay = null, toastTimer = null, linkInfo = null;
 let view = "overview", linkUp = null, filter = "all", busy = false, chart = null, reportOpen = false, osdr = null;
 fetch("/api/osdr").then((r) => r.json()).then((d) => { osdr = d; }).catch(() => {});
 const $ = (id) => document.getElementById(id);
@@ -139,7 +157,8 @@ const kindLabel = { space_weather: "Space weather", blackout: "Link blackout", f
 // ---------- top bar ----------
 function drawLink(up) {
   linkUp = up;
-  $("link-status").textContent = up ? "Link to spacecraft: UP" : "Link to spacecraft: DOWN";
+  const what = linkInfo && linkInfo.via === "cloudflare" ? "Link Cloudflare → NASA" : "Link to spacecraft";
+  $("link-status").textContent = `${what}: ${up ? "UP" : "DOWN"}`;
   $("link-status").className = "link-status " + (up ? "up" : "down");
   $("link-button").textContent = up ? "Cut the link" : "Restore the link";
   $("link-button").className = "link-button " + (up ? "cut" : "restore");
@@ -155,6 +174,31 @@ $("link-button").onclick = async () => {
 function drawClock(now) {
   if (!now || now.day === undefined) return;
   $("clock").replaceChildren(document.createTextNode(`Mission day ${now.day}, ${now.time}`), el("small", "", `${now.phaseLabel} · as of the last record received`));
+}
+
+// ---------- Cloudflare checker line, link banner, day-report alert ----------
+function drawStatus(d) {
+  linkInfo = d.link;
+  const c = $("checker");
+  if (d.checker && d.checker.sentence) {
+    c.hidden = false; c.className = "strip" + (d.checker.ok === false ? " bad" : "");
+    c.replaceChildren(el("b", "", "Cloudflare checker"), el("span", "", d.checker.sentence),
+      el("span", "src", d.checker.source === "Workers AI" ? "worded by Workers AI" : "rule text"));
+  } else c.hidden = true;
+  const b = $("banner"), l = d.link || {};
+  if (l.via === "cloudflare" && !l.up) {
+    b.hidden = false;
+    const n = l.nextRetryS === null || l.nextRetryS === undefined ? "…" : Math.ceil(l.nextRetryS);
+    b.replaceChildren(el("span", "count-down", String(n)),
+      el("span", "", `Link from Cloudflare to NASA is down. Retrying in ${n} s (retry ${l.retries}). ${l.waiting} record(s) waiting safely in Cloudflare.`));
+  } else b.hidden = true;
+  const r = d.dayReport;
+  if (r && r.day && lastReportDay !== null && r.day !== lastReportDay) toast(`Mission day ${r.day} report received from the spacecraft.`);
+  if (r && r.day) lastReportDay = r.day; else if (lastReportDay === null) lastReportDay = 0;
+}
+function toast(text) {
+  const t = $("toast"); t.textContent = text; t.hidden = false;
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => { t.hidden = true; }, 5000);
 }
 
 // ---------- crew menu ----------
@@ -239,6 +283,12 @@ function drawOverview(d) {
   const up = el("section", "panel"); up.append(el("h3", "", "Upcoming"), chips(), timeline(d.upcoming, true));
   const al = el("section", "panel"); al.append(el("h3", "", "Recent alerts"), alertList(d.alerts, true));
   grid.append(up, al); main.append(grid);
+  if (d.linkLog && d.linkLog.length) {
+    const lg = el("section", "panel"); lg.append(el("h3", "", "Link log (Cloudflare → NASA)"));
+    const ul = el("ul", "list");
+    for (const x of d.linkLog) { const li = el("li"); li.append(el("b", "", x.event), el("span", "when", new Date(x.at).toLocaleTimeString()), el("div", "", x.detail)); ul.append(li); }
+    lg.append(ul); main.append(lg);
+  }
 }
 
 // ---------- one astronaut ----------
@@ -275,6 +325,7 @@ function drawAstronaut(d) {
   const al = el("section", "panel"); al.append(el("h3", "", `Alerts (${d.alerts.length})`), alertList(d.alerts, false));
   const up = el("section", "panel"); up.append(el("h3", "", "Upcoming for this astronaut"), timeline(d.upcoming, false));
   g2.append(al, up); main.append(g2);
+  main.append(dayPanel(d));
   const g3 = el("div", "grid2");
   const su = el("section", "panel"); su.append(el("h3", "", "Daily summaries"));
   const sl = el("ul", "list"); if (!d.summaries.length) sl.append(el("li", "empty", "None yet."));
@@ -303,6 +354,36 @@ function drawAstronaut(d) {
   drawChart(canvas, d);
 }
 
+function dayPanel(d) {
+  const sec = el("section", "panel"); sec.append(el("h3", "", "Day report"));
+  const days = d.days || [];
+  if (!days.length) { sec.append(el("p", "empty", "No complete day received yet.")); return sec; }
+  const pick = el("div", "daypick");
+  const cur = (d.dayReport && d.dayReport.day) ?? days[days.length - 1];
+  for (const n of days) {
+    const b = el("button", "", `Day ${n}`); b.setAttribute("aria-pressed", String(n === cur));
+    b.onclick = async () => { selectedDay[d.id] = n; dayCache[d.id + ":" + n] = await getJson(`/api/astronaut/${encodeURIComponent(d.id)}/day/${n}`); drawAstronaut(d); };
+    pick.append(b);
+  }
+  sec.append(pick);
+  const r = d.dayReport;
+  if (!r) { sec.append(el("p", "empty", "Loading…")); return sec; }
+  const dl = el("dl", "dl");
+  const row = (k, v) => { dl.append(el("dt", "", k), el("dd", "", v)); };
+  row("Readings received", String(r.readings));
+  if (r.heartRate) row("Heart rate", `${r.heartRate.min}–${r.heartRate.max} bpm (average ${r.heartRate.avg})`);
+  if (r.spo2) row("Blood oxygen", `lowest ${r.spo2.min}%, average ${r.spo2.avg}%`);
+  if (r.doseMsv !== null && r.doseMsv !== undefined) row("Radiation this day", `${r.doseMsv} mSv`);
+  const hrs = Object.entries(r.hoursByState || {}).map(([k, v]) => `${k} ${v} h`).join(" · ");
+  if (hrs) row("Time by activity", hrs);
+  for (const w of r.spacewalks || []) row("Spacewalk", `${mlabel(w.m_start)}: ${w.detail || w.title}`);
+  for (const [, v] of Object.entries(r.values || {})) row(v.label, v.values.map((x) => `${+(+x).toFixed(3)}`).join(", ") + (v.unit ? ` ${v.unit}` : ""));
+  for (const a of r.alerts || []) row(a.code.replace("_", " ").toLowerCase(), a.message);
+  row("Summary", r.summary ? r.summary.text : "day still in progress: the summary comes with the day-end batch");
+  sec.append(dl);
+  return sec;
+}
+
 function drawChart(canvas, d) {
   if (!window.Chart) { canvas.parentNode.replaceChildren(el("p", "empty", "The chart library did not load.")); return; }
   const pts = (k) => d.readings.filter((r) => typeof r[k] === "number" && typeof r.m === "number").map((r) => ({ x: r.m, y: r[k] }));
@@ -324,10 +405,15 @@ async function refresh() {
   if (busy) return; busy = true;
   try {
     const [link, stats, mission] = await Promise.all([getJson("/link"), getJson("/stats"), getJson("/api/mission")]);
+    drawStatus(mission);
     drawLink(link.up); $("total").textContent = stats.total; drawClock(mission.now); drawNav(mission.crew);
     if (view === "overview") drawOverview(mission);
     else {
       const d = await getJson(`/api/astronaut/${encodeURIComponent(view)}`);
+      d.days = await getJson(`/api/astronaut/${encodeURIComponent(view)}/days`);
+      // open on the latest finished day (its summary has arrived); a day still in progress is one click away
+      const n = selectedDay[view] ?? (d.summaries.length ? d.summaries[0].missionDay : d.days[d.days.length - 1]);
+      if (n !== undefined) d.dayReport = await getJson(`/api/astronaut/${encodeURIComponent(view)}/day/${n}`);
       if (chart && document.body.contains(chart.canvas)) {   // keep the page, just update the numbers and chart
         drawAstronaut(d);
       } else drawAstronaut(d);
@@ -338,6 +424,8 @@ async function refresh() {
 }
 refresh();
 setInterval(refresh, REFRESH_MS);
+// the retry countdown needs a faster tick than the page refresh
+setInterval(() => { if (linkInfo && linkInfo.via === "cloudflare" && !linkInfo.up) getJson("/api/status").then(drawStatus).catch(() => {}); }, 1000);
 </script>
 </body>
 </html>

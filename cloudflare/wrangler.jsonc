@@ -13,5 +13,7 @@
   "d1_databases": [
     { "binding": "DB", "database_name": "medvital", "migrations_dir": "migrations" }
   ],
-  "ai": { "binding": "AI" }
+  "ai": { "binding": "AI" },
+  // fetch NASA DONKI space weather into D1 every 30 minutes, even when nobody is watching
+  "triggers": { "crons": ["*/30 * * * *"] }
 }

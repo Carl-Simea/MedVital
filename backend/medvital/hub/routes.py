@@ -11,6 +11,7 @@ from fastapi.responses import JSONResponse, PlainTextResponse
 from medvital.hub import ai
 from medvital.hub import mission as M
 from medvital.hub import settings as S
+from medvital.hub.actions import ActionError
 from medvital.hub.service import Hub
 from medvital.hub.store import TABLES
 
@@ -38,6 +39,8 @@ ENTRY_KEYS = {
     "mass.changePct",
     "strength.changePct",
     "aerobic.changePct",
+    *S.URINE_BONE_PANEL,
+    "mood.score",
     "exercise.minPerWeek",
     "exercise.resistiveDays",
     "nutrition.energyPct",
@@ -80,6 +83,9 @@ def status(request: Request) -> dict[str, Any]:
         "nasaUrl": hub.nasa_url,
         "via": hub.via,
         "cloudflareUrl": hub.cf_url,
+        "checker": hub.checker,
+        "dayReport": hub.sync_state.get("dayReport"),
+        "evas": {aid: hub.eva_status(aid) for aid in list(hub.evas)},
         "solarEvent": hub.solar_active(),
         "clock": hub.clock_view(),
         "rad": M.rad_summary(),
@@ -225,7 +231,11 @@ def body_measurements(aid: str, request: Request) -> dict[str, Any]:
     hub = _hub(request)
     a = _astronaut(hub, aid)
     meas = hub.measurements(aid)
-    alert = hub.store.one("SELECT * FROM alerts WHERE astronaut_id=? ORDER BY time DESC LIMIT 1", (aid,))
+    # an active RETURN_NOW always wins: a later note (e.g. "summary ready") must not hide it
+    alert = hub.store.one(
+        "SELECT * FROM alerts WHERE astronaut_id=? AND code='RETURN_NOW' AND status='active' ORDER BY time DESC LIMIT 1",
+        (aid,),
+    ) or hub.store.one("SELECT * FROM alerts WHERE astronaut_id=? ORDER BY time DESC LIMIT 1", (aid,))
     return {
         "id": aid,
         "name": a["name"],
@@ -239,7 +249,66 @@ def body_measurements(aid: str, request: Request) -> dict[str, Any]:
             "SELECT * FROM summaries WHERE astronaut_id=? ORDER BY time DESC LIMIT 1", (aid,)
         ),
         "device": next((d for d in hub.devices() if d["astronautId"] == aid), None),
+        "eva": hub.eva_status(aid),
+        "sleeping": hub.sleeping_hours(aid),
+        "evaLog": hub.events(aid, upcoming=False, kinds=("eva",), limit=6),
+        "liveSpaceWeather": hub.live_space_weather(6),
+        "urinePanel": [{"key": k, "label": lab, "unit": u} for k, (lab, u) in S.URINE_BONE_PANEL.items()],
     }
+
+
+def _act(fn, *args):
+    try:
+        return fn(*args)
+    except ActionError as e:
+        raise HTTPException(409, str(e)) from e
+
+
+@router.post("/astronauts/{aid}/sleep")
+def sleep(aid: str, request: Request, body: JsonBody) -> dict[str, Any]:
+    """The astronaut's Sleep / Wake up button."""
+    hub = _hub(request)
+    _astronaut(hub, aid)
+    return _act(hub.set_sleep, aid, bool(body.get("asleep", True)))
+
+
+@router.post("/astronauts/{aid}/eva")
+def eva(aid: str, request: Request, body: JsonBody) -> dict[str, Any]:
+    """Leave the spacecraft ({"outside": true}) or go back inside ({"outside": false})."""
+    hub = _hub(request)
+    _astronaut(hub, aid)
+    if body.get("outside", True):
+        return _act(hub.start_eva, aid)
+    with hub._lock:
+        for a in hub.store.all(
+            "SELECT id FROM alerts WHERE astronaut_id=? AND code='RETURN_NOW' AND status='active'", (aid,)
+        ):
+            hub.store.run("UPDATE alerts SET status='acknowledged' WHERE id=?", (a["id"],))
+        return hub.end_eva(aid) or {"outside": False}
+
+
+@router.post("/astronauts/{aid}/mood")
+def mood(aid: str, request: Request, body: JsonBody) -> dict[str, Any]:
+    hub = _hub(request)
+    _astronaut(hub, aid)
+    try:
+        score = int(body.get("score"))
+    except (TypeError, ValueError) as e:
+        raise HTTPException(422, "score is 1 to 5") from e
+    return _act(hub.add_mood, aid, score)
+
+
+@router.post("/skip")
+def skip(request: Request, body: JsonBody) -> dict[str, Any]:
+    """Demo drawer: jump the mission clock ahead (to 2 h before the next solar event, or to a day)."""
+    hub = _hub(request)
+    day = body.get("day")
+    return _act(hub.skip_ahead, str(body.get("to") or "solar"), int(day) if day else None)
+
+
+@router.get("/checker")
+def checker(request: Request) -> dict[str, Any]:
+    return _hub(request).checker
 
 
 @router.post("/demo/{aid}")
@@ -322,6 +391,14 @@ def summary(aid: str, request: Request) -> dict[str, Any]:
     if out is None:
         raise HTTPException(409, "no readings yet")
     return out
+
+
+@router.get("/space-weather")
+def space_weather(request: Request) -> dict[str, Any]:
+    """Live DONKI events (through Cloudflare when configured) and the replayed mission calendar."""
+    hub = _hub(request)
+    return {"live": hub.live_space_weather(12), "state": hub.donki_state,
+            "calendar": hub.events(None, kinds=("space_weather",), limit=12)}
 
 
 @router.post("/space-weather/replay")

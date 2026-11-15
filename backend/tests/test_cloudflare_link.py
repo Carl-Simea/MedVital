@@ -23,6 +23,7 @@ class FakeWorker(BaseHTTPRequestHandler):
     records: dict[str, dict] = {}
     up = True
     calls: list[tuple[str, str]] = []
+    heartbeats: list[dict] = []
 
     def log_message(self, *_):  # keep pytest output clean
         pass
@@ -43,9 +44,7 @@ class FakeWorker(BaseHTTPRequestHandler):
         n = int(self.headers.get("content-length") or 0)
         body = json.loads(self.rfile.read(n) or b"null") if n else None
         route = f"{self.command} {self.path.split('?')[0]}"
-        if route == "POST /outbox":
-            if not cls.up:
-                return self._send(503, {"error": "link down"})
+        if route == "POST /outbox":  # the spacecraft always reaches Cloudflare; the switch is Cloudflare -> NASA
             for r in body["records"]:
                 cls.records[str(r["id"])] = r
             return self._send(200, {"saved": [str(r["id"]) for r in body["records"]]})
@@ -59,6 +58,18 @@ class FakeWorker(BaseHTTPRequestHandler):
             for r in cls.records.values():
                 by_a[r["astronautId"]] = by_a.get(r["astronautId"], 0) + 1
             return self._send(200, {"total": len(cls.records), "by_astronaut": by_a})
+        if route == "POST /heartbeat":
+            cls.heartbeats.append(body)
+            rep = body["report"]
+            return self._send(200, {"at": "now", "parts": {"hub": {"up": True}, "devices": rep["devices"]},
+                                    "link": {"up": cls.up, "retryEveryS": 3},
+                                    "db": {"spacecraftConfirmed": rep["confirmed"], "cloudflare": len(cls.records),
+                                           "nasa": 0, "waitingAtCloudflare": len(cls.records), "ok": True},
+                                    "log": [], "sentence": {"text": "ok", "source": "rules"}})
+        if route == "GET /donki":
+            return self._send(200, {"events": [{"id": "2026-11-10T01:00:00-FLR-001", "type": "FLR",
+                                                "start": "2026-11-10T01:00Z", "end": "2026-11-10T01:30Z",
+                                                "summary": "Class X1.0 solar flare", "link": None}]})
         if route == "POST /ai":
             return self._send(200, {"text": f"Plain words. {body['prompt'].split(':', 1)[-1].strip()}"})
         return self._send(404, {"error": "not found"})
@@ -68,7 +79,7 @@ class FakeWorker(BaseHTTPRequestHandler):
 
 @pytest.fixture
 def worker():
-    FakeWorker.records, FakeWorker.up, FakeWorker.calls = {}, True, []
+    FakeWorker.records, FakeWorker.up, FakeWorker.calls, FakeWorker.heartbeats = {}, True, [], []
     server = ThreadingHTTPServer(("127.0.0.1", 0), FakeWorker)
     threading.Thread(target=server.serve_forever, daemon=True).start()
     yield f"http://127.0.0.1:{server.server_address[1]}"
@@ -96,17 +107,32 @@ def test_outbox_goes_to_the_worker_with_the_key_and_nothing_is_lost(hub_via_work
     assert all(r["ok"] for r in hub.verify()["rows"])  # "NASA has" now reads the Worker's D1 counts
 
 
-def test_link_cut_in_the_worker_keeps_everything_on_board(hub_via_worker):
+def test_cutting_the_link_to_nasa_still_lets_the_spacecraft_reach_cloudflare(hub_via_worker):
+    """The switch sits between Cloudflare and NASA: the spacecraft keeps delivering, D1 keeps everything."""
     hub = hub_via_worker
     hub.link(False)
-    assert FakeWorker.up is False
-    waiting = hub.store.scalar("SELECT COUNT(*) FROM outbox")
+    assert FakeWorker.up is False and hub.link()["up"] is False
     hub.end_of_day(1)
-    assert FakeWorker.records == {} and hub.store.scalar("SELECT COUNT(*) FROM outbox") >= waiting
-    assert "Cloudflare answered 503" in hub.sync_state["lastError"]
+    assert hub.store.scalar("SELECT COUNT(*) FROM outbox") == 0 and FakeWorker.records
+    assert hub.sync_state["dayReport"]["delivered"] is True
     hub.link(True)
-    hub.sync_tick()  # the missed day-end batch drains as soon as the link is back
-    assert hub.store.scalar("SELECT COUNT(*) FROM outbox") == 0
+    assert FakeWorker.up is True
+
+
+def test_heartbeat_reports_to_the_cloudflare_checker(hub_via_worker):
+    hub = hub_via_worker
+    hub.tick()
+    hub.heartbeat()
+    rep = FakeWorker.heartbeats[-1]
+    assert rep["node"] == "hub" and {d["id"] for d in rep["report"]["devices"]} >= {"astro-1", "astro-4"}
+    assert hub.checker["via"] == "cloudflare" and hub.checker["db"]["ok"] is True
+
+
+def test_space_weather_comes_through_cloudflare(hub_via_worker):
+    hub = hub_via_worker
+    hub.refresh_space_weather()
+    live = hub.live_space_weather()
+    assert live and live[0]["source"] == "NASA DONKI (live, through Cloudflare)" and "ended" in live[0]["summary"]
 
 
 def test_wrong_key_is_refused_and_records_stay(tmp_path, worker, monkeypatch):

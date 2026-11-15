@@ -42,24 +42,24 @@ open the astronaut screen and really vibrate.
 
 ## Demo script
 
-1. **Start page → Spacecraft hub.** Four wearables are connected and pulse every second. Click *Private network*
-   to see each device, its data going up and alerts coming down. The day bar fills; at the end of the day the
-   batch flies to NASA and NASA's confirmation comes back.
-2. **Start page → Astronaut → Maya Okafor.** Her 3D body: every tile is live, the heart beats at her real-time
-   rate, *Upcoming* shows her schedule and the space weather. Press **D** for the hidden Demo drawer.
-3. **Real solar event.** Around mission day 10 (about 9 minutes in) Maya and Daniel are on their first spacewalk when
-   the real May 2024 solar particle event from NASA DONKI arrives: **RETURN NOW**, three long buzzes. Or press
-   *Solar event* in the Demo drawer at any time.
-4. **Heart-rate spike** (Demo drawer): after two readings confirm it, **CHECK VITALS**. The same heart rate would not
-   alert for Jean-Luc, whose baseline is higher. *Sensor glitch* is flagged but never buzzes; *Fake device* is
-   blocked by the private network.
-5. **Onboard tests.** Paste "urinary calcium 250 mg/day" into *Data input* and apply: it goes to the spacecraft
-   database and on to NASA.
-6. **New astronaut.** Astronaut → *New astronaut* → upload a report from `reports/` (or type the values). Everything
-   else about them is simulated from that baseline.
-7. **NASA.** Pick an astronaut: pre-flight report, pre-flight vs. in-flight table, the mission chart, alerts, daily
-   summaries, upcoming events, and the NASA research behind each risk. *Cut the link*, wait a day, *Restore*: the
-   outbox drains and the hub's *Link* panel shows "Nothing lost" for everyone.
+1. **Spacecraft hub.** The network as a tree: NASA above Cloudflare; inside Cloudflare the Worker + D1, DONKI and the
+   checker; inside that the private network, the hub, the onboard AI agent and every wearable. Each kind of traffic
+   has its own colour (legend under the drawing). The pink dot is the Cloudflare checker going round every part.
+2. **Astronaut → Maya Okafor.** Her 3D body: every tile is live and the heart beats at her rate. Under the body:
+   **Sleep**, **Leave the spacecraft**, **Urine test (bone loss)**, **Mood check-in**. *Upcoming* shows the space
+   weather with date, time and (when NASA reports it) duration.
+3. **Spacewalk.** *Leave the spacecraft*. After 20 s: "Upcoming: … Go back inside by …" with a countdown. Ignore it
+   and 15 s later the screen turns red, buzzes and only offers **Go back inside**. The time outside and the dose
+   received show under *Spacewalks* and go to NASA. *Demo controls → Skip to 2 h before the next solar event* first
+   to make the event a real NASA one.
+4. **Ask the AI.** Open the hub screen's *Onboard AI agent* box, then ask in the astronaut's *Assistant* tab: the
+   yellow dot goes astronaut → hub → agent (→ Workers AI through Cloudflare) and back.
+5. **Cut the link.** On the hub or NASA screen. Cloudflare turns red, a 3-2-1 retry counter runs next to it, and
+   every retry lands in the link log. Records wait in Cloudflare's D1. *Restore*: they rush to NASA back to back,
+   and the checker says the three databases agree.
+6. **New astronaut.** Astronaut → *New astronaut* → upload a report from `reports/` or type the values.
+7. **NASA.** Pick an astronaut and a day: that day's full report (vitals, sleep, tests, time outside, dose,
+   alerts, summary), plus pre-flight vs. now, alerts and upcoming events. The checker's sentence is at the top.
 
 ## Where the numbers come from
 
@@ -104,8 +104,18 @@ MEDVITAL_CLOUDFLARE_URL=https://medvital-link.<your-subdomain>.workers.dev
 MEDVITAL_CLOUDFLARE_KEY=<the same key>
 ```
 
-Without these two variables the hub sends straight to the NASA receiver, as before. A local model can also
-answer the astronauts' questions: `MEDVITAL_OLLAMA_MODEL=gemma3`.
+Without these two variables the hub sends straight to the NASA receiver, as before.
+
+What Cloudflare does while the mission runs:
+* **Link to NASA.** Everything the spacecraft sends lands in D1; NASA pulls it. Cutting the link stops Cloudflare →
+  NASA only: records wait in D1, NASA retries every 3 s, each retry is logged.
+* **Checker.** The hub and NASA report in every 3 s (Cloudflare cannot call into a private network). The Worker marks
+  silent parts as down, checks that the spacecraft, D1 and NASA agree, and Workers AI words the result.
+* **Space weather.** A cron trigger fetches NASA DONKI into D1 every 30 minutes; the spacecraft reads it from there.
+* **Workers AI** words alerts, summaries and the onboard agent's answers (any changed number is rejected).
+
+The onboard agent uses a local model first when one is set (on your laptop, with Ollama running):
+`MEDVITAL_OLLAMA_MODEL=gemma4` in `.env`.
 
 Rules always fire first; AI only explains, and the onboard agent rejects any AI wording that changes a number.
 

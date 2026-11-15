@@ -12,6 +12,8 @@ from typing import Any
 from medvital.hub import settings as S
 
 RETURN_NOW, CHECK_VITALS, INFO = "RETURN_NOW", "CHECK_VITALS", "INFO"
+GO_INSIDE = "GO_INSIDE"  # spacewalk warning: an event is coming, go back inside by a set time
+CHECK_IN = "CHECK_IN"  # sleep and mood both changed from the astronaut's own usual: flight surgeon check-in
 
 
 @dataclass
@@ -204,3 +206,26 @@ def exercise_tip(f: dict[str, Any]) -> str:
             "and the treadmill or bike keeps your heart fit."
         )
     return "Exercise target met. Keep mixing resistance work (bone and muscle) with cardio."
+
+
+def sleep_mood(sleep_hours: list[float], usual_sleep_h: float, mood: float | None) -> Decision | None:
+    """Sleep of the last nights compared with this astronaut's own pre-flight sleep, plus the mood check-in.
+
+    No diagnosis and no mental-health label: when both drift, the flight surgeon is asked to check in.
+    The two limits are demo values (settings.LIMITS sleep_change_h, mood_low).
+    """
+    recent = sleep_hours[-3:]
+    if len(recent) < 2 or mood is None:
+        return None
+    avg = sum(recent) / len(recent)
+    change = avg - usual_sleep_h
+    if abs(change) < S.LIMITS["sleep_change_h"].value or mood > S.LIMITS["mood_low"].value:
+        return None
+    more_less = "more" if change > 0 else "less"
+    return Decision(
+        CHECK_IN,
+        "sleep_mood",
+        f"Your sleep ({avg:.1f} h a night, {abs(change):.1f} h {more_less} than before flight) and your mood "
+        f"check-in ({mood:.0f} of 5) both changed. The flight surgeon will check in with you.",
+        {"avgSleepH": round(avg, 1), "usualSleepH": usual_sleep_h, "mood": mood, "nights": len(recent)},
+    )

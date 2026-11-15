@@ -337,6 +337,39 @@ so nothing in it may let a stranger use the account (no account id used as a cre
 * `spacecraft-sync/sync.js` is removed: its outbox logic lives in `hub/service.py`, its Cloudflare role in the Worker.
 * Dependency: wrangler (dev only, through `npx`), needed only to run or deploy the Worker.
 
+## D-036 Astronaut buttons, the Cloudflare checker, and the hub screen as a tree (2026-11-14)
+**Context.** Feedback on v2: the astronaut needs Sleep, Leave the spacecraft (with a warning, then a forced return),
+a bone-loss urine test and a mood check-in on the 3D page; Cloudflare must be used actively (checking connections and
+the databases, feeding DONKI); cutting the link should break Cloudflare → NASA, with a visible 3 s retry; the hub
+screen must read as a tree with one colour per kind of traffic.
+
+**Decision.**
+* **Link cut = Cloudflare → NASA.** `/outbox` always accepts; `/pull` answers 503 while the link is down and logs each
+  refused attempt in D1 (`link_log`). NASA retries every 3 s (`MEDVITAL_RETRY_S`) and logs down / retry / restored in
+  `mission.db`. Scheduled spacecraft blackouts still hold the hub's outbox. Without Cloudflare the old switch on the
+  NASA receiver stays (D-033).
+* **The checker runs in the Worker.** Cloudflare cannot call into a private laptop or Codespace, so the hub and NASA
+  report in every 3 s (`POST /heartbeat`) with their counts and which parts answer. The Worker marks silent parts
+  down, checks spacecraft-confirmed ≤ D1 and NASA + waiting = D1, and Workers AI words one sentence (numbers checked,
+  at most once a minute, rule text otherwise). Without a Worker the hub runs the same comparison and labels it local.
+* **DONKI through Cloudflare.** A cron trigger (every 30 min) fetches the last 30 days of FLR, CME, SEP, GST and IPS
+  into D1; the hub reads `GET /donki`. Only flares carry a NASA-reported end time; nothing else gets a duration.
+  The mission calendar still replays May–June 2024 (labelled as such); the live events are shown as "Live now".
+* **Astronaut buttons** (`hub/actions.py`). Sleep overrides the plan until Wake up and logs `sleep.hours`. Leave the
+  spacecraft: after 20 s a GO_INSIDE alert names the next real DONKI event within 12 mission hours (else a simulated
+  "window closes") and a deadline that is never after that event; past it, RETURN_NOW (forced, full screen). An
+  active RETURN_NOW always wins on the astronaut's screen. Time outside, dose (modeled) and minutes during a solar
+  event are logged and sent to NASA. Mood 1–5 plus sleep vs. the astronaut's own pre-flight sleep: when both drift
+  (demo limits in settings), CHECK_IN asks the flight surgeon to check in. No diagnosis wording.
+* **Urine test for bone loss**: NASA's 24-h urine measures (NASA_SOURCES §8), stored as entered, no ranges.
+* **Skip ahead** (demo drawer): jump to 2 h before the next solar event or to a mission day; no backfill.
+* **Onboard agent**: Ollama (`MEDVITAL_OLLAMA_MODEL`, e.g. gemma4) → Workers AI through the Worker (rewording the
+  rule answer, any changed number rejected) → rules. The hub screen draws the question's path.
+* **Hub screen**: NASA above a Cloudflare box; inside it DONKI, the Worker + D1 and the checker; inside that the
+  private network, the hub, the agent and every wearable. Six Okabe-Ito colours (readings, hub → Cloudflare,
+  Cloudflare → NASA, checker, AI question, DONKI); red is reserved for "down".
+* D1 writes: heartbeats are one upsert per part every 3 s (about 2,400 rows an hour while running).
+
 ## Open questions
 
 * **Q-1 Offline computation parity.** Summaries are computed server-side only, so an offline client cannot show derived values. Options: port calculations to TypeScript with shared test vectors; run the Python in Pyodide/WASM; or cache the last server summary. Decide before building the dashboard.

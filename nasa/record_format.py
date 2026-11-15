@@ -198,6 +198,15 @@ LAB_LABELS = {
     "resp.rate": ("Breathing rate", "/min"),
     "radiation.careerMsv": ("Career radiation dose", "mSv"),
     "mission.month": ("Mission month", ""),
+    "urine.ntxNmolDay": ("Urinary NTX (bone breakdown)", "nmol BCE/day"),
+    "urine.ctxUgDay": ("Urinary CTX (bone breakdown)", "ug/day"),
+    "urine.pydNmolDay": ("Urinary pyridinoline", "nmol/day"),
+    "urine.dpdNmolDay": ("Urinary deoxypyridinoline", "nmol/day"),
+    "urine.creatinineMmolDay": ("Urinary creatinine", "mmol/day"),
+    "mood.score": ("Mood check-in", "/5"),
+    "eva.minutes": ("Time outside (spacewalk)", "min"),
+    "eva.solarMinutes": ("Outside during a solar event", "min"),
+    "eva.doseMsv": ("Spacewalk dose", "mSv"),
 }
 
 # Rows of the flight surgeon's "pre-flight vs. now" table: (label, unit, pre-flight key, live source)
@@ -209,6 +218,7 @@ COMPARE = [
     ("Blood pressure, diastolic", "mmHg", "bp.dia", None),
     ("Blood glucose", "mg/dL", "glucose.mgdl", None),
     ("Hemoglobin", "g/dL", "hemoglobin.gdl", None),
+    ("Mood check-in", "/5", "mood.score", None),
     ("Vitamin D", "ng/mL", "vitd.ngml", None),
     ("Urine volume", "L/day", "urine.volumeL", None),
     ("Urinary calcium", "mg/day", "urine.calciumMgDay", None),

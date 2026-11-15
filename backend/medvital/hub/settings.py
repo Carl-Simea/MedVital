@@ -75,6 +75,10 @@ LIMITS: dict[str, Limit] = {
     "eva_msv": Limit(2.0, "mSv", "demo", "Dose budget for one spacewalk."),
     "eva_dose_rate_usv_h": Limit(1000.0, "uSv/h", "demo", "Dose-rate ceiling during a spacewalk."),
     "eva_warn_fraction": Limit(0.8, "fraction", "demo", "RETURN_NOW once 80 % of the EVA budget is used."),
+    "sleep_change_h": Limit(
+        1.5, "h", "demo", "Average sleep of the last 3 nights this far from the astronaut's own pre-flight sleep."
+    ),
+    "mood_low": Limit(2.0, "score 1-5", "demo", "Mood check-in at or below this, together with a sleep change."),
 }
 
 HR_ALLOWANCE_BPM: dict[str, float] = {"asleep": 25, "awake": 40, "exercise": 95, "spacewalk": 75}
@@ -86,6 +90,27 @@ CHECK_VITALS_COOLDOWN_S = 20  # real seconds (about 8 mission hours)
 SOLAR_EVENT_ACTIVE_S = 30  # a demo replay stays active this many real seconds (half a mission day)
 EXERCISE_TARGET_MIN = 120  # about 2 h a day (demo, rounded)
 OFFLINE_AFTER_S = 3.0  # a wearable silent this long shows as disconnected
+
+# ---- the astronaut's "Leave the spacecraft" button (demo timing, real seconds)
+EVA_WARN_AFTER_S = 20.0  # "Upcoming: ... Go back inside by ..." appears this long after leaving
+EVA_RETURN_AFTER_WARN_S = 15.0  # still outside this long after the warning: RETURN_NOW (vibrate, forced)
+EVA_LOOKAHEAD_MIN = 12 * 60  # a real solar event starting within 12 mission hours is the one announced
+
+# ---- Cloudflare checker: the hub and NASA report in this often; NASA retries a cut link this often
+HEARTBEAT_S = 3.0
+RETRY_S = 3.0
+
+# The bone-loss urine panel NASA's nutritional biochemistry studies use (docs/NASA_SOURCES.md, urine panel):
+# 24-hour urinary calcium plus collagen breakdown markers. Recorded as typed in; no reference ranges.
+URINE_BONE_PANEL: dict[str, tuple[str, str]] = {
+    "urine.volumeL": ("24-hour urine volume", "L"),
+    "urine.calciumMgDay": ("Urinary calcium, 24 h", "mg/day"),
+    "urine.ntxNmolDay": ("N-telopeptide (NTX), 24 h", "nmol BCE/day"),
+    "urine.ctxUgDay": ("C-telopeptide (CTX), 24 h", "ug/day"),
+    "urine.pydNmolDay": ("Pyridinoline (PYD), 24 h", "nmol/day"),
+    "urine.dpdNmolDay": ("Deoxypyridinoline (DPD), 24 h", "nmol/day"),
+    "urine.creatinineMmolDay": ("Creatinine, 24 h", "mmol/day"),
+}
 
 
 # ---------------------------------------------------------------------------- crew

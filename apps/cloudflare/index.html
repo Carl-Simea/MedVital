@@ -28,13 +28,17 @@
 
 <main class="main">
   <section class="schematic" aria-label="Live network">
-    <svg id="net" viewBox="0 0 1000 520" role="img" aria-label="Wearables, private network, spacecraft systems, link to Earth, NASA">
+    <div class="alertbar" id="alertbar" role="alert" hidden></div>
+    <svg id="net" viewBox="0 0 1000 640" role="img" aria-label="NASA above Cloudflare; inside Cloudflare: DONKI space weather, the checker, the private network, the spacecraft hub, the onboard AI agent and every astronaut's wearable">
       <defs><pattern id="grid" width="20" height="20" patternUnits="userSpaceOnUse"><path d="M20 0H0V20" fill="none" stroke="#2c5d8c" stroke-width="0.6"/></pattern></defs>
-      <rect width="1000" height="520" fill="url(#grid)"/>
-      <rect x="215" y="16" width="560" height="490" rx="12" class="cf-zone"/>
-      <text x="232" y="40" class="zone-label">Cloudflare on the spacecraft</text>
-      <g id="edges"></g><g id="nodes"></g><g id="packets"></g>
+      <rect width="1000" height="640" fill="url(#grid)"/>
+      <rect x="22" y="118" width="956" height="512" rx="14" class="cf-zone"/>
+      <text x="42" y="146" class="zone-label">Cloudflare</text>
+      <rect x="62" y="262" width="876" height="356" rx="12" class="pn-zone"/>
+      <text x="80" y="288" class="zone-label pn">Private network: only paired devices get in</text>
+      <g id="edges"></g><g id="rings"></g><g id="nodes"></g><g id="packets"></g>
     </svg>
+    <ul class="legend" id="legend" aria-label="What the moving dots mean"></ul>
     <div class="dayend" id="dayend" hidden></div>
   </section>
   <aside class="panel" id="panel" aria-live="polite"></aside>

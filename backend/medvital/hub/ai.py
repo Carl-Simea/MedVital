@@ -121,40 +121,64 @@ def reword(template: str, kind: str) -> tuple[str, str, str]:
 
 
 # ---------------------------------------------------------------------------- onboard agent
+def agent_label() -> str:
+    """Which AI the onboard agent uses right now (shown on the hub screen)."""
+    if agent_model():
+        return f"Ollama {agent_model()}"
+    if workers_ai_enabled():
+        return "Workers AI"
+    return "rules"
+
+
 def answer(question: str, ctx: dict[str, Any]) -> tuple[str, str]:
-    """Answer an astronaut's question from their own data. Returns (answer, source)."""
+    """Answer an astronaut's question from their own data. Returns (answer, source).
+
+    Order: a local Ollama model (MEDVITAL_OLLAMA_MODEL, e.g. gemma4), then Workers AI rewording the rule
+    answer (rejected if any number changes), then the rule answer itself.
+    """
     facts = json.dumps(ctx, default=str)[:6000]
     llm = ollama(
         f"Data from the spacecraft hub (JSON): {facts}\n\nAstronaut's question: {question}\n"
         "Answer in at most 4 sentences using only this data."
     )
     if llm:
-        return llm, f"onboard agent · {agent_model()}"
-    return _rule_answer(question.lower(), ctx), "onboard agent · rules"
+        return llm, f"onboard agent · Ollama {agent_model()}"
+    rule = _rule_answer(question.lower(), ctx)
+    text = workers_ai(
+        f"An astronaut asked: {question}\nAnswer them in at most 3 sentences using only this, "
+        f"keeping every number: {rule}"
+    )
+    if text and numbers_survive(rule, text):
+        return text, "onboard agent · Workers AI (numbers checked)"
+    return rule, "onboard agent · rules"
 
 
 def _rule_answer(q: str, c: dict[str, Any]) -> str:
+    """Answer every topic the question touches, from the astronaut's own data (no model needed)."""
     last, prof = c.get("latest") or {}, c["profile"]
     rad, wx = c["radiation"], c["spaceWeather"]
-    alert = c.get("activeAlert")
     has = lambda *words: any(w in q for w in words)  # noqa: E731
     if not last:
         return "I have no readings from your wearable yet. Make sure it is on and sending."
-    if has("why", "buzz", "vibrat", "alert", "warning"):
-        if alert:
-            return f"Your last alert was {alert['code']}: {alert['message']}"
-        return "No active alert. Your readings are within your personal ranges."
+    parts: list[str] = []
+    if has("why", "buzz", "vibrat", "alert", "warning", "alarm"):
+        real = next((a for a in c.get("alerts") or [] if a["code"] != "INFO"), None)
+        parts.append(
+            f"Your last alert was {real['code'].replace('_', ' ').lower()}: {real['message']}"
+            if real
+            else "You have had no alerts. Your readings are within your personal ranges."
+        )
     if has("outside", "spacewalk", "eva", "go out"):
         if wx["active"]:
-            return (
+            parts.append(
                 f"Not now. A solar event is active ({wx['active']['summary'].rstrip('.')}). "
                 "Stay inside the shielded area."
             )
-        return (
-            f"Space weather is quiet. Your career dose is {rad['careerPct']:.1f}% of the NASA limit, "
-            f"and each spacewalk has a {rad['evaBudgetMsv']} mSv budget. "
-            "Check with the crew before going out."
-        )
+        else:
+            parts.append(
+                f"Space weather is quiet. Your career dose is {rad['careerPct']:.1f}% of the NASA limit, "
+                f"and each spacewalk has a {rad['evaBudgetMsv']} mSv budget."
+            )
     if has("radiation", "dose", "sievert", "msv", "solar", "sun", "flare"):
         msg = (
             f"Dose rate now {last['dose_rate']:.1f} µSv/h. Mission dose {last['total_dose']:.2f} mSv; career "
@@ -162,30 +186,28 @@ def _rule_answer(q: str, c: dict[str, Any]) -> str:
         )
         if wx["active"]:
             msg += f" A solar event is active: {wx['active']['summary']}"
-        return msg
+        parts.append(msg)
     if has("heart", "pulse", "bpm"):
-        return (
-            f"Heart rate {last['heart_rate']:.0f} bpm while {last['state']}. "
-            "Your pre-flight resting baseline "
-            f"is {prof['resting_hr']:.0f} bpm."
+        parts.append(
+            f"Heart rate {last['heart_rate']:.0f} bpm while {last['state']}; "
+            f"your pre-flight resting baseline is {prof['resting_hr']:.0f} bpm."
         )
     if has("oxygen", "spo2", "breath"):
-        return f"Blood oxygen {last['spo2']:.0f}% (your baseline {prof['spo2']:.0f}%)."
+        parts.append(f"Blood oxygen {last['spo2']:.0f}% (your baseline {prof['spo2']:.0f}%).")
     if has("sleep", "tired", "rest"):
         d = c.get("today") or {}
-        return (
-            f"Today you slept {d.get('sleepHours', 0)} h of your {prof['sleep_target_h']} h target. "
-            "A dark, cool sleep station and a fixed schedule help."
-        )
+        parts.append(f"Today you slept {d.get('sleepHours', 0)} h of your {prof['sleep_target_h']} h target.")
     if has("exercise", "workout", "bone", "muscle", "gym"):
         d = c.get("today") or {}
-        return (
+        parts.append(
             f"Exercise today: {d.get('exerciseMinutes', 0)} of {d.get('exerciseTargetMinutes', 120)} min. "
-            "Resistance exercise protects hip and spine bone; cardio keeps your heart fit."
+            "Resistance exercise protects hip and spine bone."
         )
-    if has("summary", "report", "today", "how am i", "status"):
-        s = c.get("lastSummary")
-        return s["text"] if s else "No daily summary yet. One is written at the end of each mission day."
+    if has("summary", "report", "today", "how am i", "status", "doing"):
+        sm = c.get("lastSummary")
+        parts.append(sm["text"] if sm else "No daily summary yet. One is written at the end of each mission day.")
+    if parts:
+        return " ".join(parts)
     return (
         "I can answer about your heart rate, blood oxygen, radiation, space weather, sleep, exercise, "
         "alerts and your daily summary."
